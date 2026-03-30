@@ -365,7 +365,7 @@ function renderZoneMap(pours) {
   svg.innerHTML = html;
 }
 
-// Timeline
+// Timeline — Gantt-style with section swim lanes
 function renderTimeline(pours) {
   const tl = document.getElementById('timelineContent');
   const dated = pours.filter(p => p.date).sort((a,b) => {
@@ -376,35 +376,71 @@ function renderTimeline(pours) {
   if (!dated.length) { document.getElementById('timeline').classList.add('hidden'); return; }
   document.getElementById('timeline').classList.remove('hidden');
 
-  // Parse dates for range
   const parseMD = d => { const [m,dd] = d.split('/').map(Number); return new Date(2026, m-1, dd); };
+  const allDated = pours.filter(p => p.date);
   const minD = parseMD(dated[0].date);
-  const maxD = parseMD(dated[dated.length-1].date);
+  const maxD = new Date(parseMD(dated[dated.length-1].date).getTime() + 3*86400000); // pad 3 days
   const range = Math.max(1, (maxD - minD) / 86400000);
+  const pct = d => Math.max(1, Math.min(99, ((parseMD(d) - minD) / 86400000 / range) * 100));
 
-  let html = `<div class="relative h-16">`;
-  // Track line
-  html += `<div class="absolute top-7 left-0 right-0 h-px bg-white/10"></div>`;
-  // Month markers
-  const months = new Set(dated.map(p => p.date.split('/')[0]));
-  months.forEach(m => {
-    const mName = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m] || m;
-    const mDate = new Date(2026, +m-1, 1);
-    const pct = Math.max(0, Math.min(100, ((mDate - minD) / 86400000 / range) * 100));
-    html += `<div class="absolute top-9 text-[8px] text-white/20 font-bold" style="left:${pct}%">${mName}</div>`;
+  const sections = ['A','B','C','D'];
+  const laneH = 32;
+  const topPad = 24;
+  const totalH = topPad + sections.length * laneH + 8;
+
+  let html = `<div class="relative" style="height:${totalH}px">`;
+
+  // Date axis labels
+  const daySpan = (maxD - minD) / 86400000;
+  const step = daySpan > 28 ? 7 : daySpan > 14 ? 3 : 1;
+  for (let i = 0; i <= daySpan; i += step) {
+    const d = new Date(minD.getTime() + i * 86400000);
+    const x = (i / range) * 100;
+    const label = `${d.getMonth()+1}/${d.getDate()}`;
+    html += `<div class="absolute text-[8px] mono text-white/20 font-medium" style="left:${x}%;top:0;transform:translateX(-50%)">${label}</div>`;
+    html += `<div class="absolute bg-white/[0.03]" style="left:${x}%;top:${topPad-4}px;width:1px;height:${totalH-topPad}px"></div>`;
+  }
+
+  // Swim lanes
+  sections.forEach((sec, idx) => {
+    const y = topPad + idx * laneH;
+    const c = SEC_COLORS[sec];
+    // Lane label
+    html += `<div class="absolute text-[9px] font-bold mono" style="left:0;top:${y+8}px;color:${c};opacity:0.5">${sec}</div>`;
+    // Lane line
+    html += `<div class="absolute bg-white/[0.04]" style="left:20px;right:0;top:${y+laneH-1}px;height:1px"></div>`;
+
+    // Pour markers on this lane
+    const secPours = dated.filter(p => p.section === sec);
+    secPours.forEach(p => {
+      const x = pct(p.date);
+      const isSlurry = p.type === 'Slurry';
+      const isPlinth = p.type === 'Plinth';
+      const barW = Math.max(2, Math.min(8, p.total / 150));
+      const barH = isSlurry ? 12 : isPlinth ? 8 : 20;
+      const barColor = isSlurry ? '#6b7280' : c;
+      const barY = y + (laneH - barH) / 2;
+
+      // Glow behind
+      html += `<div class="absolute rounded" style="left:calc(${x}% - ${barW/2+2}px);top:${barY-2}px;width:${barW+4}px;height:${barH+4}px;background:${barColor};opacity:0.08;filter:blur(4px)"></div>`;
+      // Bar
+      html += `<div class="absolute rounded cursor-pointer group" style="left:calc(${x}% - ${barW/2}px);top:${barY}px;width:${barW}px;height:${barH}px;background:${barColor};opacity:0.85;transition:all 0.2s" title="${p.id}: ${p.total} CY — ${p.date}${p.desc ? ' ('+p.desc+')' : ''}">
+        <div class="absolute -top-5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/90 text-[8px] mono text-white px-1.5 py-0.5 rounded pointer-events-none" style="border:1px solid ${barColor}44">${p.id} · ${p.total}CY</div>
+      </div>`;
+      // Pour ID below bar
+      html += `<div class="absolute text-[7px] mono text-white/25 whitespace-nowrap" style="left:calc(${x}% + ${barW/2+3}px);top:${barY+2}px">${p.id}</div>`;
+    });
   });
-  // Pour dots
-  dated.forEach(p => {
-    const d = parseMD(p.date);
-    const pct = ((d - minD) / 86400000 / range) * 100;
-    const c = SEC_COLORS[p.section] || '#888';
-    const isSlurry = p.type === 'Slurry';
-    const sz = isSlurry ? 6 : Math.max(6, Math.min(16, p.total / 80));
-    html += `<div class="absolute flex flex-col items-center" style="left:${pct}%;top:${28-sz/2}px;transform:translateX(-50%)">
-      <div class="rounded-full ${isSlurry?'border border-gray-500':'shadow-lg'}" style="width:${sz}px;height:${sz}px;background:${isSlurry?'#6b7280':c};box-shadow:0 0 8px ${c}44" title="${p.id}: ${p.total} CY on ${p.date}"></div>
-      <span class="text-[7px] mono text-white/40 mt-1 whitespace-nowrap">${p.id}</span>
-    </div>`;
-  });
+
+  // Today marker
+  const today = new Date();
+  const todayDays = (today - minD) / 86400000;
+  if (todayDays >= 0 && todayDays <= range) {
+    const tx = (todayDays / range) * 100;
+    html += `<div class="absolute" style="left:${tx}%;top:${topPad-6}px;height:${totalH-topPad+6}px;width:2px;background:linear-gradient(180deg,#fbbf24,transparent);opacity:0.6"></div>`;
+    html += `<div class="absolute text-[7px] font-bold text-yellow-400/70" style="left:${tx}%;top:${topPad-14}px;transform:translateX(-50%)">TODAY</div>`;
+  }
+
   html += `</div>`;
   tl.innerHTML = html;
 }
@@ -455,16 +491,16 @@ function renderPourCards(pours) {
           ${stat}
         </div>
       </div>
-      ${p.cy8000 > 0 ? `<div class="mb-2">
-        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">8000 PSI</span><span class="mono text-red-300 font-semibold">${p.cy8000} CY</span></div>
+      ${p.cy8000 > 0 || p.type==='Structural' ? `<div class="mb-2">
+        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">8000 PSI</span><span class="mono text-red-300 font-semibold cursor-pointer hover:underline" onclick="let v=prompt('8000 CY for ${p.id}:','${p.cy8000}');if(v!==null)apiPost({action:'update',pourId:'${p.id}',cy8000:+v})">${p.cy8000||0} CY</span></div>
         <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400 bar-animate" style="width:${pct8}%"></div></div>
       </div>` : ''}
-      ${p.cy5000 > 0 ? `<div class="mb-2">
-        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">5000 PSI</span><span class="mono text-blue-300 font-semibold">${p.cy5000} CY</span></div>
+      ${p.cy5000 > 0 || p.type==='Structural' ? `<div class="mb-2">
+        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">5000 PSI</span><span class="mono text-blue-300 font-semibold cursor-pointer hover:underline" onclick="let v=prompt('5000 CY for ${p.id}:','${p.cy5000}');if(v!==null)apiPost({action:'update',pourId:'${p.id}',cy5000:+v})">${p.cy5000||0} CY</span></div>
         <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 bar-animate" style="width:${pct5}%"></div></div>
       </div>` : ''}
-      ${p.slurry > 0 ? `<div class="mb-3">
-        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">Slurry (3 sk)</span><span class="mono text-gray-300 font-semibold">${p.slurry} CY</span></div>
+      ${p.slurry > 0 || p.type==='Slurry' ? `<div class="mb-3">
+        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">Slurry (3 sk)</span><span class="mono text-gray-300 font-semibold cursor-pointer hover:underline" onclick="let v=prompt('Slurry CY for ${p.id}:','${p.slurry}');if(v!==null)apiPost({action:'update',pourId:'${p.id}',slurry:+v})">${p.slurry||0} CY</span></div>
         <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-gray-500 to-gray-400 bar-animate" style="width:${Math.round((p.slurry/Math.max(...pours.map(x=>x.slurry),1))*100)}%"></div></div>
       </div>` : ''}
       <div class="flex items-center justify-between pt-2 border-t border-white/5">
