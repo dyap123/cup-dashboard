@@ -200,7 +200,7 @@ function anyDate(row, idx) {
 
 // ── STATE ────────────────────────────────────────────────────────────────────
 let state = { refs:{}, pours:[], grand:{}, sectionFilter:'ALL', dateFilter:'ALL' };
-// ── FETCH & PARSE (flat table: PourID, Section, Date, Type, Desc, 8000, 5000, Slurry, Total, Trucks, Status, Label) ──
+// ── FETCH & PARSE (formatted sheet with REFERENCE + ORDER SUMMARY sections) ──
 async function fetchData() {
   const res  = await fetch(GViz_URL);
   const text = await res.text();
@@ -209,46 +209,58 @@ async function fetchData() {
   const json = JSON.parse(m[1]);
   const rows = json.table.rows;
 
-  const pours = [];
+  const refs = {}, pours = [];
+  let grand = { cy8000:0, cy5000:0, slurry:0, total:0, trucks:0 };
+  let mode = 'ref'; // start with reference rows (gviz skips header rows)
+
   for (const row of rows) {
     if (!row?.c) continue;
-    const id = anyStr(row, 0).trim();
-    if (!id || id === 'Pour ID') continue; // skip header
-    pours.push({
-      id,
-      section:  anyStr(row, 1).trim() || id[0],
-      date:     anyDate(row, 2),
-      type:     anyStr(row, 3).trim(),
-      desc:     anyStr(row, 4).trim(),
-      cy8000:   anyNum(row, 5),
-      cy5000:   anyNum(row, 6),
-      slurry:   anyNum(row, 7),
-      total:    anyNum(row, 8),
-      trucks:   anyNum(row, 9),
-      status:   anyStr(row, 10).trim(),
-      label:    anyStr(row, 11).trim(),
-    });
+    const a = anyStr(row, 0).trim();
+
+    // Reference rows (A/B/C/D at the start)
+    if (mode === 'ref' && ['A','B','C','D'].includes(a)) {
+      const cy8000 = anyNum(row, 1);
+      const slurryVol = anyNum(row, 3);
+      const plinthVol = anyNum(row, 5);
+      const secTotal = anyNum(row, 6);
+      const cy5000 = Math.max(0, secTotal - cy8000 - slurryVol - plinthVol);
+      refs[a] = { cy8000, cy5000, slurryVol, plinthVol, secTotal };
+      continue;
+    }
+    if (a === 'TOTAL') { mode = 'scan'; continue; }
+
+    // Find ORDER SUMMARY
+    if (a === 'ORDER SUMMARY') { mode = 'order_skip'; continue; }
+    if (mode === 'order_skip') { mode = 'order'; continue; } // skip header row
+
+    // Parse order rows
+    if (mode === 'order') {
+      if (a === 'GRAND TOTAL') {
+        grand = {
+          cy8000: anyNum(row, 3), cy5000: anyNum(row, 4),
+          slurry: anyNum(row, 5), total: anyNum(row, 6), trucks: anyNum(row, 7),
+        };
+        break;
+      }
+      if (/^[A-D]-[1-9]/.test(a)) {
+        pours.push({
+          id: a, section: anyStr(row, 1).trim() || a[0],
+          date: anyDate(row, 2),
+          cy8000: anyNum(row, 3), cy5000: anyNum(row, 4),
+          slurry: anyNum(row, 5), total: anyNum(row, 6),
+          trucks: anyNum(row, 7), status: anyStr(row, 8).trim(),
+          label: '', type: '',
+        });
+      }
+    }
   }
 
-  // Compute section refs from pours
-  const refs = {};
+  // Infer type from data
   for (const p of pours) {
-    if (!refs[p.section]) refs[p.section] = { cy8000:0, cy5000:0, slurryVol:0, plinthVol:0, secTotal:0 };
-    const r = refs[p.section];
-    if (p.type === 'Plinth') r.plinthVol += p.cy8000;
-    else if (p.type === 'Slurry') r.slurryVol += p.slurry;
-    else { r.cy8000 += p.cy8000; r.cy5000 += p.cy5000; }
-    r.secTotal += p.total;
+    if (p.slurry > 0 && p.cy8000 === 0 && p.cy5000 === 0) p.type = 'Slurry';
+    else if (p.total <= 5 && p.cy8000 > 0 && p.cy5000 === 0 && p.slurry === 0) p.type = 'Plinth';
+    else p.type = 'Structural';
   }
-
-  // Grand total
-  const grand = {
-    cy8000:  pours.reduce((s,p) => s + p.cy8000, 0),
-    cy5000:  pours.reduce((s,p) => s + p.cy5000, 0),
-    slurry:  pours.reduce((s,p) => s + p.slurry, 0),
-    total:   pours.reduce((s,p) => s + p.total, 0),
-    trucks:  pours.reduce((s,p) => s + p.trucks, 0),
-  };
 
   return { refs, pours, grand };
 }
@@ -288,10 +300,10 @@ function renderZoneMap(pours) {
   const svg = document.getElementById('zoneSvg');
   // C=left, B=upper-center, A=right full height, D=bottom spanning under C+B
   const layout = [
-    { s:'C', x:0,   y:0,   w:240, h:168 },
-    { s:'B', x:244, y:0,   w:352, h:168 },
+    { s:'C', x:0,   y:0,   w:240, h:148 },
+    { s:'B', x:244, y:0,   w:352, h:148 },
     { s:'A', x:600, y:0,   w:400, h:280 },
-    { s:'D', x:0,   y:172, w:596, h:108 },
+    { s:'D', x:0,   y:152, w:596, h:128 },
   ];
   const activeSec = state.sectionFilter;
   // Slurry hatching pattern
