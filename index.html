@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CUP Pour Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #06060a;
+      --bg-card: #0e0e14;
+      --bg-card-hover: #12121a;
+      --border: #1a1a28;
+      --border-hover: #2a2a3c;
+      --text: #e8e8f0;
+      --text-muted: #5c5c72;
+      --text-dim: #3a3a4e;
+      --amber: #ffb800;
+      --gold: #ffd700;
+      --red-8000: #ff4d4d;
+      --orange-8000: #ff8c00;
+      --cyan-5000: #00d4ff;
+      --blue-5000: #4d94ff;
+      --section-a: #3b82f6;
+      --section-b: #10b981;
+      --section-c: #f59e0b;
+      --section-d: #8b5cf6;
+      --section-a-dim: rgba(59,130,246,0.12);
+      --section-b-dim: rgba(16,185,129,0.12);
+      --section-c-dim: rgba(245,158,11,0.12);
+      --section-d-dim: rgba(139,92,246,0.12);
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Atmospheric background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 40%, rgba(59,130,246,0.04) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 40% at 80% 20%, rgba(139,92,246,0.04) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 60% at 50% 80%, rgba(245,158,11,0.03) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 2.5rem 2rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ========== HEADER ========== */
+    .header {
+      text-align: center;
+      margin-bottom: 3rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .header h1 {
+      font-size: 2.8rem;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, var(--text) 0%, var(--gold) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header .mix-codes {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.75rem;
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+    .header .mix-codes .mix-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.3rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+    }
+    .mix-tag .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .mix-tag .dot.d8000 { background: linear-gradient(135deg, var(--red-8000), var(--orange-8000)); }
+    .mix-tag .dot.d5000 { background: linear-gradient(135deg, var(--cyan-5000), var(--blue-5000)); }
+    .header .refresh-bar {
+      margin-top: 1rem;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+    .refresh-bar .pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
+      50% { opacity: 0.4; box-shadow: 0 0 0 4px rgba(16,185,129,0); }
+    }
+
+    /* ========== SECTION SUMMARY CARDS ========== */
+    .section-label { font-size: 1.3rem; font-weight: 700; margin-bottom: 1.25rem; color: var(--text-muted); }
+    .sections {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 3rem;
+    }
+    .sec-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    .sec-card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+    }
+    .sec-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      border-radius: 14px 14px 0 0;
+    }
+    .sec-card[data-s="A"]::before { background: var(--section-a); }
+    .sec-card[data-s="B"]::before { background: var(--section-b); }
+    .sec-card[data-s="C"]::before { background: var(--section-c); }
+    .sec-card[data-s="D"]::before { background: var(--section-d); }
+    .sec-card[data-s="A"]:hover { box-shadow: 0 8px 40px rgba(59,130,246,0.1); }
+    .sec-card[data-s="B"]:hover { box-shadow: 0 8px 40px rgba(16,185,129,0.1); }
+    .sec-card[data-s="C"]:hover { box-shadow: 0 8px 40px rgba(245,158,11,0.1); }
+    .sec-card[data-s="D"]:hover { box-shadow: 0 8px 40px rgba(139,92,246,0.1); }
+    .sec-card .big-letter {
+      position: absolute;
+      right: 0.75rem;
+      top: -0.25rem;
+      font-size: 5rem;
+      font-weight: 900;
+      opacity: 0.04;
+      line-height: 1;
+      pointer-events: none;
+    }
+    .sec-card .sec-top {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.75rem;
+    }
+    .sec-badge {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.85rem;
+      color: white;
+    }
+    .sec-badge.a { background: var(--section-a); }
+    .sec-badge.b { background: var(--section-b); }
+    .sec-badge.c { background: var(--section-c); }
+    .sec-badge.d { background: var(--section-d); }
+    .sec-card .sec-name { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .sec-card .total-cy {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.2rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .sec-card .total-label {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 1rem;
+    }
+    .sec-card .breakdown {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.4rem 1rem;
+    }
+    .sec-card .bk-item {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+    }
+    .sec-card .bk-item .bk-label { color: var(--text-muted); }
+    .sec-card .bk-item .bk-val { font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
+
+    /* ========== POUR CARDS ========== */
+    .pours {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 3rem;
+    }
+    .pour-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .pour-card:hover {
+      border-color: var(--border-hover);
+      background: var(--bg-card-hover);
+      transform: translateY(-2px);
+    }
+    .pour-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+    }
+    .pour-card[data-s="A"]::after { background: var(--section-a-dim); }
+    .pour-card[data-s="B"]::after { background: var(--section-b-dim); }
+    .pour-card[data-s="C"]::after { background: var(--section-c-dim); }
+    .pour-card[data-s="D"]::after { background: var(--section-d-dim); }
+    .pour-card[data-s="A"]:hover { box-shadow: 0 4px 24px rgba(59,130,246,0.08); }
+    .pour-card[data-s="B"]:hover { box-shadow: 0 4px 24px rgba(16,185,129,0.08); }
+    .pour-card[data-s="C"]:hover { box-shadow: 0 4px 24px rgba(245,158,11,0.08); }
+    .pour-card[data-s="D"]:hover { box-shadow: 0 4px 24px rgba(139,92,246,0.08); }
+
+    .pour-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+    }
+    .pour-head .left { display: flex; align-items: center; gap: 0.6rem; }
+    .pour-id {
+      font-size: 1.3rem;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: -0.02em;
+    }
+    .pour-date {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .pour-date.empty { color: var(--text-dim); font-style: italic; }
+    .status-chip {
+      font-size: 0.65rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 100px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .status-chip.pending { background: #1a1a28; color: #5c5c72; }
+    .status-chip.ordered { background: rgba(251,191,36,0.12); color: #fbbf24; }
+    .status-chip.poured { background: rgba(74,222,128,0.12); color: #4ade80; }
+
+    .mix-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.6rem;
+    }
+    .mix-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      width: 36px;
+      flex-shrink: 0;
+    }
+    .mix-label.l8000 { color: var(--orange-8000); }
+    .mix-label.l5000 { color: var(--cyan-5000); }
+    .mix-bar-track {
+      flex: 1;
+      height: 6px;
+      background: #1a1a28;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .mix-bar {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      min-width: 0;
+    }
+    .mix-bar.b8000 { background: linear-gradient(90deg, var(--red-8000), var(--orange-8000)); }
+    .mix-bar.b5000 { background: linear-gradient(90deg, var(--cyan-5000), var(--blue-5000)); }
+    .mix-val {
+      font-size: 0.78rem;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      width: 65px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .pour-foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 0.9rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border);
+    }
+    .pour-stat { text-align: center; }
+    .pour-stat .ps-num {
+      font-size: 1.15rem;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .pour-stat .ps-label {
+      font-size: 0.6rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .pour-stat .ps-num.gold { color: var(--gold); }
+
+    /* ========== GRAND TOTAL ========== */
+    .grand-total {
+      background: linear-gradient(135deg, #0c0c18 0%, #0f1628 50%, #0c0c18 100%);
+      border: 1px solid rgba(255,215,0,0.15);
+      border-radius: 18px;
+      padding: 2.5rem 3rem;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+    .grand-total::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(255,215,0,0.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .gt-item { position: relative; }
+    .gt-num {
+      font-size: 2.8rem;
+      font-weight: 900;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: -0.03em;
+    }
+    .gt-label {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-top: 0.25rem;
+    }
+    .gt-8000 { color: var(--orange-8000); }
+    .gt-5000 { color: var(--cyan-5000); }
+    .gt-total { color: var(--gold); }
+    .gt-trucks { color: var(--text); }
+    .gt-divider {
+      width: 1px;
+      height: 60px;
+      background: linear-gradient(180deg, transparent, var(--border), transparent);
+    }
+
+    /* ========== FOOTER ========== */
+    .footer {
+      text-align: center;
+      padding: 1.5rem 0;
+      border-top: 1px solid var(--border);
+      font-size: 0.7rem;
+      color: var(--text-dim);
+    }
+    .footer a { color: var(--amber); text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+
+    /* ========== LOADING / ERROR ========== */
+    .loading {
+      text-align: center;
+      padding: 6rem 2rem;
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid var(--border);
+      border-top-color: var(--amber);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1.5rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading p { color: var(--text-muted); font-size: 0.9rem; }
+    .error-box {
+      text-align: center;
+      padding: 3rem;
+      background: rgba(239,68,68,0.06);
+      border: 1px solid rgba(239,68,68,0.2);
+      border-radius: 12px;
+      color: #fca5a5;
+      margin: 2rem 0;
+    }
+
+    /* ========== ANIMATIONS ========== */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-in {
+      animation: fadeUp 0.5s ease forwards;
+      opacity: 0;
+    }
+
+    /* ========== RESPONSIVE ========== */
+    @media (max-width: 1100px) {
+      .pours { grid-template-columns: repeat(2, 1fr); }
+      .gt-num { font-size: 2rem; }
+    }
+    @media (max-width: 768px) {
+      .container { padding: 1.5rem 1rem; }
+      .header h1 { font-size: 1.8rem; }
+      .sections { grid-template-columns: repeat(2, 1fr); }
+      .pours { grid-template-columns: 1fr; }
+      .grand-total { flex-wrap: wrap; gap: 1.5rem; padding: 1.5rem; }
+      .gt-divider { display: none; }
+      .gt-num { font-size: 1.6rem; }
+    }
+    @media (max-width: 480px) {
+      .sections { grid-template-columns: 1fr; }
+      .header .mix-codes { flex-direction: column; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="app">
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Loading pour data...</p>
+    </div>
+  </div>
+
+  <script>
+    const SHEET_ID = '1fTL_w-kLz0Jzwni9r3kSuGqSvlsFhNm0RsfRurQH750';
+    const GID = 999;
+    const REFRESH_MS = 30000;
+    const SECTION_COLORS = { A: 'a', B: 'b', C: 'c', D: 'd' };
+
+    // ---- DATA FETCHING ----
+    async function fetchSheetData() {
+      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${GID}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      const jsonStr = text.replace(/^[\s\S]*?google\.visualization\.Query\.setResponse\(/, '').replace(/\);?\s*$/, '');
+      return JSON.parse(jsonStr);
+    }
+
+    function cell(row, idx) {
+      if (!row || !row.c || !row.c[idx]) return null;
+      return row.c[idx].v;
+    }
+
+    function cellStr(row, idx) {
+      const v = cell(row, idx);
+      return v != null ? String(v) : '';
+    }
+
+    function cellNum(row, idx) {
+      const v = cell(row, idx);
+      return typeof v === 'number' ? v : 0;
+    }
+
+    function formatCY(n) {
+      if (!n || n === 0) return '0.00';
+      return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatInt(n) {
+      if (!n || n === 0) return '0';
+      return Math.round(n).toLocaleString('en-US');
+    }
+
+    function formatDate(v) {
+      if (!v) return null;
+      if (typeof v === 'string' && v.startsWith('Date(')) {
+        const parts = v.match(/Date\((\d+),(\d+),(\d+)\)/);
+        if (parts) {
+          const m = parseInt(parts[2]) + 1;
+          return `${m}/${parts[3]}`;
+        }
+      }
+      if (v instanceof Date) {
+        return `${v.getMonth()+1}/${v.getDate()}`;
+      }
+      return String(v);
+    }
+
+    // ---- DATA EXTRACTION ----
+    function extractData(response) {
+      const rows = response.table.rows;
+      const data = { reference: [], pours: [], grandTotal: null };
+
+      let mode = 'scan';
+
+      for (let i = 0; i < rows.length; i++) {
+        const a = cellStr(rows[i], 0);
+        const d = cellStr(rows[i], 3);
+
+        // Reference section
+        if (a.includes('REFERENCE')) { mode = 'ref_header'; continue; }
+        if (mode === 'ref_header') { mode = 'ref_data'; continue; }
+        if (mode === 'ref_data') {
+          if (['A','B','C','D'].includes(a)) {
+            data.reference.push({
+              section: a,
+              pileCaps: cellNum(rows[i], 1),
+              pcVol: cellNum(rows[i], 2),
+              footings: cellNum(rows[i], 3),
+              ftgVol: cellNum(rows[i], 4),
+              gbVol: cellNum(rows[i], 5),
+              slurryVol: cellNum(rows[i], 6),
+              slurryMix: cellNum(rows[i], 7),
+              plinthVol: cellNum(rows[i], 8),
+              sectionTotal: cellNum(rows[i], 9),
+            });
+          }
+          if (a === 'TOTAL') { mode = 'scan'; }
+          continue;
+        }
+
+        // Order Summary section
+        if (a === 'ORDER SUMMARY') { mode = 'order_header'; continue; }
+        if (mode === 'order_header') { mode = 'order_data'; continue; }
+        if (mode === 'order_data') {
+          if (a === 'GRAND TOTAL') {
+            data.grandTotal = {
+              total8000: cellNum(rows[i], 3),
+              total5000: cellNum(rows[i], 4),
+              grandTotal: cellNum(rows[i], 5),
+              trucks8000: cellNum(rows[i], 6),
+              trucks5000: cellNum(rows[i], 7),
+              totalTrucks: cellNum(rows[i], 8),
+            };
+            mode = 'done';
+            continue;
+          }
+          if (a && /^[A-D]-[1-3]/.test(a)) {
+            data.pours.push({
+              id: a.replace(' (Plinth)', ''),
+              label: a,
+              section: cellStr(rows[i], 1) || a[0],
+              date: formatDate(cell(rows[i], 2)),
+              total8000: cellNum(rows[i], 3),
+              total5000: cellNum(rows[i], 4),
+              grandTotal: cellNum(rows[i], 5),
+              trucks8000: cellNum(rows[i], 6),
+              trucks5000: cellNum(rows[i], 7),
+              totalTrucks: cellNum(rows[i], 8),
+              status: cellStr(rows[i], 9).toLowerCase(),
+            });
+          }
+          continue;
+        }
+      }
+
+      return data;
+    }
+
+    // ---- RENDERING ----
+    function render(data) {
+      const app = document.getElementById('app');
+
+      // Compute max CY for bar scaling
+      const maxCY = Math.max(1, ...data.pours.map(p => Math.max(p.total8000, p.total5000)));
+
+      // Compute totals from reference
+      const refTotal = data.reference.reduce((acc, r) => acc + r.sectionTotal, 0);
+
+      let html = '';
+
+      // HEADER
+      html += `
+        <header class="header animate-in">
+          <h1>CUP Pour Dashboard</h1>
+          <div class="mix-codes">
+            <span class="mix-tag"><span class="dot d8000"></span> 8000 PSI — O80D739K1</span>
+            <span class="mix-tag"><span class="dot d5000"></span> 5000 PSI — O60C649J1</span>
+          </div>
+          <div class="refresh-bar">
+            <span class="pulse-dot"></span>
+            <span>Live from Google Sheets — refreshes every 30s</span>
+          </div>
+        </header>`;
+
+      // SECTION SUMMARY CARDS
+      html += `<div class="section-label animate-in" style="animation-delay:0.1s">Section Overview</div>`;
+      html += `<div class="sections">`;
+      data.reference.forEach((r, idx) => {
+        const s = r.section;
+        html += `
+          <div class="sec-card animate-in" data-s="${s}" style="animation-delay:${0.15 + idx * 0.05}s">
+            <div class="big-letter">${s}</div>
+            <div class="sec-top">
+              <div class="sec-badge ${s.toLowerCase()}">${s}</div>
+              <div class="sec-name">Section ${s}</div>
+            </div>
+            <div class="total-cy">${formatCY(r.sectionTotal)}</div>
+            <div class="total-label">Total Cubic Yards</div>
+            <div class="breakdown">
+              <div class="bk-item"><span class="bk-label">Pile Caps</span><span class="bk-val">${formatCY(r.pcVol)}</span></div>
+              <div class="bk-item"><span class="bk-label">Footings</span><span class="bk-val">${formatCY(r.ftgVol)}</span></div>
+              <div class="bk-item"><span class="bk-label">Grade Beams</span><span class="bk-val">${formatCY(r.gbVol)}</span></div>
+              <div class="bk-item"><span class="bk-label">Slurry</span><span class="bk-val">${formatCY(r.slurryVol)}</span></div>
+              ${r.plinthVol ? `<div class="bk-item"><span class="bk-label">Plinth</span><span class="bk-val">${formatCY(r.plinthVol)}</span></div>` : ''}
+            </div>
+          </div>`;
+      });
+      html += `</div>`;
+
+      // POUR CARDS
+      html += `<div class="section-label animate-in" style="animation-delay:0.35s">Pour Schedule — ${data.pours.length} Pours</div>`;
+      html += `<div class="pours">`;
+      data.pours.forEach((p, idx) => {
+        const s = p.section;
+        const pct8 = maxCY > 0 ? (p.total8000 / maxCY * 100) : 0;
+        const pct5 = maxCY > 0 ? (p.total5000 / maxCY * 100) : 0;
+        const statusClass = p.status.includes('order') ? 'ordered' : p.status.includes('pour') ? 'poured' : 'pending';
+        const statusText = p.status || 'Pending';
+        const dateStr = p.date || '';
+        const dateClass = dateStr ? '' : 'empty';
+        const dateDisplay = dateStr || 'No date set';
+
+        html += `
+          <div class="pour-card animate-in" data-s="${s}" style="animation-delay:${0.4 + idx * 0.04}s">
+            <div class="pour-head">
+              <div class="left">
+                <div class="sec-badge ${s.toLowerCase()}">${s}</div>
+                <div>
+                  <div class="pour-id">${p.label}</div>
+                  <div class="pour-date ${dateClass}">${dateDisplay}</div>
+                </div>
+              </div>
+              <div class="status-chip ${statusClass}">${statusText}</div>
+            </div>
+            <div class="mix-row">
+              <span class="mix-label l8000">8000</span>
+              <div class="mix-bar-track">
+                <div class="mix-bar b8000" style="width:${pct8}%"></div>
+              </div>
+              <span class="mix-val">${formatCY(p.total8000)}</span>
+            </div>
+            <div class="mix-row">
+              <span class="mix-label l5000">5000</span>
+              <div class="mix-bar-track">
+                <div class="mix-bar b5000" style="width:${pct5}%"></div>
+              </div>
+              <span class="mix-val">${formatCY(p.total5000)}</span>
+            </div>
+            <div class="pour-foot">
+              <div class="pour-stat">
+                <div class="ps-num gold">${formatCY(p.grandTotal)}</div>
+                <div class="ps-label">Total CY</div>
+              </div>
+              <div class="pour-stat">
+                <div class="ps-num">${formatInt(p.trucks8000)}</div>
+                <div class="ps-label">8000 Trucks</div>
+              </div>
+              <div class="pour-stat">
+                <div class="ps-num">${formatInt(p.trucks5000)}</div>
+                <div class="ps-label">5000 Trucks</div>
+              </div>
+              <div class="pour-stat">
+                <div class="ps-num">${formatInt(p.totalTrucks)}</div>
+                <div class="ps-label">Total Trucks</div>
+              </div>
+            </div>
+          </div>`;
+      });
+      html += `</div>`;
+
+      // GRAND TOTAL
+      const gt = data.grandTotal || { total8000: 0, total5000: 0, grandTotal: 0, totalTrucks: 0 };
+      html += `
+        <div class="grand-total animate-in" style="animation-delay:0.7s">
+          <div class="gt-item">
+            <div class="gt-num gt-8000">${formatCY(gt.total8000)}</div>
+            <div class="gt-label">8000 PSI Total</div>
+          </div>
+          <div class="gt-divider"></div>
+          <div class="gt-item">
+            <div class="gt-num gt-5000">${formatCY(gt.total5000)}</div>
+            <div class="gt-label">5000 PSI Total</div>
+          </div>
+          <div class="gt-divider"></div>
+          <div class="gt-item">
+            <div class="gt-num gt-total">${formatCY(gt.grandTotal)}</div>
+            <div class="gt-label">Grand Total CY</div>
+          </div>
+          <div class="gt-divider"></div>
+          <div class="gt-item">
+            <div class="gt-num gt-trucks">${formatInt(gt.totalTrucks)}</div>
+            <div class="gt-label">Total Trucks</div>
+          </div>
+        </div>`;
+
+      // FOOTER
+      html += `
+        <footer class="footer animate-in" style="animation-delay:0.8s">
+          <a href="https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit#gid=${GID}" target="_blank">Open Sheet</a>
+          &nbsp;&middot;&nbsp; CUP Concrete Pour Tracking &nbsp;&middot;&nbsp; OpenYap
+        </footer>`;
+
+      app.innerHTML = html;
+    }
+
+    function showError(msg) {
+      document.getElementById('app').innerHTML = `
+        <header class="header">
+          <h1>CUP Pour Dashboard</h1>
+        </header>
+        <div class="error-box">
+          <p style="font-size:1.1rem;font-weight:600;margin-bottom:0.5rem">Unable to load data</p>
+          <p style="font-size:0.85rem;color:#fca5a5cc">${msg}</p>
+          <p style="font-size:0.75rem;margin-top:1rem;color:#5c5c72">
+            Make sure the sheet is shared as "Anyone with the link" &rarr; Viewer
+          </p>
+        </div>`;
+    }
+
+    // ---- MAIN LOOP ----
+    let lastData = null;
+
+    async function refresh() {
+      try {
+        const response = await fetchSheetData();
+        const data = extractData(response);
+        lastData = data;
+        render(data);
+      } catch (err) {
+        console.error('Fetch error:', err);
+        if (!lastData) {
+          showError(err.message);
+        }
+        // If we had prior data, keep showing it (stale is better than blank)
+      }
+    }
+
+    // Initial load
+    refresh();
+
+    // Auto-refresh
+    setInterval(refresh, REFRESH_MS);
+  </script>
+</body>
+</html>
