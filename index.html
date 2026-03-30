@@ -6,6 +6,7 @@
   <title>CUP Pour Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -42,7 +43,6 @@
       overflow-x: hidden;
     }
 
-    /* Atmospheric background */
     body::before {
       content: '';
       position: fixed;
@@ -66,8 +66,8 @@
     /* ========== HEADER ========== */
     .header {
       text-align: center;
-      margin-bottom: 3rem;
-      padding-bottom: 2rem;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
       border-bottom: 1px solid var(--border);
     }
     .header h1 {
@@ -89,7 +89,7 @@
       gap: 2rem;
       flex-wrap: wrap;
     }
-    .header .mix-codes .mix-tag {
+    .mix-tag {
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
@@ -98,14 +98,10 @@
       border: 1px solid var(--border);
       background: var(--bg-card);
     }
-    .mix-tag .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-    }
+    .mix-tag .dot { width: 8px; height: 8px; border-radius: 50%; }
     .mix-tag .dot.d8000 { background: linear-gradient(135deg, var(--red-8000), var(--orange-8000)); }
     .mix-tag .dot.d5000 { background: linear-gradient(135deg, var(--cyan-5000), var(--blue-5000)); }
-    .header .refresh-bar {
+    .refresh-bar {
       margin-top: 1rem;
       font-size: 0.7rem;
       color: var(--text-dim);
@@ -114,10 +110,8 @@
       justify-content: center;
       gap: 0.4rem;
     }
-    .refresh-bar .pulse-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
+    .pulse-dot {
+      width: 6px; height: 6px; border-radius: 50%;
       background: #10b981;
       animation: pulse 2s ease-in-out infinite;
     }
@@ -126,13 +120,66 @@
       50% { opacity: 0.4; box-shadow: 0 0 0 4px rgba(16,185,129,0); }
     }
 
-    /* ========== SECTION SUMMARY CARDS ========== */
+    /* ========== FILTER BAR ========== */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      margin-bottom: 2rem;
+      padding: 1rem 1.25rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      flex-wrap: wrap;
+    }
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .filter-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+    .filter-pills { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    .pill {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.35rem 0.85rem;
+      border-radius: 100px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .pill:hover { border-color: var(--border-hover); color: var(--text); }
+    .pill.active { color: white; border-color: transparent; }
+    .pill.active[data-v="ALL"] { background: var(--text-dim); color: var(--text); }
+    .pill.active[data-v="A"] { background: var(--section-a); }
+    .pill.active[data-v="B"] { background: var(--section-b); }
+    .pill.active[data-v="C"] { background: var(--section-c); }
+    .pill.active[data-v="D"] { background: var(--section-d); }
+    .pill.active.date-pill { background: var(--amber); color: #000; }
+    .filter-sep {
+      width: 1px;
+      height: 24px;
+      background: var(--border);
+    }
+
+    /* ========== SECTION CARDS ========== */
     .section-label { font-size: 1.3rem; font-weight: 700; margin-bottom: 1.25rem; color: var(--text-muted); }
     .sections {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 1rem;
-      margin-bottom: 3rem;
+      margin-bottom: 2.5rem;
     }
     .sec-card {
       background: var(--bg-card);
@@ -143,16 +190,11 @@
       overflow: hidden;
       transition: all 0.3s ease;
     }
-    .sec-card:hover {
-      border-color: var(--border-hover);
-      transform: translateY(-2px);
-    }
+    .sec-card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
     .sec-card::before {
       content: '';
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
+      top: 0; left: 0; right: 0;
       height: 3px;
       border-radius: 14px 14px 0 0;
     }
@@ -165,70 +207,62 @@
     .sec-card[data-s="C"]:hover { box-shadow: 0 8px 40px rgba(245,158,11,0.1); }
     .sec-card[data-s="D"]:hover { box-shadow: 0 8px 40px rgba(139,92,246,0.1); }
     .sec-card .big-letter {
-      position: absolute;
-      right: 0.75rem;
-      top: -0.25rem;
-      font-size: 5rem;
-      font-weight: 900;
-      opacity: 0.04;
-      line-height: 1;
-      pointer-events: none;
+      position: absolute; right: 0.75rem; top: -0.25rem;
+      font-size: 5rem; font-weight: 900; opacity: 0.04;
+      line-height: 1; pointer-events: none;
     }
-    .sec-card .sec-top {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      margin-bottom: 0.75rem;
-    }
+    .sec-card .sec-top { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.75rem; }
     .sec-badge {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 800;
-      font-size: 0.85rem;
-      color: white;
+      width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 0.85rem; color: white; flex-shrink: 0;
     }
     .sec-badge.a { background: var(--section-a); }
     .sec-badge.b { background: var(--section-b); }
     .sec-badge.c { background: var(--section-c); }
     .sec-badge.d { background: var(--section-d); }
     .sec-card .sec-name { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
-    .sec-card .total-cy {
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      margin-bottom: 0.2rem;
-      font-family: 'JetBrains Mono', monospace;
-    }
-    .sec-card .total-label {
-      font-size: 0.65rem;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 1rem;
-    }
-    .sec-card .breakdown {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.4rem 1rem;
-    }
-    .sec-card .bk-item {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.72rem;
-    }
+    .sec-card .total-cy { font-size: 2rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.2rem; font-family: 'JetBrains Mono', monospace; }
+    .sec-card .total-label { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 1rem; }
+    .sec-card .breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 1rem; }
+    .sec-card .bk-item { display: flex; justify-content: space-between; font-size: 0.72rem; }
     .sec-card .bk-item .bk-label { color: var(--text-muted); }
     .sec-card .bk-item .bk-val { font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
+
+    /* ========== CHARTS ========== */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+    }
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      position: relative;
+    }
+    .chart-card .chart-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    .chart-card canvas { width: 100% !important; }
+    .chart-bar { grid-row: 1 / 3; }
+    .chart-donut { }
+    .chart-sections { }
 
     /* ========== POUR CARDS ========== */
     .pours {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 1rem;
-      margin-bottom: 3rem;
+      margin-bottom: 2.5rem;
     }
     .pour-card {
       background: var(--bg-card);
@@ -239,18 +273,11 @@
       position: relative;
       overflow: hidden;
     }
-    .pour-card:hover {
-      border-color: var(--border-hover);
-      background: var(--bg-card-hover);
-      transform: translateY(-2px);
-    }
+    .pour-card:hover { border-color: var(--border-hover); background: var(--bg-card-hover); transform: translateY(-2px); }
     .pour-card::after {
       content: '';
       position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
+      bottom: 0; left: 0; right: 0; height: 2px;
     }
     .pour-card[data-s="A"]::after { background: var(--section-a-dim); }
     .pour-card[data-s="B"]::after { background: var(--section-b-dim); }
@@ -260,98 +287,43 @@
     .pour-card[data-s="B"]:hover { box-shadow: 0 4px 24px rgba(16,185,129,0.08); }
     .pour-card[data-s="C"]:hover { box-shadow: 0 4px 24px rgba(245,158,11,0.08); }
     .pour-card[data-s="D"]:hover { box-shadow: 0 4px 24px rgba(139,92,246,0.08); }
-
-    .pour-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 1rem;
-    }
+    .pour-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
     .pour-head .left { display: flex; align-items: center; gap: 0.6rem; }
-    .pour-id {
-      font-size: 1.3rem;
-      font-weight: 800;
-      font-family: 'JetBrains Mono', monospace;
-      letter-spacing: -0.02em;
-    }
-    .pour-date {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      font-family: 'JetBrains Mono', monospace;
-    }
+    .pour-id { font-size: 1.3rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; letter-spacing: -0.02em; }
+    .pour-date { font-size: 0.8rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
     .pour-date.empty { color: var(--text-dim); font-style: italic; }
     .status-chip {
-      font-size: 0.65rem;
-      padding: 0.2rem 0.6rem;
-      border-radius: 100px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      font-size: 0.65rem; padding: 0.2rem 0.6rem;
+      border-radius: 100px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.04em;
     }
     .status-chip.pending { background: #1a1a28; color: #5c5c72; }
     .status-chip.ordered { background: rgba(251,191,36,0.12); color: #fbbf24; }
     .status-chip.poured { background: rgba(74,222,128,0.12); color: #4ade80; }
-
-    .mix-row {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      margin-bottom: 0.6rem;
-    }
-    .mix-label {
-      font-size: 0.65rem;
-      font-weight: 700;
-      font-family: 'JetBrains Mono', monospace;
-      width: 36px;
-      flex-shrink: 0;
-    }
+    .mix-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
+    .mix-label { font-size: 0.65rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; width: 36px; flex-shrink: 0; }
     .mix-label.l8000 { color: var(--orange-8000); }
     .mix-label.l5000 { color: var(--cyan-5000); }
-    .mix-bar-track {
-      flex: 1;
-      height: 6px;
-      background: #1a1a28;
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .mix-bar {
-      height: 100%;
-      border-radius: 3px;
-      transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-      min-width: 0;
-    }
+    .mix-bar-track { flex: 1; height: 6px; background: #1a1a28; border-radius: 3px; overflow: hidden; }
+    .mix-bar { height: 100%; border-radius: 3px; transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1); min-width: 0; }
     .mix-bar.b8000 { background: linear-gradient(90deg, var(--red-8000), var(--orange-8000)); }
     .mix-bar.b5000 { background: linear-gradient(90deg, var(--cyan-5000), var(--blue-5000)); }
-    .mix-val {
-      font-size: 0.78rem;
-      font-weight: 600;
-      font-family: 'JetBrains Mono', monospace;
-      width: 65px;
-      text-align: right;
-      flex-shrink: 0;
-    }
-
+    .mix-val { font-size: 0.78rem; font-weight: 600; font-family: 'JetBrains Mono', monospace; width: 65px; text-align: right; flex-shrink: 0; }
     .pour-foot {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 0.9rem;
-      padding-top: 0.75rem;
-      border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px solid var(--border);
     }
     .pour-stat { text-align: center; }
-    .pour-stat .ps-num {
-      font-size: 1.15rem;
-      font-weight: 700;
-      font-family: 'JetBrains Mono', monospace;
-    }
-    .pour-stat .ps-label {
-      font-size: 0.6rem;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
+    .pour-stat .ps-num { font-size: 1.15rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .pour-stat .ps-label { font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
     .pour-stat .ps-num.gold { color: var(--gold); }
+
+    .no-data {
+      text-align: center; padding: 3rem 1rem;
+      color: var(--text-dim); font-size: 0.9rem;
+      background: var(--bg-card); border: 1px dashed var(--border);
+      border-radius: 14px; margin-bottom: 2.5rem;
+    }
 
     /* ========== GRAND TOTAL ========== */
     .grand-total {
@@ -359,105 +331,68 @@
       border: 1px solid rgba(255,215,0,0.15);
       border-radius: 18px;
       padding: 2.5rem 3rem;
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-      margin-bottom: 2rem;
+      display: flex; justify-content: space-around; align-items: center;
+      text-align: center; position: relative; overflow: hidden; margin-bottom: 2rem;
     }
     .grand-total::before {
       content: '';
-      position: absolute;
-      inset: 0;
+      position: absolute; inset: 0;
       background: radial-gradient(ellipse at 50% 0%, rgba(255,215,0,0.05) 0%, transparent 60%);
       pointer-events: none;
     }
     .gt-item { position: relative; }
-    .gt-num {
-      font-size: 2.8rem;
-      font-weight: 900;
-      font-family: 'JetBrains Mono', monospace;
-      letter-spacing: -0.03em;
-    }
-    .gt-label {
-      font-size: 0.7rem;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-top: 0.25rem;
-    }
+    .gt-num { font-size: 2.8rem; font-weight: 900; font-family: 'JetBrains Mono', monospace; letter-spacing: -0.03em; }
+    .gt-label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 0.25rem; }
     .gt-8000 { color: var(--orange-8000); }
     .gt-5000 { color: var(--cyan-5000); }
     .gt-total { color: var(--gold); }
     .gt-trucks { color: var(--text); }
-    .gt-divider {
-      width: 1px;
-      height: 60px;
-      background: linear-gradient(180deg, transparent, var(--border), transparent);
-    }
+    .gt-divider { width: 1px; height: 60px; background: linear-gradient(180deg, transparent, var(--border), transparent); }
 
-    /* ========== FOOTER ========== */
     .footer {
-      text-align: center;
-      padding: 1.5rem 0;
+      text-align: center; padding: 1.5rem 0;
       border-top: 1px solid var(--border);
-      font-size: 0.7rem;
-      color: var(--text-dim);
+      font-size: 0.7rem; color: var(--text-dim);
     }
     .footer a { color: var(--amber); text-decoration: none; }
     .footer a:hover { text-decoration: underline; }
 
-    /* ========== LOADING / ERROR ========== */
-    .loading {
-      text-align: center;
-      padding: 6rem 2rem;
-    }
+    .loading { text-align: center; padding: 6rem 2rem; }
     .spinner {
-      width: 48px;
-      height: 48px;
-      border: 3px solid var(--border);
-      border-top-color: var(--amber);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+      width: 48px; height: 48px;
+      border: 3px solid var(--border); border-top-color: var(--amber);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
       margin: 0 auto 1.5rem;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .loading p { color: var(--text-muted); font-size: 0.9rem; }
     .error-box {
-      text-align: center;
-      padding: 3rem;
-      background: rgba(239,68,68,0.06);
-      border: 1px solid rgba(239,68,68,0.2);
-      border-radius: 12px;
-      color: #fca5a5;
-      margin: 2rem 0;
+      text-align: center; padding: 3rem;
+      background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2);
+      border-radius: 12px; color: #fca5a5; margin: 2rem 0;
     }
 
-    /* ========== ANIMATIONS ========== */
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(16px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    .animate-in {
-      animation: fadeUp 0.5s ease forwards;
-      opacity: 0;
-    }
+    .anim { animation: fadeUp 0.4s ease forwards; opacity: 0; }
 
-    /* ========== RESPONSIVE ========== */
     @media (max-width: 1100px) {
       .pours { grid-template-columns: repeat(2, 1fr); }
+      .charts-grid { grid-template-columns: 1fr; }
+      .chart-bar { grid-row: auto; }
       .gt-num { font-size: 2rem; }
     }
     @media (max-width: 768px) {
       .container { padding: 1.5rem 1rem; }
       .header h1 { font-size: 1.8rem; }
-      .sections { grid-template-columns: repeat(2, 1fr); }
+      .sections { grid-template-columns: 1fr 1fr; }
       .pours { grid-template-columns: 1fr; }
       .grand-total { flex-wrap: wrap; gap: 1.5rem; padding: 1.5rem; }
       .gt-divider { display: none; }
       .gt-num { font-size: 1.6rem; }
+      .filter-bar { gap: 1rem; }
     }
     @media (max-width: 480px) {
       .sections { grid-template-columns: 1fr; }
@@ -467,19 +402,23 @@
 </head>
 <body>
   <div class="container" id="app">
-    <div class="loading">
-      <div class="spinner"></div>
-      <p>Loading pour data...</p>
-    </div>
+    <div class="loading"><div class="spinner"></div><p>Loading pour data...</p></div>
   </div>
 
   <script>
     const SHEET_ID = '1fTL_w-kLz0Jzwni9r3kSuGqSvlsFhNm0RsfRurQH750';
     const GID = 999;
     const REFRESH_MS = 30000;
-    const SECTION_COLORS = { A: 'a', B: 'b', C: 'c', D: 'd' };
 
-    // ---- DATA FETCHING ----
+    const SEC_HEX = { A: '#3b82f6', B: '#10b981', C: '#f59e0b', D: '#8b5cf6' };
+    const SEC_HEX_DIM = { A: 'rgba(59,130,246,0.35)', B: 'rgba(16,185,129,0.35)', C: 'rgba(245,158,11,0.35)', D: 'rgba(139,92,246,0.35)' };
+
+    // ---- State ----
+    let allData = null;
+    let filter = { section: 'ALL', date: 'ALL' };
+    let charts = {};
+
+    // ---- Data fetching ----
     async function fetchSheetData() {
       const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${GID}`;
       const res = await fetch(url);
@@ -493,296 +432,464 @@
       if (!row || !row.c || !row.c[idx]) return null;
       return row.c[idx].v;
     }
-
-    function cellStr(row, idx) {
-      const v = cell(row, idx);
-      return v != null ? String(v) : '';
-    }
-
-    function cellNum(row, idx) {
-      const v = cell(row, idx);
-      return typeof v === 'number' ? v : 0;
-    }
-
-    function formatCY(n) {
-      if (!n || n === 0) return '0.00';
-      return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
-
-    function formatInt(n) {
-      if (!n || n === 0) return '0';
-      return Math.round(n).toLocaleString('en-US');
-    }
-
-    function formatDate(v) {
+    function cellStr(row, idx) { const v = cell(row, idx); return v != null ? String(v) : ''; }
+    function cellNum(row, idx) { const v = cell(row, idx); return typeof v === 'number' ? v : 0; }
+    function fmtCY(n) { return (!n || n === 0) ? '0.00' : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function fmtInt(n) { return (!n || n === 0) ? '0' : Math.round(n).toLocaleString('en-US'); }
+    function fmtDate(v) {
       if (!v) return null;
       if (typeof v === 'string' && v.startsWith('Date(')) {
-        const parts = v.match(/Date\((\d+),(\d+),(\d+)\)/);
-        if (parts) {
-          const m = parseInt(parts[2]) + 1;
-          return `${m}/${parts[3]}`;
-        }
-      }
-      if (v instanceof Date) {
-        return `${v.getMonth()+1}/${v.getDate()}`;
+        const p = v.match(/Date\((\d+),(\d+),(\d+)\)/);
+        if (p) return `${parseInt(p[2])+1}/${p[3]}`;
       }
       return String(v);
     }
 
-    // ---- DATA EXTRACTION ----
     function extractData(response) {
       const rows = response.table.rows;
       const data = { reference: [], pours: [], grandTotal: null };
-
       let mode = 'scan';
 
       for (let i = 0; i < rows.length; i++) {
         const a = cellStr(rows[i], 0);
         const d = cellStr(rows[i], 3);
 
-        // Reference section
         if (a.includes('REFERENCE')) { mode = 'ref_header'; continue; }
         if (mode === 'ref_header') { mode = 'ref_data'; continue; }
         if (mode === 'ref_data') {
           if (['A','B','C','D'].includes(a)) {
             data.reference.push({
               section: a,
-              pileCaps: cellNum(rows[i], 1),
-              pcVol: cellNum(rows[i], 2),
-              footings: cellNum(rows[i], 3),
-              ftgVol: cellNum(rows[i], 4),
-              gbVol: cellNum(rows[i], 5),
-              slurryVol: cellNum(rows[i], 6),
-              slurryMix: cellNum(rows[i], 7),
-              plinthVol: cellNum(rows[i], 8),
+              pileCaps: cellNum(rows[i], 1), pcVol: cellNum(rows[i], 2),
+              footings: cellNum(rows[i], 3), ftgVol: cellNum(rows[i], 4),
+              gbVol: cellNum(rows[i], 5), slurryVol: cellNum(rows[i], 6),
+              slurryMix: cellNum(rows[i], 7), plinthVol: cellNum(rows[i], 8),
               sectionTotal: cellNum(rows[i], 9),
             });
           }
-          if (a === 'TOTAL') { mode = 'scan'; }
+          if (a === 'TOTAL') mode = 'scan';
           continue;
         }
 
-        // Order Summary section
         if (a === 'ORDER SUMMARY') { mode = 'order_header'; continue; }
         if (mode === 'order_header') { mode = 'order_data'; continue; }
         if (mode === 'order_data') {
           if (a === 'GRAND TOTAL') {
             data.grandTotal = {
-              total8000: cellNum(rows[i], 3),
-              total5000: cellNum(rows[i], 4),
-              grandTotal: cellNum(rows[i], 5),
-              trucks8000: cellNum(rows[i], 6),
-              trucks5000: cellNum(rows[i], 7),
-              totalTrucks: cellNum(rows[i], 8),
+              total8000: cellNum(rows[i], 3), total5000: cellNum(rows[i], 4),
+              grandTotal: cellNum(rows[i], 5), trucks8000: cellNum(rows[i], 6),
+              trucks5000: cellNum(rows[i], 7), totalTrucks: cellNum(rows[i], 8),
             };
-            mode = 'done';
-            continue;
+            mode = 'done'; continue;
           }
           if (a && /^[A-D]-[1-3]/.test(a)) {
             data.pours.push({
-              id: a.replace(' (Plinth)', ''),
-              label: a,
+              id: a.replace(' (Plinth)', ''), label: a,
               section: cellStr(rows[i], 1) || a[0],
-              date: formatDate(cell(rows[i], 2)),
-              total8000: cellNum(rows[i], 3),
-              total5000: cellNum(rows[i], 4),
-              grandTotal: cellNum(rows[i], 5),
-              trucks8000: cellNum(rows[i], 6),
-              trucks5000: cellNum(rows[i], 7),
-              totalTrucks: cellNum(rows[i], 8),
+              date: fmtDate(cell(rows[i], 2)),
+              total8000: cellNum(rows[i], 3), total5000: cellNum(rows[i], 4),
+              grandTotal: cellNum(rows[i], 5), trucks8000: cellNum(rows[i], 6),
+              trucks5000: cellNum(rows[i], 7), totalTrucks: cellNum(rows[i], 8),
               status: cellStr(rows[i], 9).toLowerCase(),
             });
           }
           continue;
         }
       }
-
       return data;
     }
 
-    // ---- RENDERING ----
-    function render(data) {
+    // ---- Filtering ----
+    function filtered() {
+      if (!allData) return null;
+      let ref = allData.reference;
+      let pours = allData.pours;
+
+      if (filter.section !== 'ALL') {
+        ref = ref.filter(r => r.section === filter.section);
+        pours = pours.filter(p => p.section === filter.section);
+      }
+      if (filter.date !== 'ALL') {
+        pours = pours.filter(p => p.date === filter.date);
+      }
+
+      const gt = {
+        total8000: pours.reduce((s, p) => s + p.total8000, 0),
+        total5000: pours.reduce((s, p) => s + p.total5000, 0),
+        grandTotal: pours.reduce((s, p) => s + p.grandTotal, 0),
+        trucks8000: pours.reduce((s, p) => s + p.trucks8000, 0),
+        trucks5000: pours.reduce((s, p) => s + p.trucks5000, 0),
+        totalTrucks: pours.reduce((s, p) => s + p.totalTrucks, 0),
+      };
+
+      return { reference: ref, pours, grandTotal: gt };
+    }
+
+    function allDates() {
+      if (!allData) return [];
+      const dates = [...new Set(allData.pours.map(p => p.date).filter(Boolean))];
+      return dates.sort();
+    }
+
+    // ---- Chart helpers ----
+    function destroyCharts() {
+      Object.values(charts).forEach(c => c.destroy());
+      charts = {};
+    }
+
+    function chartDefaults() {
+      Chart.defaults.color = '#5c5c72';
+      Chart.defaults.borderColor = '#1a1a28';
+      Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+      Chart.defaults.font.size = 11;
+      Chart.defaults.plugins.legend.labels.usePointStyle = true;
+      Chart.defaults.plugins.legend.labels.pointStyleWidth = 8;
+      Chart.defaults.plugins.tooltip.backgroundColor = '#1a1a28';
+      Chart.defaults.plugins.tooltip.borderColor = '#2a2a3c';
+      Chart.defaults.plugins.tooltip.borderWidth = 1;
+      Chart.defaults.plugins.tooltip.titleFont = { family: "'JetBrains Mono', monospace", size: 11, weight: 600 };
+      Chart.defaults.plugins.tooltip.bodyFont = { family: "'JetBrains Mono', monospace", size: 11 };
+      Chart.defaults.plugins.tooltip.padding = 10;
+      Chart.defaults.plugins.tooltip.cornerRadius = 8;
+    }
+
+    function buildCharts(data) {
+      destroyCharts();
+      chartDefaults();
+
+      // --- Stacked bar: CY per pour ---
+      const barCtx = document.getElementById('chart-bar');
+      if (barCtx) {
+        const labels = data.pours.map(p => p.label);
+        const bgColors = data.pours.map(p => SEC_HEX_DIM[p.section]);
+        charts.bar = new Chart(barCtx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: '8000 PSI',
+                data: data.pours.map(p => p.total8000),
+                backgroundColor: 'rgba(255,140,0,0.85)',
+                borderColor: 'rgba(255,140,0,1)',
+                borderWidth: 1, borderRadius: 4,
+              },
+              {
+                label: '5000 PSI',
+                data: data.pours.map(p => p.total5000),
+                backgroundColor: 'rgba(0,212,255,0.75)',
+                borderColor: 'rgba(0,212,255,1)',
+                borderWidth: 1, borderRadius: 4,
+              },
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+              x: { stacked: true, grid: { display: false }, ticks: { color: '#5c5c72' } },
+              y: {
+                stacked: true,
+                grid: { color: '#1a1a28' },
+                ticks: { color: '#5c5c72', callback: v => v.toLocaleString() + ' CY' },
+              },
+            },
+            plugins: {
+              legend: { position: 'top' },
+              tooltip: {
+                callbacks: {
+                  label: ctx => `${ctx.dataset.label}: ${fmtCY(ctx.raw)} CY`,
+                },
+              },
+            },
+          },
+        });
+      }
+
+      // --- Doughnut: mix breakdown ---
+      const donutCtx = document.getElementById('chart-donut');
+      if (donutCtx) {
+        const t8 = data.grandTotal.total8000;
+        const t5 = data.grandTotal.total5000;
+        charts.donut = new Chart(donutCtx, {
+          type: 'doughnut',
+          data: {
+            labels: ['8000 PSI', '5000 PSI'],
+            datasets: [{
+              data: [t8, t5],
+              backgroundColor: ['rgba(255,140,0,0.85)', 'rgba(0,212,255,0.75)'],
+              borderColor: ['rgba(255,140,0,1)', 'rgba(0,212,255,1)'],
+              borderWidth: 2,
+              hoverOffset: 8,
+            }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            cutout: '65%',
+            plugins: {
+              legend: { position: 'bottom', labels: { padding: 16 } },
+              tooltip: {
+                callbacks: {
+                  label: ctx => {
+                    const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                    const pct = total > 0 ? ((ctx.raw / total) * 100).toFixed(1) : 0;
+                    return `${ctx.label}: ${fmtCY(ctx.raw)} CY (${pct}%)`;
+                  },
+                },
+              },
+            },
+          },
+          plugins: [{
+            id: 'centerText',
+            afterDraw(chart) {
+              const { ctx, chartArea } = chart;
+              const total = chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+              const cx = (chartArea.left + chartArea.right) / 2;
+              const cy = (chartArea.top + chartArea.bottom) / 2;
+              ctx.save();
+              ctx.textAlign = 'center';
+              ctx.fillStyle = '#ffd700';
+              ctx.font = "800 1.4rem 'JetBrains Mono', monospace";
+              ctx.fillText(fmtCY(total), cx, cy - 4);
+              ctx.fillStyle = '#5c5c72';
+              ctx.font = "600 0.55rem 'Inter', sans-serif";
+              ctx.fillText('TOTAL CY', cx, cy + 14);
+              ctx.restore();
+            },
+          }],
+        });
+      }
+
+      // --- Horizontal bar: section comparison ---
+      const secCtx = document.getElementById('chart-sections');
+      if (secCtx) {
+        const sections = allData.reference; // always show all sections for context
+        const filtSec = filter.section;
+        charts.sections = new Chart(secCtx, {
+          type: 'bar',
+          data: {
+            labels: sections.map(s => `Section ${s.section}`),
+            datasets: [
+              {
+                label: 'Pile Caps',
+                data: sections.map(s => s.pcVol),
+                backgroundColor: sections.map(s => filtSec === 'ALL' || filtSec === s.section ? SEC_HEX[s.section] : '#1a1a28'),
+                borderRadius: 3,
+              },
+              {
+                label: 'Footings',
+                data: sections.map(s => s.ftgVol),
+                backgroundColor: sections.map(s => filtSec === 'ALL' || filtSec === s.section ? SEC_HEX_DIM[s.section] : '#121218'),
+                borderRadius: 3,
+              },
+              {
+                label: 'Slurry',
+                data: sections.map(s => s.slurryVol),
+                backgroundColor: 'rgba(255,184,0,0.25)',
+                borderRadius: 3,
+              },
+            ],
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+              x: {
+                stacked: true,
+                grid: { color: '#1a1a28' },
+                ticks: { color: '#5c5c72', callback: v => v.toLocaleString() },
+              },
+              y: { stacked: true, grid: { display: false }, ticks: { color: '#8888a0', font: { weight: 700 } } },
+            },
+            plugins: {
+              legend: { position: 'top' },
+              tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtCY(ctx.raw)} CY` } },
+            },
+          },
+        });
+      }
+    }
+
+    // ---- Rendering ----
+    function render() {
+      const data = filtered();
+      if (!data) return;
       const app = document.getElementById('app');
-
-      // Compute max CY for bar scaling
       const maxCY = Math.max(1, ...data.pours.map(p => Math.max(p.total8000, p.total5000)));
+      const dates = allDates();
 
-      // Compute totals from reference
-      const refTotal = data.reference.reduce((acc, r) => acc + r.sectionTotal, 0);
-
-      let html = '';
+      let h = '';
 
       // HEADER
-      html += `
-        <header class="header animate-in">
+      h += `
+        <header class="header anim">
           <h1>CUP Pour Dashboard</h1>
           <div class="mix-codes">
             <span class="mix-tag"><span class="dot d8000"></span> 8000 PSI — O80D739K1</span>
             <span class="mix-tag"><span class="dot d5000"></span> 5000 PSI — O60C649J1</span>
           </div>
-          <div class="refresh-bar">
-            <span class="pulse-dot"></span>
-            <span>Live from Google Sheets — refreshes every 30s</span>
-          </div>
+          <div class="refresh-bar"><span class="pulse-dot"></span><span>Live from Google Sheets — refreshes every 30s</span></div>
         </header>`;
 
-      // SECTION SUMMARY CARDS
-      html += `<div class="section-label animate-in" style="animation-delay:0.1s">Section Overview</div>`;
-      html += `<div class="sections">`;
+      // FILTER BAR
+      h += `<div class="filter-bar anim" style="animation-delay:0.05s">`;
+      h += `<div class="filter-group"><span class="filter-label">Section</span><div class="filter-pills">`;
+      ['ALL','A','B','C','D'].forEach(v => {
+        const active = filter.section === v ? ' active' : '';
+        h += `<button class="pill sec-pill${active}" data-v="${v}" onclick="setSection('${v}')">${v === 'ALL' ? 'All' : v}</button>`;
+      });
+      h += `</div></div>`;
+      h += `<div class="filter-sep"></div>`;
+      h += `<div class="filter-group"><span class="filter-label">Pour Date</span><div class="filter-pills">`;
+      h += `<button class="pill date-pill${filter.date === 'ALL' ? ' active' : ''}" data-v="ALL" onclick="setDate('ALL')">All</button>`;
+      if (dates.length > 0) {
+        dates.forEach(d => {
+          const active = filter.date === d ? ' active' : '';
+          h += `<button class="pill date-pill${active}" data-v="${d}" onclick="setDate('${d}')">${d}</button>`;
+        });
+      } else {
+        h += `<span style="font-size:0.75rem;color:var(--text-dim);font-style:italic">No dates assigned yet</span>`;
+      }
+      h += `</div></div>`;
+      h += `</div>`;
+
+      // SECTION CARDS
+      h += `<div class="section-label anim" style="animation-delay:0.1s">${filter.section === 'ALL' ? 'Section Overview' : 'Section ' + filter.section}</div>`;
+      h += `<div class="sections">`;
       data.reference.forEach((r, idx) => {
         const s = r.section;
-        html += `
-          <div class="sec-card animate-in" data-s="${s}" style="animation-delay:${0.15 + idx * 0.05}s">
+        h += `
+          <div class="sec-card anim" data-s="${s}" style="animation-delay:${0.12 + idx * 0.04}s">
             <div class="big-letter">${s}</div>
             <div class="sec-top">
               <div class="sec-badge ${s.toLowerCase()}">${s}</div>
               <div class="sec-name">Section ${s}</div>
             </div>
-            <div class="total-cy">${formatCY(r.sectionTotal)}</div>
+            <div class="total-cy">${fmtCY(r.sectionTotal)}</div>
             <div class="total-label">Total Cubic Yards</div>
             <div class="breakdown">
-              <div class="bk-item"><span class="bk-label">Pile Caps</span><span class="bk-val">${formatCY(r.pcVol)}</span></div>
-              <div class="bk-item"><span class="bk-label">Footings</span><span class="bk-val">${formatCY(r.ftgVol)}</span></div>
-              <div class="bk-item"><span class="bk-label">Grade Beams</span><span class="bk-val">${formatCY(r.gbVol)}</span></div>
-              <div class="bk-item"><span class="bk-label">Slurry</span><span class="bk-val">${formatCY(r.slurryVol)}</span></div>
-              ${r.plinthVol ? `<div class="bk-item"><span class="bk-label">Plinth</span><span class="bk-val">${formatCY(r.plinthVol)}</span></div>` : ''}
+              <div class="bk-item"><span class="bk-label">Pile Caps</span><span class="bk-val">${fmtCY(r.pcVol)}</span></div>
+              <div class="bk-item"><span class="bk-label">Footings</span><span class="bk-val">${fmtCY(r.ftgVol)}</span></div>
+              <div class="bk-item"><span class="bk-label">Grade Beams</span><span class="bk-val">${fmtCY(r.gbVol)}</span></div>
+              <div class="bk-item"><span class="bk-label">Slurry</span><span class="bk-val">${fmtCY(r.slurryVol)}</span></div>
+              ${r.plinthVol ? `<div class="bk-item"><span class="bk-label">Plinth</span><span class="bk-val">${fmtCY(r.plinthVol)}</span></div>` : ''}
             </div>
           </div>`;
       });
-      html += `</div>`;
+      h += `</div>`;
+
+      // CHARTS
+      h += `<div class="section-label anim" style="animation-delay:0.25s">Analytics</div>`;
+      h += `<div class="charts-grid anim" style="animation-delay:0.28s">`;
+      h += `<div class="chart-card chart-bar"><div class="chart-title">Concrete Volume by Pour</div><div style="height:320px"><canvas id="chart-bar"></canvas></div></div>`;
+      h += `<div class="chart-card chart-donut"><div class="chart-title">Mix Breakdown</div><div style="height:220px"><canvas id="chart-donut"></canvas></div></div>`;
+      h += `<div class="chart-card chart-sections"><div class="chart-title">Section Comparison</div><div style="height:200px"><canvas id="chart-sections"></canvas></div></div>`;
+      h += `</div>`;
 
       // POUR CARDS
-      html += `<div class="section-label animate-in" style="animation-delay:0.35s">Pour Schedule — ${data.pours.length} Pours</div>`;
-      html += `<div class="pours">`;
-      data.pours.forEach((p, idx) => {
-        const s = p.section;
-        const pct8 = maxCY > 0 ? (p.total8000 / maxCY * 100) : 0;
-        const pct5 = maxCY > 0 ? (p.total5000 / maxCY * 100) : 0;
-        const statusClass = p.status.includes('order') ? 'ordered' : p.status.includes('pour') ? 'poured' : 'pending';
-        const statusText = p.status || 'Pending';
-        const dateStr = p.date || '';
-        const dateClass = dateStr ? '' : 'empty';
-        const dateDisplay = dateStr || 'No date set';
+      h += `<div class="section-label anim" style="animation-delay:0.35s">Pour Schedule — ${data.pours.length} Pour${data.pours.length !== 1 ? 's' : ''}</div>`;
+      if (data.pours.length === 0) {
+        h += `<div class="no-data anim" style="animation-delay:0.38s">No pours match the current filter</div>`;
+      } else {
+        h += `<div class="pours">`;
+        data.pours.forEach((p, idx) => {
+          const s = p.section;
+          const pct8 = maxCY > 0 ? (p.total8000 / maxCY * 100) : 0;
+          const pct5 = maxCY > 0 ? (p.total5000 / maxCY * 100) : 0;
+          const sc = p.status.includes('order') ? 'ordered' : p.status.includes('pour') ? 'poured' : 'pending';
+          const st = p.status || 'Pending';
+          const dd = p.date || '';
 
-        html += `
-          <div class="pour-card animate-in" data-s="${s}" style="animation-delay:${0.4 + idx * 0.04}s">
-            <div class="pour-head">
-              <div class="left">
-                <div class="sec-badge ${s.toLowerCase()}">${s}</div>
-                <div>
-                  <div class="pour-id">${p.label}</div>
-                  <div class="pour-date ${dateClass}">${dateDisplay}</div>
+          h += `
+            <div class="pour-card anim" data-s="${s}" style="animation-delay:${0.38 + idx * 0.03}s">
+              <div class="pour-head">
+                <div class="left">
+                  <div class="sec-badge ${s.toLowerCase()}">${s}</div>
+                  <div>
+                    <div class="pour-id">${p.label}</div>
+                    <div class="pour-date ${dd ? '' : 'empty'}">${dd || 'No date set'}</div>
+                  </div>
                 </div>
+                <div class="status-chip ${sc}">${st}</div>
               </div>
-              <div class="status-chip ${statusClass}">${statusText}</div>
-            </div>
-            <div class="mix-row">
-              <span class="mix-label l8000">8000</span>
-              <div class="mix-bar-track">
-                <div class="mix-bar b8000" style="width:${pct8}%"></div>
+              <div class="mix-row">
+                <span class="mix-label l8000">8000</span>
+                <div class="mix-bar-track"><div class="mix-bar b8000" style="width:${pct8}%"></div></div>
+                <span class="mix-val">${fmtCY(p.total8000)}</span>
               </div>
-              <span class="mix-val">${formatCY(p.total8000)}</span>
-            </div>
-            <div class="mix-row">
-              <span class="mix-label l5000">5000</span>
-              <div class="mix-bar-track">
-                <div class="mix-bar b5000" style="width:${pct5}%"></div>
+              <div class="mix-row">
+                <span class="mix-label l5000">5000</span>
+                <div class="mix-bar-track"><div class="mix-bar b5000" style="width:${pct5}%"></div></div>
+                <span class="mix-val">${fmtCY(p.total5000)}</span>
               </div>
-              <span class="mix-val">${formatCY(p.total5000)}</span>
-            </div>
-            <div class="pour-foot">
-              <div class="pour-stat">
-                <div class="ps-num gold">${formatCY(p.grandTotal)}</div>
-                <div class="ps-label">Total CY</div>
+              <div class="pour-foot">
+                <div class="pour-stat"><div class="ps-num gold">${fmtCY(p.grandTotal)}</div><div class="ps-label">Total CY</div></div>
+                <div class="pour-stat"><div class="ps-num">${fmtInt(p.trucks8000)}</div><div class="ps-label">8000 Trucks</div></div>
+                <div class="pour-stat"><div class="ps-num">${fmtInt(p.trucks5000)}</div><div class="ps-label">5000 Trucks</div></div>
+                <div class="pour-stat"><div class="ps-num">${fmtInt(p.totalTrucks)}</div><div class="ps-label">Total</div></div>
               </div>
-              <div class="pour-stat">
-                <div class="ps-num">${formatInt(p.trucks8000)}</div>
-                <div class="ps-label">8000 Trucks</div>
-              </div>
-              <div class="pour-stat">
-                <div class="ps-num">${formatInt(p.trucks5000)}</div>
-                <div class="ps-label">5000 Trucks</div>
-              </div>
-              <div class="pour-stat">
-                <div class="ps-num">${formatInt(p.totalTrucks)}</div>
-                <div class="ps-label">Total Trucks</div>
-              </div>
-            </div>
-          </div>`;
-      });
-      html += `</div>`;
+            </div>`;
+        });
+        h += `</div>`;
+      }
 
       // GRAND TOTAL
-      const gt = data.grandTotal || { total8000: 0, total5000: 0, grandTotal: 0, totalTrucks: 0 };
-      html += `
-        <div class="grand-total animate-in" style="animation-delay:0.7s">
-          <div class="gt-item">
-            <div class="gt-num gt-8000">${formatCY(gt.total8000)}</div>
-            <div class="gt-label">8000 PSI Total</div>
-          </div>
+      const gt = data.grandTotal;
+      h += `
+        <div class="grand-total anim" style="animation-delay:0.55s">
+          <div class="gt-item"><div class="gt-num gt-8000">${fmtCY(gt.total8000)}</div><div class="gt-label">8000 PSI${filter.section !== 'ALL' ? ' ('+filter.section+')' : ''}</div></div>
           <div class="gt-divider"></div>
-          <div class="gt-item">
-            <div class="gt-num gt-5000">${formatCY(gt.total5000)}</div>
-            <div class="gt-label">5000 PSI Total</div>
-          </div>
+          <div class="gt-item"><div class="gt-num gt-5000">${fmtCY(gt.total5000)}</div><div class="gt-label">5000 PSI${filter.section !== 'ALL' ? ' ('+filter.section+')' : ''}</div></div>
           <div class="gt-divider"></div>
-          <div class="gt-item">
-            <div class="gt-num gt-total">${formatCY(gt.grandTotal)}</div>
-            <div class="gt-label">Grand Total CY</div>
-          </div>
+          <div class="gt-item"><div class="gt-num gt-total">${fmtCY(gt.grandTotal)}</div><div class="gt-label">Grand Total CY</div></div>
           <div class="gt-divider"></div>
-          <div class="gt-item">
-            <div class="gt-num gt-trucks">${formatInt(gt.totalTrucks)}</div>
-            <div class="gt-label">Total Trucks</div>
-          </div>
+          <div class="gt-item"><div class="gt-num gt-trucks">${fmtInt(gt.totalTrucks)}</div><div class="gt-label">Total Trucks</div></div>
         </div>`;
 
-      // FOOTER
-      html += `
-        <footer class="footer animate-in" style="animation-delay:0.8s">
+      h += `
+        <footer class="footer anim" style="animation-delay:0.6s">
           <a href="https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit#gid=${GID}" target="_blank">Open Sheet</a>
           &nbsp;&middot;&nbsp; CUP Concrete Pour Tracking &nbsp;&middot;&nbsp; OpenYap
         </footer>`;
 
-      app.innerHTML = html;
+      app.innerHTML = h;
+
+      // Build charts after DOM is ready
+      requestAnimationFrame(() => buildCharts(data));
     }
+
+    // ---- Filter handlers ----
+    window.setSection = function(v) {
+      filter.section = v;
+      render();
+    };
+    window.setDate = function(v) {
+      filter.date = v;
+      render();
+    };
 
     function showError(msg) {
       document.getElementById('app').innerHTML = `
-        <header class="header">
-          <h1>CUP Pour Dashboard</h1>
-        </header>
+        <header class="header"><h1>CUP Pour Dashboard</h1></header>
         <div class="error-box">
           <p style="font-size:1.1rem;font-weight:600;margin-bottom:0.5rem">Unable to load data</p>
           <p style="font-size:0.85rem;color:#fca5a5cc">${msg}</p>
-          <p style="font-size:0.75rem;margin-top:1rem;color:#5c5c72">
-            Make sure the sheet is shared as "Anyone with the link" &rarr; Viewer
-          </p>
+          <p style="font-size:0.75rem;margin-top:1rem;color:#5c5c72">Make sure the sheet is shared as "Anyone with the link" &rarr; Viewer</p>
         </div>`;
     }
 
-    // ---- MAIN LOOP ----
-    let lastData = null;
-
+    // ---- Main loop ----
     async function refresh() {
       try {
         const response = await fetchSheetData();
-        const data = extractData(response);
-        lastData = data;
-        render(data);
+        allData = extractData(response);
+        render();
       } catch (err) {
         console.error('Fetch error:', err);
-        if (!lastData) {
-          showError(err.message);
-        }
-        // If we had prior data, keep showing it (stale is better than blank)
+        if (!allData) showError(err.message);
       }
     }
 
-    // Initial load
     refresh();
-
-    // Auto-refresh
     setInterval(refresh, REFRESH_MS);
   </script>
 </body>
