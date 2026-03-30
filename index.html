@@ -102,9 +102,14 @@
   </div>
 
   <!-- TIMELINE -->
-  <div id="timeline" class="hidden rounded-xl overflow-hidden border border-white/5 p-5" style="background:#0B0B0F">
-    <div class="text-[11px] font-black tracking-widest text-white/50 uppercase mb-4">Pour Timeline</div>
-    <div id="timelineContent" class="relative"></div>
+  <div id="timelineWrap" class="hidden">
+    <button onclick="document.getElementById('timelineBody').classList.toggle('hidden');this.querySelector('span.arrow').textContent=document.getElementById('timelineBody').classList.contains('hidden')?'expand_more':'expand_less'" class="w-full flex items-center justify-between px-4 py-2.5 rounded-t-xl border border-white/5 text-[11px] font-black tracking-widest text-white/50 uppercase hover:text-white/70 transition-colors" style="background:#0B0B0F">
+      <span>Pour Timeline</span>
+      <span class="arrow material-symbols-outlined text-sm">expand_less</span>
+    </button>
+    <div id="timelineBody" class="rounded-b-xl border border-t-0 border-white/5 p-4 overflow-x-auto" style="background:#0B0B0F">
+      <div id="timelineContent" class="relative" style="min-width:700px"></div>
+    </div>
   </div>
 
   <!-- SECTION SUMMARY -->
@@ -366,8 +371,8 @@ function renderTimeline(pours) {
     const [bm,bd] = (b.date||'').split('/').map(Number);
     return (am*100+ad) - (bm*100+bd);
   });
-  if (!dated.length) { document.getElementById('timeline').classList.add('hidden'); return; }
-  document.getElementById('timeline').classList.remove('hidden');
+  if (!dated.length) { document.getElementById('timelineWrap').classList.add('hidden'); return; }
+  document.getElementById('timelineWrap').classList.remove('hidden');
 
   const parseMD = d => { const [m,dd] = d.split('/').map(Number); return new Date(2026, m-1, dd); };
   const allDated = pours.filter(p => p.date);
@@ -377,53 +382,63 @@ function renderTimeline(pours) {
   const pct = d => Math.max(1, Math.min(99, ((parseMD(d) - minD) / 86400000 / range) * 100));
 
   const sections = ['A','B','C','D'];
-  const laneH = 48;
-  const topPad = 28;
-  const leftPad = 36;
-  const totalH = topPad + sections.length * laneH + 12;
-
-  let html = `<div class="relative" style="height:${totalH}px">`;
-
-  // Date axis labels
+  const laneH = 44;
+  const topPad = 24;
+  const leftW = 50; // px for section labels
+  const totalH = topPad + sections.length * laneH + 4;
   const daySpan = (maxD - minD) / 86400000;
+
+  // Use px-based layout inside a min-width container for horizontal scroll
+  const pxPerDay = Math.max(22, 700 / Math.max(daySpan, 1));
+  const chartW = daySpan * pxPerDay;
+
+  let html = `<div class="relative" style="height:${totalH}px;min-width:${leftW + chartW + 20}px">`;
+
+  // Date axis
   const step = daySpan > 28 ? 7 : daySpan > 14 ? 3 : 1;
   for (let i = 0; i <= daySpan; i += step) {
     const dd = new Date(minD.getTime() + i * 86400000);
-    const x = leftPad + (i / range) * (100 - leftPad/10);
-    const label = `${dd.getMonth()+1}/${dd.getDate()}`;
-    html += `<div class="absolute text-[10px] mono text-white/30 font-bold" style="left:${x}%;top:2px;transform:translateX(-50%)">${label}</div>`;
-    html += `<div class="absolute bg-white/[0.05]" style="left:${x}%;top:${topPad}px;width:1px;height:${totalH-topPad}px"></div>`;
+    const x = leftW + i * pxPerDay;
+    html += `<div class="absolute text-[10px] mono text-white/35 font-bold" style="left:${x}px;top:2px;transform:translateX(-50%)">${dd.getMonth()+1}/${dd.getDate()}</div>`;
+    html += `<div class="absolute" style="left:${x}px;top:${topPad}px;width:1px;height:${totalH-topPad}px;background:rgba(255,255,255,0.04)"></div>`;
   }
 
   // Swim lanes
   sections.forEach((sec, idx) => {
     const y = topPad + idx * laneH;
     const c = SEC_COLORS[sec];
-    // Lane bg
-    html += `<div class="absolute rounded" style="left:${leftPad-8}px;right:4px;top:${y+2}px;height:${laneH-4}px;background:${c}08"></div>`;
-    // Lane label
-    html += `<div class="absolute text-[11px] font-black mono" style="left:4px;top:${y+14}px;color:${c}">SEC ${sec}</div>`;
 
-    // Pour markers
+    // Lane stripe
+    html += `<div class="absolute rounded" style="left:${leftW}px;right:0;top:${y+1}px;height:${laneH-2}px;background:${c}0a"></div>`;
+    // Label
+    html += `<div class="absolute flex items-center gap-1" style="left:0;top:${y}px;width:${leftW}px;height:${laneH}px">
+      <div class="w-3 h-full rounded-r" style="background:${c}"></div>
+      <span class="text-[11px] font-black mono" style="color:${c}">${sec}</span>
+    </div>`;
+
+    // Pours
     const secPours = dated.filter(p => p.section === sec);
     secPours.forEach(p => {
-      const x = leftPad + (pct(p.date) / 100) * (100 - leftPad/10) * 100 / 100;
+      const dayOff = (parseMD(p.date) - minD) / 86400000;
+      const x = leftW + dayOff * pxPerDay;
       const isSlurry = p.type === 'Slurry';
       const isPlinth = p.type === 'Plinth';
-      const barW = isPlinth ? 16 : isSlurry ? 28 : Math.max(20, Math.min(60, p.total / 20));
-      const barH = laneH - 12;
+      const barW = isPlinth ? 40 : isSlurry ? 56 : Math.max(56, Math.min(100, p.total / 8));
+      const barH = laneH - 10;
       const barColor = isSlurry ? '#6b7280' : c;
-      const barY = y + 6;
+      const barY = y + 5;
 
       // Glow
-      html += `<div class="absolute rounded-lg" style="left:calc(${x}% - 4px);top:${barY-3}px;width:${barW+8}px;height:${barH+6}px;background:${barColor};opacity:0.12;filter:blur(8px)"></div>`;
+      html += `<div class="absolute rounded-lg" style="left:${x-4}px;top:${barY-3}px;width:${barW+8}px;height:${barH+6}px;background:${barColor};opacity:0.1;filter:blur(6px)"></div>`;
       // Bar
-      html += `<div class="absolute rounded-md cursor-pointer group" style="left:${x}%;top:${barY}px;width:${barW}px;height:${barH}px;background:linear-gradient(135deg,${barColor},${barColor}cc);border:1px solid ${barColor}66;transition:all 0.2s">
-        <div class="flex flex-col items-center justify-center h-full px-1 overflow-hidden">
-          <span class="text-[9px] font-black text-white/90 mono leading-none">${p.id}</span>
-          <span class="text-[8px] font-bold text-white/60 mono leading-none mt-0.5">${p.total}CY</span>
+      html += `<div class="absolute rounded-md cursor-pointer group" style="left:${x}px;top:${barY}px;width:${barW}px;height:${barH}px;background:linear-gradient(135deg,${barColor},${barColor}bb);border:1px solid ${barColor}55">
+        <div class="flex items-center justify-center gap-1.5 h-full px-2 overflow-hidden">
+          <span class="text-[10px] font-black text-white mono leading-none">${p.id}</span>
+          <span class="text-[9px] font-bold text-white/50 mono leading-none">${p.total}CY</span>
         </div>
-        <div class="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/95 text-[10px] mono text-white px-2 py-1 rounded-md pointer-events-none z-10" style="border:1px solid ${barColor}88">${p.id} · ${p.total} CY · ${p.date}</div>
+        <div class="absolute -top-9 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/95 text-[10px] mono text-white px-2.5 py-1.5 rounded-md pointer-events-none z-20 shadow-lg" style="border:1px solid ${barColor}88">
+          <span class="font-black">${p.id}</span> · ${p.total} CY · <span class="text-white/60">${p.date}</span>
+        </div>
       </div>`;
     });
   });
@@ -431,10 +446,10 @@ function renderTimeline(pours) {
   // Today marker
   const today = new Date();
   const todayDays = (today - minD) / 86400000;
-  if (todayDays >= 0 && todayDays <= range) {
-    const tx = leftPad + (todayDays / range) * (100 - leftPad/10);
-    html += `<div class="absolute" style="left:${tx}%;top:${topPad-2}px;height:${totalH-topPad+4}px;width:2px;background:linear-gradient(180deg,#fbbf24,#fbbf2400);opacity:0.8;z-index:5"></div>`;
-    html += `<div class="absolute text-[9px] font-black text-yellow-400 z-10" style="left:${tx}%;top:${topPad-16}px;transform:translateX(-50%)">TODAY</div>`;
+  if (todayDays >= 0 && todayDays <= daySpan) {
+    const tx = leftW + todayDays * pxPerDay;
+    html += `<div class="absolute z-10" style="left:${tx}px;top:${topPad-4}px;height:${totalH-topPad+8}px;width:2px;background:#fbbf24;opacity:0.7;box-shadow:0 0 8px #fbbf2466"></div>`;
+    html += `<div class="absolute z-10 text-[9px] font-black text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded" style="left:${tx-16}px;top:${topPad-18}px">TODAY</div>`;
   }
 
   html += `</div>`;
