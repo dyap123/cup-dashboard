@@ -66,9 +66,8 @@
         <span class="w-2 h-2 rounded-full bg-green-400 pulse"></span>
         <span class="text-xs text-white/50 font-medium">LIVE</span>
       </div>
-      <button onclick="promptAddPour()" class="text-xs font-bold text-green-400 hover:text-green-300 transition-colors">+ Add Pour</button>
+      <button onclick="openSheet()" class="text-xs font-bold text-green-400 hover:text-green-300 transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-sm">edit_note</span>Edit Sheet</button>
       <a id="sheetLink" href="#" target="_blank" class="text-xs text-sa hover:text-white transition-colors">Open Sheet ↗</a>
-      <button onclick="promptSetApiUrl()" class="text-white/30 hover:text-white/60 transition-colors" title="Set API URL"><span class="material-symbols-outlined text-sm">settings</span></button>
     </div>
   </div>
 </header>
@@ -201,8 +200,6 @@ function anyDate(row, idx) {
 
 // ── STATE ────────────────────────────────────────────────────────────────────
 let state = { refs:{}, pours:[], grand:{}, sectionFilter:'ALL', dateFilter:'ALL' };
-let API_URL = localStorage.getItem('cup_api_url') || ''; // Apps Script URL for writes
-
 // ── FETCH & PARSE (flat table: PourID, Section, Date, Type, Desc, 8000, 5000, Slurry, Total, Trucks, Status, Label) ──
 async function fetchData() {
   const res  = await fetch(GViz_URL);
@@ -256,34 +253,7 @@ async function fetchData() {
   return { refs, pours, grand };
 }
 
-// ── WRITE API (Apps Script) ─────────────────────────────────────────────────
-async function apiPost(data) {
-  if (!API_URL) { alert('Set API URL first (click the gear icon)'); return false; }
-  try {
-    await fetch(API_URL, { method:'POST', mode:'no-cors', body:JSON.stringify(data) });
-    setTimeout(refresh, 2000); // refresh after write propagates
-    return true;
-  } catch(e) { console.error('API error:', e); return false; }
-}
-
-function promptAddPour() {
-  const sec = prompt('Section (A/B/C/D):');
-  if (!sec || !['A','B','C','D'].includes(sec.toUpperCase())) return;
-  const section = sec.toUpperCase();
-  // Find next pour number for this section
-  const existing = state.pours.filter(p => p.section === section);
-  const nextNum = existing.length + 1;
-  const pourId = `${section}-${nextNum}`;
-  const type = prompt('Type (Slurry/Structural/Plinth):', 'Structural');
-  if (!type) return;
-  const date = prompt('Pour date (e.g. 4/16):', '') || '';
-  apiPost({ action:'add', pourId, section, date, type, description: type + ' Pour' });
-}
-
-function promptSetApiUrl() {
-  const url = prompt('Paste your Apps Script Web App URL:', API_URL);
-  if (url !== null) { API_URL = url; localStorage.setItem('cup_api_url', url); }
-}
+function openSheet() { window.open(SHEET_URL, '_blank'); }
 
 // ── FILTER LOGIC ─────────────────────────────────────────────────────────────
 function filteredPours() {
@@ -484,23 +454,24 @@ function renderPourCards(pours) {
         <div class="flex items-center gap-2">
           <span class="text-xs font-bold px-2 py-0.5 rounded" style="background:${c}22;color:${c}">${p.section}</span>
           <span class="mono font-bold text-sm text-white/90">${p.id}</span>
-          ${p.label ? `<span class="text-xs text-white/40 italic">${p.label}</span>` : `<input type="text" class="bg-transparent border-b border-dashed border-white/15 text-xs text-white/60 w-20 px-1 py-0.5 focus:border-white/40 focus:outline-none placeholder:text-white/20 placeholder:italic" placeholder="+ label" onchange="apiPost({action:'update',pourId:'${p.id}',label:this.value})" />`}
+          <span class="text-xs text-white/40 italic">${p.label || getPourLabel(p.id) || ''}</span>
+          ${!p.label && !getPourLabel(p.id) ? `<input type="text" class="bg-transparent border-b border-dashed border-white/15 text-xs text-white/50 w-20 px-1 py-0.5 focus:border-white/40 focus:outline-none placeholder:text-white/15 placeholder:italic" placeholder="+ label" onchange="setPourLabel('${p.id}',this.value);render()"/>` : ''}
         </div>
         <div class="flex items-center gap-2">
           ${p.date ? `<span class="text-xs text-white/40">${p.date}</span>` : ''}
           ${stat}
         </div>
       </div>
-      ${p.cy8000 > 0 || p.type==='Structural' ? `<div class="mb-2">
-        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">8000 PSI</span><span class="mono text-red-300 font-semibold cursor-pointer hover:underline" onclick="let v=prompt('8000 CY for ${p.id}:','${p.cy8000}');if(v!==null)apiPost({action:'update',pourId:'${p.id}',cy8000:+v})">${p.cy8000||0} CY</span></div>
+      ${p.cy8000 > 0 ? `<div class="mb-2">
+        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">8000 PSI</span><span class="mono text-red-300 font-semibold">${p.cy8000} CY</span></div>
         <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400 bar-animate" style="width:${pct8}%"></div></div>
       </div>` : ''}
-      ${p.cy5000 > 0 || p.type==='Structural' ? `<div class="mb-2">
-        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">5000 PSI</span><span class="mono text-blue-300 font-semibold cursor-pointer hover:underline" onclick="let v=prompt('5000 CY for ${p.id}:','${p.cy5000}');if(v!==null)apiPost({action:'update',pourId:'${p.id}',cy5000:+v})">${p.cy5000||0} CY</span></div>
+      ${p.cy5000 > 0 ? `<div class="mb-2">
+        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">5000 PSI</span><span class="mono text-blue-300 font-semibold">${p.cy5000} CY</span></div>
         <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 bar-animate" style="width:${pct5}%"></div></div>
       </div>` : ''}
-      ${p.slurry > 0 || p.type==='Slurry' ? `<div class="mb-3">
-        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">Slurry (3 sk)</span><span class="mono text-gray-300 font-semibold cursor-pointer hover:underline" onclick="let v=prompt('Slurry CY for ${p.id}:','${p.slurry}');if(v!==null)apiPost({action:'update',pourId:'${p.id}',slurry:+v})">${p.slurry||0} CY</span></div>
+      ${p.slurry > 0 ? `<div class="mb-3">
+        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">Slurry (3 sk)</span><span class="mono text-gray-300 font-semibold">${p.slurry} CY</span></div>
         <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-gray-500 to-gray-400 bar-animate" style="width:${Math.round((p.slurry/Math.max(...pours.map(x=>x.slurry),1))*100)}%"></div></div>
       </div>` : ''}
       <div class="flex items-center justify-between pt-2 border-t border-white/5">
