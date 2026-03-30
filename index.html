@@ -14,36 +14,12 @@
       theme: {
         extend: {
           colors: {
-            "industrial-bg": "#06060A",
-            "industrial-card": "#0B0B0F",
-            "section-a": "#4A8EFF",
-            "section-b": "#41A447",
-            "section-c": "#FFBF00",
-            "section-d": "#8B5CF6",
-          },
-          animation: {
-            'slide-up': 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-            'fade-in': 'fadeIn 0.5s ease-out forwards',
-            'progress-grow': 'progressGrow 1.5s cubic-bezier(0.65, 0, 0.35, 1) forwards',
-            'soft-pulse': 'softPulse 2s infinite ease-in-out',
-            'spin-slow': 'spin 1s linear infinite',
-          },
-          keyframes: {
-            slideUp: {
-              '0%': { transform: 'translateY(20px)', opacity: '0' },
-              '100%': { transform: 'translateY(0)', opacity: '1' },
-            },
-            fadeIn: {
-              '0%': { opacity: '0' },
-              '100%': { opacity: '1' },
-            },
-            progressGrow: {
-              '0%': { width: '0%' },
-            },
-            softPulse: {
-              '0%, 100%': { opacity: '1' },
-              '50%': { opacity: '0.8' },
-            },
+            "bg": "#06060A",
+            "card": "#0B0B0F",
+            "sa": "#4A8EFF",
+            "sb": "#41A447",
+            "sc": "#FFBF00",
+            "sd": "#8B5CF6",
           },
           fontFamily: {
             sans: ['Inter', 'system-ui', 'sans-serif'],
@@ -54,975 +30,447 @@
     };
   </script>
   <style>
-    body {
-      background-color: #06060A;
-      color: #e4e1e8;
-      font-family: 'Inter', sans-serif;
-      -webkit-font-smoothing: antialiased;
-    }
-    .mono { font-family: 'JetBrains Mono', monospace; }
-    .glass-sidebar {
-      background: rgba(11, 11, 15, 0.9);
-      backdrop-filter: blur(24px);
-    }
-    .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    .blueprint-grid {
-      background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
-      background-size: 24px 24px;
-    }
-    .blueprint-lines {
-      background-image:
-        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-      background-size: 48px 48px;
-    }
-    .fine-border { border: 0.5px solid rgba(139, 144, 160, 0.15); }
-    .all-caps-label {
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-    .material-symbols-outlined {
-      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-      font-size: 20px;
-      line-height: 1;
-      vertical-align: middle;
-      user-select: none;
-    }
-    .material-symbols-outlined.filled {
-      font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-    }
-
-    /* Sidebar nav link */
-    .nav-link {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 500;
-      color: rgba(228, 225, 232, 0.5);
-      cursor: pointer;
-      transition: all 0.2s ease;
-      text-decoration: none;
-    }
-    .nav-link:hover {
-      background: rgba(255,255,255,0.04);
-      color: rgba(228, 225, 232, 0.85);
-    }
-    .nav-link.active {
-      background: rgba(74, 142, 255, 0.12);
-      color: #4A8EFF;
-    }
-
-    /* Zone map zones */
-    .zone-rect {
-      cursor: pointer;
-      transition: all 0.25s ease;
-    }
-    .zone-rect:hover { filter: brightness(1.3); }
-    .zone-rect.active { filter: brightness(1.5); }
-    .zone-rect.dimmed { opacity: 0.2; }
-    .zone-text { pointer-events: none; }
-    .zone-text.dimmed { opacity: 0.2; }
-
-    /* Section pill active states */
-    .sec-pill-all.pill-active { background: rgba(228,225,232,0.12); color: #e4e1e8; }
-    .sec-pill-a.pill-active { background: rgba(74,142,255,0.15); color: #4A8EFF; }
-    .sec-pill-b.pill-active { background: rgba(65,164,71,0.15); color: #41A447; }
-    .sec-pill-c.pill-active { background: rgba(255,191,0,0.15); color: #FFBF00; }
-    .sec-pill-d.pill-active { background: rgba(139,92,246,0.15); color: #8B5CF6; }
-    .date-pill.pill-active { background: rgba(255,191,0,0.15); color: #FFBF00; }
-
-    /* Progress bar animation */
-    @keyframes progressGrow {
-      from { width: 0; }
-    }
-    .progress-bar-fill {
-      animation: progressGrow 1.2s cubic-bezier(0.65, 0, 0.35, 1) forwards;
-    }
-
-    /* Pour card section border colors */
-    .pour-card-a { border-top: 2px solid #4A8EFF; }
-    .pour-card-b { border-top: 2px solid #41A447; }
-    .pour-card-c { border-top: 2px solid #FFBF00; }
-    .pour-card-d { border-top: 2px solid #8B5CF6; }
-
-    /* Section summary card borders */
-    .sec-card-a { border-top: 3px solid #4A8EFF; }
-    .sec-card-b { border-top: 3px solid #41A447; }
-    .sec-card-c { border-top: 3px solid #FFBF00; }
-    .sec-card-d { border-top: 3px solid #8B5CF6; }
-
-    /* Donut SVG */
-    .donut-ring { transition: stroke-dashoffset 1.2s cubic-bezier(0.65, 0, 0.35, 1); }
-
-    /* Footer fixed */
-    #grand-footer {
-      position: fixed;
-      bottom: 0;
-      right: 0;
-      left: 0;
-      z-index: 40;
-    }
-    @media (min-width: 768px) {
-      #grand-footer { left: 256px; }
-    }
-
-    /* Pulse dot animation */
-    @keyframes pulseDot {
-      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(65,164,71,0.5); }
-      50% { opacity: 0.6; box-shadow: 0 0 0 4px rgba(65,164,71,0); }
-    }
-    .pulse-dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      background: #41A447;
-      display: inline-block;
-      animation: pulseDot 2s ease-in-out infinite;
-      flex-shrink: 0;
-    }
-
-    /* Loading spinner */
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner {
-      width: 40px; height: 40px;
-      border: 3px solid rgba(255,191,0,0.15);
-      border-top-color: #FFBF00;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    /* Slide-up animation for content blocks */
-    @keyframes slideUp {
-      from { transform: translateY(20px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-    .anim-1 { animation: slideUp 0.5s cubic-bezier(0.16,1,0.3,1) 0.05s both; }
-    .anim-2 { animation: slideUp 0.5s cubic-bezier(0.16,1,0.3,1) 0.10s both; }
-    .anim-3 { animation: slideUp 0.5s cubic-bezier(0.16,1,0.3,1) 0.15s both; }
-    .anim-4 { animation: slideUp 0.5s cubic-bezier(0.16,1,0.3,1) 0.20s both; }
-    .anim-5 { animation: slideUp 0.5s cubic-bezier(0.16,1,0.3,1) 0.25s both; }
-
-    /* Responsive */
-    @media (max-width: 640px) {
-      .pour-grid { grid-template-columns: 1fr !important; }
-      .sec-grid { grid-template-columns: 1fr 1fr !important; }
-      .analytics-grid { grid-template-columns: 1fr !important; }
-    }
-    @media (max-width: 900px) {
-      .pour-grid { grid-template-columns: repeat(2, 1fr) !important; }
-    }
+    body { background:#06060A; color:#e4e1e8; font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; }
+    .mono { font-family:'JetBrains Mono',monospace; }
+    .no-scroll::-webkit-scrollbar { display:none; }
+    .no-scroll { -ms-overflow-style:none; scrollbar-width:none; }
+    .dot-grid { background-image:radial-gradient(rgba(255,255,255,0.04) 1px,transparent 1px); background-size:20px 20px; }
+    @keyframes pulse2 { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .pulse { animation:pulse2 1.8s ease-in-out infinite; }
+    @keyframes barGrow { from{width:0} }
+    .bar-animate { animation:barGrow .9s cubic-bezier(.65,0,.35,1) forwards; }
   </style>
 </head>
-<body class="min-h-screen overflow-x-hidden">
+<body class="min-h-screen">
 
-  <!-- ============================================================
-       LAYOUT WRAPPER
-  ============================================================ -->
-  <div class="flex min-h-screen">
-
-    <!-- ============================================================
-         SIDEBAR (static, 256px, hidden on mobile)
-    ============================================================ -->
-    <aside class="hidden md:flex flex-col fixed inset-y-0 left-0 w-64 glass-sidebar blueprint-grid fine-border border-r z-50" style="border-right: 0.5px solid rgba(139,144,160,0.15);">
-
-      <!-- Logo -->
-      <div class="flex items-center gap-3 px-5 py-5 border-b" style="border-color: rgba(139,144,160,0.1)">
-        <div class="flex items-center justify-center w-9 h-9 rounded-lg" style="background: rgba(74,142,255,0.12); border: 0.5px solid rgba(74,142,255,0.25)">
-          <span class="material-symbols-outlined filled" style="color:#4A8EFF;font-size:18px;">architecture</span>
-        </div>
-        <div>
-          <div class="text-sm font-bold tracking-wide text-white leading-tight">CUP PROJECT</div>
-          <div class="all-caps-label" style="color: rgba(228,225,232,0.35); font-size:9px">PHASE II CONSTR</div>
-        </div>
+<!-- HEADER -->
+<header class="sticky top-0 z-50 border-b border-white/5" style="background:rgba(6,6,10,0.95);backdrop-filter:blur(20px)">
+  <div class="max-w-7xl mx-auto px-4 h-14 flex items-center gap-4">
+    <span class="font-black text-sm tracking-widest text-white/90 shrink-0">CUP POUR DASHBOARD</span>
+    <div class="flex-1 flex justify-center gap-3 overflow-x-auto no-scroll">
+      <div class="flex items-center gap-1.5 bg-white/5 rounded-full px-3 py-1 text-xs shrink-0">
+        <span class="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+        <span class="mono text-white/70">O80D739K1</span>
+        <span class="text-white/40">·</span>
+        <span class="text-white/60">8000 PSI</span>
       </div>
-
-      <!-- Nav -->
-      <nav class="flex-1 px-3 py-4 space-y-1 no-scrollbar overflow-y-auto">
-        <div class="all-caps-label px-3 py-2 mb-1" style="color:rgba(228,225,232,0.25)">Main</div>
-        <a class="nav-link active" href="#">
-          <span class="material-symbols-outlined filled" style="font-size:18px">dashboard</span>
-          Dashboard
-        </a>
-        <a class="nav-link" href="#">
-          <span class="material-symbols-outlined" style="font-size:18px">map</span>
-          Zone Map
-        </a>
-        <a class="nav-link" href="#">
-          <span class="material-symbols-outlined" style="font-size:18px">calendar_month</span>
-          Pour Schedule
-        </a>
-        <a class="nav-link" href="#">
-          <span class="material-symbols-outlined" style="font-size:18px">bar_chart</span>
-          Analytics
-        </a>
-        <div class="all-caps-label px-3 py-2 mt-4 mb-1" style="color:rgba(228,225,232,0.25)">System</div>
-        <a class="nav-link" href="#">
-          <span class="material-symbols-outlined" style="font-size:18px">settings</span>
-          Settings
-        </a>
-      </nav>
-
-      <!-- New Pour Log button -->
-      <div class="px-3 pb-4">
-        <button class="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 hover:brightness-110 active:scale-95"
-          style="background: rgba(74,142,255,0.15); color:#4A8EFF; border:0.5px solid rgba(74,142,255,0.3)">
-          <span class="material-symbols-outlined" style="font-size:16px">add</span>
-          New Pour Log
-        </button>
+      <div class="flex items-center gap-1.5 bg-white/5 rounded-full px-3 py-1 text-xs shrink-0">
+        <span class="w-2 h-2 rounded-full bg-sa shrink-0"></span>
+        <span class="mono text-white/70">O60C649J1</span>
+        <span class="text-white/40">·</span>
+        <span class="text-white/60">5000 PSI</span>
       </div>
-
-      <!-- User info -->
-      <div class="px-4 py-4 border-t" style="border-color:rgba(139,144,160,0.1)">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background: linear-gradient(135deg,#4A8EFF,#8B5CF6)">JY</div>
-          <div class="flex-1 min-w-0">
-            <div class="text-xs font-semibold text-white truncate">OpenYap AI</div>
-            <div class="text-xs truncate" style="color:rgba(228,225,232,0.35)">LACC — CUP Phase II</div>
-          </div>
-          <span class="material-symbols-outlined" style="font-size:16px;color:rgba(228,225,232,0.3)">more_vert</span>
-        </div>
+    </div>
+    <div class="flex items-center gap-3 shrink-0">
+      <div class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-green-400 pulse"></span>
+        <span class="text-xs text-white/50 font-medium">LIVE</span>
       </div>
-    </aside>
+      <a id="sheetLink" href="#" target="_blank" class="text-xs text-sa hover:text-white transition-colors">Open Sheet ↗</a>
+    </div>
+  </div>
+</header>
 
-    <!-- ============================================================
-         MAIN AREA (offset by sidebar on desktop)
-    ============================================================ -->
-    <div class="flex-1 flex flex-col md:ml-64">
+<!-- FILTER BAR -->
+<div class="sticky top-14 z-40 border-b border-white/5" style="background:rgba(6,6,10,0.92);backdrop-filter:blur(16px)">
+  <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 overflow-x-auto no-scroll">
+    <div id="sectionFilters" class="flex gap-1.5 shrink-0">
+      <button onclick="setSectionFilter('ALL')" data-sec="ALL" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all active-pill">ALL</button>
+      <button onclick="setSectionFilter('A')" data-sec="A" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all" style="--sc:#4A8EFF">A</button>
+      <button onclick="setSectionFilter('B')" data-sec="B" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all" style="--sc:#41A447">B</button>
+      <button onclick="setSectionFilter('C')" data-sec="C" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all" style="--sc:#FFBF00">C</button>
+      <button onclick="setSectionFilter('D')" data-sec="D" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all" style="--sc:#8B5CF6">D</button>
+    </div>
+    <div class="w-px h-4 bg-white/10 shrink-0"></div>
+    <div id="dateFilters" class="flex gap-1.5 overflow-x-auto no-scroll"></div>
+  </div>
+</div>
 
-      <!-- ============================================================
-           HEADER (sticky)
-      ============================================================ -->
-      <header class="sticky top-0 z-30 flex items-center justify-between px-5 py-3 glass-sidebar" style="border-bottom:0.5px solid rgba(139,144,160,0.12)">
+<!-- MAIN -->
+<main class="max-w-7xl mx-auto px-4 py-5 space-y-5">
 
-        <!-- Left: title + refresh indicator -->
-        <div class="flex items-center gap-3">
-          <!-- Mobile hamburger placeholder -->
-          <button class="md:hidden flex items-center justify-center w-8 h-8 rounded-lg hover:bg-white/5 transition-colors">
-            <span class="material-symbols-outlined" style="font-size:20px;color:rgba(228,225,232,0.6)">menu</span>
-          </button>
-          <div>
-            <h1 class="text-base font-bold tracking-tight text-white leading-tight">CUP Pour Dashboard</h1>
-            <div class="flex items-center gap-1.5 mt-0.5">
-              <span class="pulse-dot"></span>
-              <span class="all-caps-label" style="color:rgba(228,225,232,0.3);font-size:9px">Live — refreshes every 30s</span>
-            </div>
-          </div>
-        </div>
+  <!-- LOADING -->
+  <div id="loading" class="flex flex-col items-center justify-center py-20 gap-3">
+    <div class="w-6 h-6 border-2 border-sa border-t-transparent rounded-full" style="animation:spin 1s linear infinite"></div>
+    <p class="text-white/40 text-sm">Loading pour data…</p>
+  </div>
 
-        <!-- Center: mix code badges -->
-        <div class="hidden sm:flex items-center gap-2">
-          <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg mono text-xs" style="background:rgba(239,68,68,0.08);border:0.5px solid rgba(239,68,68,0.2);color:#f87171">
-            <span class="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" style="animation:pulseDot 1.5s ease-in-out infinite;animation-delay:0.5s"></span>
-            8000 PSI — O80D739K1
-          </div>
-          <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg mono text-xs" style="background:rgba(74,142,255,0.08);border:0.5px solid rgba(74,142,255,0.2);color:#4A8EFF">
-            <span class="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block"></span>
-            5000 PSI — O60C649J1
-          </div>
-        </div>
+  <!-- ZONE MAP -->
+  <div id="zoneMap" class="hidden rounded-xl overflow-hidden border border-white/5 dot-grid" style="height:200px">
+    <svg id="zoneSvg" viewBox="0 0 1000 200" preserveAspectRatio="none" class="w-full h-full" style="display:block"></svg>
+  </div>
 
-        <!-- Right: icon buttons -->
-        <div class="flex items-center gap-1">
-          <button class="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-white/5 transition-colors" title="Monitoring">
-            <span class="material-symbols-outlined" style="font-size:20px;color:rgba(228,225,232,0.5)">monitor_heart</span>
-          </button>
-          <button class="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-white/5 transition-colors" title="Notifications">
-            <span class="material-symbols-outlined" style="font-size:20px;color:rgba(228,225,232,0.5)">notifications</span>
-          </button>
-        </div>
-      </header>
+  <!-- SECTION SUMMARY -->
+  <div id="sectionGrid" class="hidden grid grid-cols-2 md:grid-cols-4 gap-3"></div>
 
-      <!-- ============================================================
-           DYNAMIC CONTENT
-      ============================================================ -->
-      <main class="flex-1 px-4 md:px-6 py-5 pb-28" id="app">
-        <!-- Loading state (replaced by JS) -->
-        <div class="flex flex-col items-center justify-center py-32 gap-4">
-          <div class="spinner"></div>
-          <p class="text-sm" style="color:rgba(228,225,232,0.4)">Loading pour data from Google Sheets…</p>
-        </div>
-      </main>
+  <!-- POUR SCHEDULE -->
+  <div id="pourGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
 
-    </div><!-- end main area -->
-  </div><!-- end layout wrapper -->
+  <!-- EMPTY STATE -->
+  <div id="emptyState" class="hidden text-center py-12 text-white/30 text-sm">No pours match the current filter.</div>
 
-  <!-- ============================================================
-       GRAND TOTAL FOOTER (fixed, rendered by JS)
-  ============================================================ -->
-  <div id="grand-footer"></div>
+</main>
 
-  <!-- ============================================================
-       JAVASCRIPT
-  ============================================================ -->
-  <script>
-    const SHEET_ID = '1fTL_w-kLz0Jzwni9r3kSuGqSvlsFhNm0RsfRurQH750';
-    const GID = 999;
-    const REFRESH_MS = 30000;
+<!-- GRAND TOTAL FOOTER -->
+<div id="footer" class="hidden fixed bottom-0 left-0 right-0 z-50 border-t border-yellow-400/20" style="background:rgba(6,6,10,0.97);backdrop-filter:blur(20px)">
+  <div class="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between gap-4">
+    <div class="flex items-center gap-6 overflow-x-auto no-scroll">
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="w-2 h-2 rounded-full bg-red-400"></span>
+        <span class="text-xs text-white/50">8000 Total</span>
+        <span id="ftCy8000" class="mono text-sm font-bold text-red-300">—</span>
+        <span class="text-xs text-white/30">CY</span>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="w-2 h-2 rounded-full bg-sa"></span>
+        <span class="text-xs text-white/50">5000 Total</span>
+        <span id="ftCy5000" class="mono text-sm font-bold text-blue-300">—</span>
+        <span class="text-xs text-white/30">CY</span>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="text-xs text-white/50">Trucks</span>
+        <span id="ftTrucks" class="mono text-sm font-bold text-white/80">—</span>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="text-xs text-white/50">Grand Total</span>
+        <span id="ftTotal" class="mono text-base font-bold text-yellow-300">—</span>
+        <span class="text-xs text-white/30">CY</span>
+      </div>
+    </div>
+    <a id="footerSheetLink" href="#" target="_blank" class="text-xs text-sa hover:text-white transition-colors shrink-0">Open Sheet ↗</a>
+  </div>
+</div>
 
-    const SEC_COLOR = {
-      A: '#4A8EFF',
-      B: '#41A447',
-      C: '#FFBF00',
-      D: '#8B5CF6',
-    };
-    const SEC_BG = {
-      A: 'rgba(74,142,255,0.08)',
-      B: 'rgba(65,164,71,0.08)',
-      C: 'rgba(255,191,0,0.08)',
-      D: 'rgba(139,92,246,0.08)',
-    };
-    const SEC_BORDER = {
-      A: 'rgba(74,142,255,0.25)',
-      B: 'rgba(65,164,71,0.25)',
-      C: 'rgba(255,191,0,0.25)',
-      D: 'rgba(139,92,246,0.25)',
-    };
-    const SEC_LABEL = { A: 'Section A', B: 'Section B', C: 'Section C', D: 'Section D' };
+<div class="h-16"></div><!-- footer spacer -->
 
-    let allData = null;
-    let filter = { section: 'ALL', date: 'ALL' };
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────────────────
+const SHEET_ID = '1XKBf8a-RtSFJXv_iBNqV9xLW0RVagqQf1NUWj_ZmFMo';
+const GID      = '0';
+const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
+const GViz_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${GID}`;
 
-    // ---- Fetch & parse ----
-    async function fetchSheetData() {
-      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${GID}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      const jsonStr = text
-        .replace(/^[\s\S]*?google\.visualization\.Query\.setResponse\(/, '')
-        .replace(/\);?\s*$/, '');
-      return JSON.parse(jsonStr);
+document.getElementById('sheetLink').href       = SHEET_URL;
+document.getElementById('footerSheetLink').href = SHEET_URL;
+
+const SEC_COLORS = { A:'#4A8EFF', B:'#41A447', C:'#FFBF00', D:'#8B5CF6' };
+const SEC_DIM    = { A:'#1a2d4d', B:'#162a18', C:'#3a2d00', D:'#2a1a4d' };
+
+// ── PARSER HELPERS ───────────────────────────────────────────────────────────
+function anyNum(row, idx) {
+  const c = row?.c?.[idx];
+  if (!c || c.v == null) return 0;
+  if (typeof c.v === 'number') return c.v;
+  if (typeof c.v === 'string') { const n = parseFloat(c.v.replace(/,/g,'')); return isNaN(n) ? 0 : n; }
+  return 0;
+}
+function anyStr(row, idx) {
+  const c = row?.c?.[idx];
+  if (!c || c.v == null) return '';
+  return String(c.v);
+}
+function anyDate(row, idx) {
+  const c = row?.c?.[idx];
+  if (!c || c.v == null) return null;
+  const v = String(c.v);
+  if (v.startsWith('Date(')) {
+    const p = v.match(/Date\((\d+),(\d+),(\d+)\)/);
+    if (p && parseInt(p[1]) > 2000) return `${parseInt(p[2])+1}/${p[3]}`;
+  }
+  if (c.f) return c.f;
+  return null;
+}
+
+// ── STATE ────────────────────────────────────────────────────────────────────
+let state = { refs:{}, pours:[], grand:{}, sectionFilter:'ALL', dateFilter:'ALL' };
+
+// ── FETCH & PARSE ────────────────────────────────────────────────────────────
+async function fetchData() {
+  const res  = await fetch(GViz_URL);
+  const text = await res.text();
+  const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+  const rows = json.table.rows;
+
+  const refs  = {};
+  const pours = [];
+  let grand   = {};
+  let refDone = false, orderMode = false, skipNext = false;
+
+  for (const row of rows) {
+    if (!row?.c) continue;
+    const col0 = anyStr(row, 0).trim();
+
+    if (!refDone && ['A','B','C','D'].includes(col0) && Object.keys(refs).length < 4) {
+      const cy8000    = anyNum(row, 1);
+      const slurryVol = anyNum(row, 3);
+      const plinthVol = anyNum(row, 5);
+      const secTotal  = anyNum(row, 6);
+      const cy5000    = Math.max(0, secTotal - cy8000 - slurryVol - plinthVol);
+      refs[col0] = { cy8000, cy5000, slurryVol, plinthVol, secTotal };
+      continue;
     }
+    if (col0 === 'TOTAL')          { refDone = true; continue; }
+    if (col0 === 'ORDER SUMMARY')  { orderMode = true; skipNext = true; continue; }
+    if (skipNext)                  { skipNext = false; continue; }
 
-    function cell(row, idx) {
-      if (!row || !row.c || !row.c[idx]) return null;
-      return row.c[idx].v;
-    }
-    function cellStr(row, idx) { const v = cell(row, idx); return v != null ? String(v) : ''; }
-    function cellNum(row, idx) { const v = cell(row, idx); return typeof v === 'number' ? v : 0; }
-
-    function fmtCY(n) {
-      if (!n || n === 0) return '0.00';
-      return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
-    function fmtInt(n) {
-      if (!n || n === 0) return '0';
-      return Math.round(n).toLocaleString('en-US');
-    }
-    function fmtDate(v) {
-      if (!v) return null;
-      if (typeof v === 'string' && v.startsWith('Date(')) {
-        const p = v.match(/Date\((\d+),(\d+),(\d+)\)/);
-        if (p) return `${parseInt(p[2]) + 1}/${p[3]}`;
+    if (orderMode) {
+      if (col0 === 'GRAND TOTAL') {
+        grand = {
+          cy8000:  anyNum(row, 3),
+          cy5000:  anyNum(row, 4),
+          total:   anyNum(row, 5),
+          t8000:   anyNum(row, 6),
+          t5000:   anyNum(row, 7),
+          trucks:  anyNum(row, 8),
+        };
+        break;
       }
-      return String(v);
-    }
-
-    function extractData(response) {
-      const rows = response.table.rows;
-      const data = { reference: [], pours: [], grandTotal: null };
-      let mode = 'scan';
-
-      for (let i = 0; i < rows.length; i++) {
-        const a = cellStr(rows[i], 0);
-
-        if (a.includes('REFERENCE')) { mode = 'ref_header'; continue; }
-        if (mode === 'ref_header') { mode = 'ref_data'; continue; }
-        if (mode === 'ref_data') {
-          if (['A', 'B', 'C', 'D'].includes(a)) {
-            data.reference.push({
-              section: a,
-              cy8000: cellNum(rows[i], 1),
-              cy5000: cellNum(rows[i], 2),
-              slurryVol: cellNum(rows[i], 3),
-              slurryMix: cellNum(rows[i], 4),
-              plinthVol: cellNum(rows[i], 5),
-              sectionTotal: cellNum(rows[i], 6),
-            });
-          }
-          if (a === 'TOTAL') mode = 'scan';
-          continue;
-        }
-
-        if (a === 'ORDER SUMMARY') { mode = 'order_header'; continue; }
-        if (mode === 'order_header') { mode = 'order_data'; continue; }
-        if (mode === 'order_data') {
-          if (a === 'GRAND TOTAL') {
-            data.grandTotal = {
-              total8000: cellNum(rows[i], 3),
-              total5000: cellNum(rows[i], 4),
-              grandTotal: cellNum(rows[i], 5),
-              trucks8000: cellNum(rows[i], 6),
-              trucks5000: cellNum(rows[i], 7),
-              totalTrucks: cellNum(rows[i], 8),
-            };
-            mode = 'done';
-            continue;
-          }
-          if (a && /^[A-D]-[1-3]/.test(a)) {
-            data.pours.push({
-              id: a.replace(' (Plinth)', ''),
-              label: a,
-              section: cellStr(rows[i], 1) || a[0],
-              date: fmtDate(cell(rows[i], 2)),
-              total8000: cellNum(rows[i], 3),
-              total5000: cellNum(rows[i], 4),
-              grandTotal: cellNum(rows[i], 5),
-              trucks8000: cellNum(rows[i], 6),
-              trucks5000: cellNum(rows[i], 7),
-              totalTrucks: cellNum(rows[i], 8),
-              status: cellStr(rows[i], 9).toLowerCase(),
-            });
-          }
-          continue;
-        }
-      }
-      return data;
-    }
-
-    // ---- Filtering ----
-    function filtered() {
-      if (!allData) return null;
-      let ref = allData.reference;
-      let pours = allData.pours;
-
-      if (filter.section !== 'ALL') {
-        ref = ref.filter(r => r.section === filter.section);
-        pours = pours.filter(p => p.section === filter.section);
-      }
-      if (filter.date !== 'ALL') {
-        pours = pours.filter(p => p.date === filter.date);
-      }
-
-      const gt = {
-        total8000: pours.reduce((s, p) => s + p.total8000, 0),
-        total5000: pours.reduce((s, p) => s + p.total5000, 0),
-        grandTotal: pours.reduce((s, p) => s + p.grandTotal, 0),
-        trucks8000: pours.reduce((s, p) => s + p.trucks8000, 0),
-        trucks5000: pours.reduce((s, p) => s + p.trucks5000, 0),
-        totalTrucks: pours.reduce((s, p) => s + p.totalTrucks, 0),
-      };
-
-      return { reference: ref, pours, grandTotal: gt };
-    }
-
-    function allDates() {
-      if (!allData) return [];
-      return [...new Set(allData.pours.map(p => p.date).filter(Boolean))].sort();
-    }
-
-    // ---- Render ----
-    function render() {
-      const data = filtered();
-      if (!data) return;
-
-      const dates = allDates();
-      const refMap = {};
-      (allData.reference || []).forEach(r => { refMap[r.section] = r; });
-
-      // Max for pour bars
-      const maxPourCY = Math.max(1, ...data.pours.map(p => Math.max(p.total8000 || 0, p.total5000 || 0)));
-
-      // Max section total for vol-by-section bars
-      const allSecTotals = (allData.reference || []).map(r => r.sectionTotal || 0);
-      const maxSecTotal = Math.max(1, ...allSecTotals);
-
-      // Donut calc
-      const gt = data.grandTotal;
-      const donutTotal = (gt.total8000 || 0) + (gt.total5000 || 0);
-      const pct8000 = donutTotal > 0 ? (gt.total8000 / donutTotal) * 100 : 50;
-      const pct5000 = donutTotal > 0 ? (gt.total5000 / donutTotal) * 100 : 50;
-      // SVG donut: r=64, circ=402.12
-      const CIRC = 402.124;
-      const dash8 = (pct8000 / 100) * CIRC;
-      const dash5 = (pct5000 / 100) * CIRC;
-      const offset8 = 0;
-      const offset5 = -(dash8); // starts where 8000 ends (rotate -90deg on circle)
-
-      let h = '';
-
-      // ---- FILTER BAR ----
-      h += `
-      <div class="anim-1 flex flex-wrap items-center gap-2 rounded-xl px-4 py-3 mb-5" style="background:rgba(11,11,15,0.7);border:0.5px solid rgba(139,144,160,0.12)">
-        <span class="all-caps-label mr-2" style="color:rgba(228,225,232,0.3)">Section</span>
-        <div class="flex flex-wrap gap-1.5 items-center">`;
-
-      // Section pills
-      const secPillDefs = [
-        { v: 'ALL', label: 'All Sections', cls: 'sec-pill-all' },
-        { v: 'A', label: 'Section A', cls: 'sec-pill-a' },
-        { v: 'B', label: 'Section B', cls: 'sec-pill-b' },
-        { v: 'C', label: 'Section C', cls: 'sec-pill-c' },
-        { v: 'D', label: 'Section D', cls: 'sec-pill-d' },
-      ];
-      secPillDefs.forEach(p => {
-        const active = filter.section === p.v ? ' pill-active' : '';
-        h += `<button onclick="setSection('${p.v}')" class="${p.cls}${active} px-3 py-1 rounded-full text-xs font-semibold transition-all duration-150 hover:opacity-90" style="border:0.5px solid rgba(139,144,160,0.15);color:${active ? '' : 'rgba(228,225,232,0.4)'}">${p.label}</button>`;
-      });
-
-      h += `</div>
-        <div class="w-px self-stretch mx-2" style="background:rgba(139,144,160,0.12)"></div>
-        <span class="all-caps-label mr-1" style="color:rgba(228,225,232,0.3)">Date</span>
-        <div class="flex flex-wrap gap-1.5 items-center">`;
-
-      // Date pills
-      const dateActive = filter.date === 'ALL' ? ' pill-active' : '';
-      h += `<button onclick="setDate('ALL')" class="date-pill${dateActive} px-3 py-1 rounded-full text-xs font-semibold transition-all duration-150 hover:opacity-90" style="border:0.5px solid rgba(139,144,160,0.15);color:${dateActive ? '' : 'rgba(228,225,232,0.4)'}">All Dates</button>`;
-      if (dates.length > 0) {
-        dates.forEach(d => {
-          const da = filter.date === d ? ' pill-active' : '';
-          h += `<button onclick="setDate('${d}')" class="date-pill mono${da} px-3 py-1 rounded-full text-xs font-semibold transition-all duration-150 hover:opacity-90" style="border:0.5px solid rgba(139,144,160,0.15);color:${da ? '' : 'rgba(228,225,232,0.4)'}">${d}</button>`;
+      if (/^[A-D]-[1-9]/.test(col0)) {
+        pours.push({
+          id:       col0,
+          section:  anyStr(row, 1).trim() || col0[0],
+          date:     anyDate(row, 2),
+          cy8000:   anyNum(row, 3),
+          cy5000:   anyNum(row, 4),
+          total:    anyNum(row, 5),
+          t8000:    anyNum(row, 6),
+          t5000:    anyNum(row, 7),
+          trucks:   anyNum(row, 8),
+          status:   anyStr(row, 9).trim(),
         });
-      } else {
-        h += `<span class="text-xs italic" style="color:rgba(228,225,232,0.25)">No dates assigned</span>`;
-      }
-
-      h += `</div></div>`;
-
-      // ---- ZONE MAP + ANALYTICS (grid 8+4) ----
-      h += `<div class="anim-2 grid gap-4 mb-5" style="grid-template-columns: 2fr 1fr">`;
-
-      // LEFT: Zone map
-      const zCls = (s) => {
-        if (filter.section === 'ALL') return 'zone-rect';
-        return filter.section === s ? 'zone-rect active' : 'zone-rect dimmed';
-      };
-      const tCls = (s) => {
-        if (filter.section === 'ALL') return 'zone-text';
-        return filter.section === s ? 'zone-text' : 'zone-text dimmed';
-      };
-
-      h += `
-      <div class="rounded-xl overflow-hidden" style="background:#0B0B0F;border:0.5px solid rgba(139,144,160,0.12)">
-        <div class="flex items-center justify-between px-4 py-3" style="border-bottom:0.5px solid rgba(139,144,160,0.08)">
-          <div class="flex items-center gap-2">
-            <span class="material-symbols-outlined" style="font-size:16px;color:rgba(228,225,232,0.35)">crop_free</span>
-            <span class="all-caps-label" style="color:rgba(228,225,232,0.4)">CUP Sequence Plan — Click to Filter</span>
-          </div>
-          <span class="all-caps-label mono" style="color:rgba(228,225,232,0.2)">LACC · STRUCTURAL EXCAV · SEQ-0</span>
-        </div>
-        <div class="blueprint-grid blueprint-lines" style="padding:12px">
-          <svg viewBox="0 0 800 340" xmlns="http://www.w3.org/2000/svg" style="width:100%;border-radius:8px;overflow:hidden">
-            <defs>
-              <filter id="glowA"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-              <filter id="glowB"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-              <filter id="glowC"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-              <filter id="glowD"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-            </defs>
-
-            <rect width="800" height="340" fill="#08080c" rx="8"/>
-
-            <!-- Grid lines -->
-            ${[0,1,2,3,4,5,6,7,8,9].map(i =>
-              `<line x1="${80*i}" y1="0" x2="${80*i}" y2="340" stroke="rgba(255,255,255,0.015)" stroke-width="1"/>`
-            ).join('')}
-            ${[0,1,2,3,4].map(i =>
-              `<line x1="0" y1="${85*i}" x2="800" y2="${85*i}" stroke="rgba(255,255,255,0.015)" stroke-width="1"/>`
-            ).join('')}
-
-            <!-- CUP boundary -->
-            <rect x="8" y="8" width="784" height="324" rx="5" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
-
-            <!-- Shoring line indicator -->
-            <line x1="8" y1="50" x2="440" y2="50" stroke="rgba(255,191,0,0.15)" stroke-width="1" stroke-dasharray="6,4"/>
-            <text x="224" y="43" fill="rgba(255,191,0,0.2)" font-size="7" font-family="'JetBrains Mono',monospace" text-anchor="middle" letter-spacing="3" font-weight="600">SHORING LINE</text>
-
-            <!-- SECTION D (purple, left column) -->
-            <rect class="${zCls('D')}" onclick="clickZone('D')"
-              x="14" y="58" width="200" height="264" rx="8"
-              fill="${filter.section === 'D' ? 'rgba(139,92,246,0.18)' : 'rgba(139,92,246,0.07)'}"
-              stroke="#8B5CF6" stroke-opacity="${filter.section === 'ALL' || filter.section === 'D' ? '0.45' : '0.1'}" stroke-width="${filter.section === 'D' ? '1.5' : '1'}"
-              ${filter.section === 'D' ? 'filter="url(#glowD)"' : ''}/>
-            <text class="${tCls('D')}" x="114" y="162" font-size="48" fill="white" text-anchor="middle" dominant-baseline="middle"
-              font-family="'Inter',sans-serif" font-weight="900" style="filter:drop-shadow(0 2px 8px rgba(0,0,0,0.9))">D</text>
-            <text class="${tCls('D')}" x="114" y="198" font-size="14" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="600"
-              fill="rgba(255,255,255,0.75)" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.9))">${fmtCY(refMap.D?.sectionTotal || 0)} CY</text>
-            <text class="${tCls('D')}" x="114" y="220" font-size="8" text-anchor="middle" font-family="'JetBrains Mono',monospace"
-              fill="rgba(255,255,255,0.35)">${(allData.pours || []).filter(p => p.section === 'D').map(p => p.id).join(' · ') || 'No pours'}</text>
-
-            <!-- SECTION B (green, upper-center) -->
-            <rect class="${zCls('B')}" onclick="clickZone('B')"
-              x="228" y="20" width="230" height="196" rx="8"
-              fill="${filter.section === 'B' ? 'rgba(65,164,71,0.18)' : 'rgba(65,164,71,0.07)'}"
-              stroke="#41A447" stroke-opacity="${filter.section === 'ALL' || filter.section === 'B' ? '0.45' : '0.1'}" stroke-width="${filter.section === 'B' ? '1.5' : '1'}"
-              ${filter.section === 'B' ? 'filter="url(#glowB)"' : ''}/>
-            <text class="${tCls('B')}" x="343" y="96" font-size="48" fill="white" text-anchor="middle" dominant-baseline="middle"
-              font-family="'Inter',sans-serif" font-weight="900" style="filter:drop-shadow(0 2px 8px rgba(0,0,0,0.9))">B</text>
-            <text class="${tCls('B')}" x="343" y="132" font-size="14" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="600"
-              fill="rgba(255,255,255,0.75)" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.9))">${fmtCY(refMap.B?.sectionTotal || 0)} CY</text>
-            <text class="${tCls('B')}" x="343" y="152" font-size="8" text-anchor="middle" font-family="'JetBrains Mono',monospace"
-              fill="rgba(255,255,255,0.35)">${(allData.pours || []).filter(p => p.section === 'B').map(p => p.id).join(' · ') || 'No pours'}</text>
-
-            <!-- SECTION C (amber, lower-center) -->
-            <rect class="${zCls('C')}" onclick="clickZone('C')"
-              x="258" y="228" width="270" height="100" rx="8"
-              fill="${filter.section === 'C' ? 'rgba(255,191,0,0.18)' : 'rgba(255,191,0,0.07)'}"
-              stroke="#FFBF00" stroke-opacity="${filter.section === 'ALL' || filter.section === 'C' ? '0.45' : '0.1'}" stroke-width="${filter.section === 'C' ? '1.5' : '1'}"
-              ${filter.section === 'C' ? 'filter="url(#glowC)"' : ''}/>
-            <text class="${tCls('C')}" x="393" y="264" font-size="42" fill="white" text-anchor="middle" dominant-baseline="middle"
-              font-family="'Inter',sans-serif" font-weight="900" style="filter:drop-shadow(0 2px 8px rgba(0,0,0,0.9))">C</text>
-            <text class="${tCls('C')}" x="393" y="298" font-size="14" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="600"
-              fill="rgba(255,255,255,0.75)" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.9))">${fmtCY(refMap.C?.sectionTotal || 0)} CY</text>
-
-            <!-- SECTION A (blue, right, largest) -->
-            <rect class="${zCls('A')}" onclick="clickZone('A')"
-              x="548" y="20" width="238" height="310" rx="8"
-              fill="${filter.section === 'A' ? 'rgba(74,142,255,0.18)' : 'rgba(74,142,255,0.07)'}"
-              stroke="#4A8EFF" stroke-opacity="${filter.section === 'ALL' || filter.section === 'A' ? '0.45' : '0.1'}" stroke-width="${filter.section === 'A' ? '1.5' : '1'}"
-              ${filter.section === 'A' ? 'filter="url(#glowA)"' : ''}/>
-            <text class="${tCls('A')}" x="667" y="148" font-size="58" fill="white" text-anchor="middle" dominant-baseline="middle"
-              font-family="'Inter',sans-serif" font-weight="900" style="filter:drop-shadow(0 2px 8px rgba(0,0,0,0.9))">A</text>
-            <text class="${tCls('A')}" x="667" y="190" font-size="14" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="600"
-              fill="rgba(255,255,255,0.75)" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.9))">${fmtCY(refMap.A?.sectionTotal || 0)} CY</text>
-            <text class="${tCls('A')}" x="667" y="212" font-size="8" text-anchor="middle" font-family="'JetBrains Mono',monospace"
-              fill="rgba(255,255,255,0.35)">${(allData.pours || []).filter(p => p.section === 'A').map(p => p.id).join(' · ') || 'No pours'}</text>
-
-          </svg>
-        </div>
-      </div>`;
-
-      // RIGHT: Stacked analytics cards
-      h += `<div class="flex flex-col gap-4">`;
-
-      // --- Mix Composition donut ---
-      h += `
-      <div class="rounded-xl p-4 flex-1" style="background:#0B0B0F;border:0.5px solid rgba(139,144,160,0.12)">
-        <div class="flex items-center gap-2 mb-3">
-          <span class="material-symbols-outlined" style="font-size:15px;color:rgba(228,225,232,0.35)">donut_large</span>
-          <span class="all-caps-label" style="color:rgba(228,225,232,0.4)">Mix Composition</span>
-        </div>
-        <div class="flex items-center justify-center" style="position:relative">
-          <svg viewBox="0 0 160 160" style="width:140px;height:140px;transform:rotate(-90deg)">
-            <!-- Track -->
-            <circle cx="80" cy="80" r="64" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="18"/>
-            <!-- 8000 PSI segment -->
-            <circle cx="80" cy="80" r="64" fill="none"
-              stroke="#f87171" stroke-width="18"
-              stroke-dasharray="${(pct8000/100*CIRC).toFixed(2)} ${CIRC}"
-              stroke-dashoffset="0"
-              stroke-linecap="butt"
-              class="donut-ring"/>
-            <!-- 5000 PSI segment -->
-            <circle cx="80" cy="80" r="64" fill="none"
-              stroke="#4A8EFF" stroke-width="18"
-              stroke-dasharray="${(pct5000/100*CIRC).toFixed(2)} ${CIRC}"
-              stroke-dashoffset="${-((pct8000/100)*CIRC).toFixed(2)}"
-              stroke-linecap="butt"
-              class="donut-ring"/>
-          </svg>
-          <div style="position:absolute;text-align:center;top:50%;left:50%;transform:translate(-50%,-50%)">
-            <div class="mono font-bold" style="font-size:15px;color:#FFBF00;line-height:1.1">${fmtCY(donutTotal)}</div>
-            <div class="all-caps-label" style="color:rgba(228,225,232,0.3);font-size:8px">TOTAL CY</div>
-          </div>
-        </div>
-        <div class="flex justify-around mt-3">
-          <div class="text-center">
-            <div class="mono text-xs font-bold" style="color:#f87171">${pct8000.toFixed(0)}%</div>
-            <div class="all-caps-label" style="color:rgba(228,225,232,0.3);font-size:8px">8000 PSI</div>
-          </div>
-          <div class="text-center">
-            <div class="mono text-xs font-bold" style="color:#4A8EFF">${pct5000.toFixed(0)}%</div>
-            <div class="all-caps-label" style="color:rgba(228,225,232,0.3);font-size:8px">5000 PSI</div>
-          </div>
-        </div>
-      </div>`;
-
-      // --- Volume by section bars ---
-      h += `
-      <div class="rounded-xl p-4" style="background:#0B0B0F;border:0.5px solid rgba(139,144,160,0.12)">
-        <div class="flex items-center gap-2 mb-3">
-          <span class="material-symbols-outlined" style="font-size:15px;color:rgba(228,225,232,0.35)">stacked_bar_chart</span>
-          <span class="all-caps-label" style="color:rgba(228,225,232,0.4)">Volume by Section</span>
-        </div>
-        <div class="space-y-3">`;
-
-      ['A', 'B', 'C', 'D'].forEach(s => {
-        const r = refMap[s];
-        const total = r ? r.sectionTotal : 0;
-        const pct = maxSecTotal > 0 ? (total / maxSecTotal * 100) : 0;
-        const isActive = filter.section === 'ALL' || filter.section === s;
-        h += `
-          <div>
-            <div class="flex justify-between items-center mb-1">
-              <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-sm inline-block" style="background:${SEC_COLOR[s]};opacity:${isActive ? 1 : 0.2}"></span>
-                <span class="all-caps-label" style="color:${isActive ? 'rgba(228,225,232,0.6)' : 'rgba(228,225,232,0.2)'}">Section ${s}</span>
-              </div>
-              <span class="mono text-xs font-semibold" style="color:${isActive ? SEC_COLOR[s] : 'rgba(228,225,232,0.2)'}">${fmtCY(total)}</span>
-            </div>
-            <div class="rounded-full overflow-hidden" style="height:5px;background:rgba(255,255,255,0.05)">
-              <div class="h-full rounded-full progress-bar-fill" style="width:${pct.toFixed(1)}%;background:${isActive ? SEC_COLOR[s] : 'rgba(255,255,255,0.08)'};opacity:${isActive ? 1 : 0.3}"></div>
-            </div>
-          </div>`;
-      });
-
-      h += `</div></div>`;
-      h += `</div>`; // end right column
-      h += `</div>`; // end zone map grid
-
-      // ---- SECTION SUMMARY CARDS ----
-      h += `
-      <div class="anim-3 mb-5">
-        <div class="flex items-center gap-2 mb-3">
-          <span class="all-caps-label" style="color:rgba(228,225,232,0.4)">
-            ${filter.section === 'ALL' ? 'Section Overview' : 'Section ' + filter.section + ' Detail'}
-          </span>
-          <div class="flex-1 h-px" style="background:rgba(139,144,160,0.08)"></div>
-        </div>
-        <div class="sec-grid grid grid-cols-4 gap-3">`;
-
-      if (data.reference.length === 0) {
-        h += `<div class="col-span-4 text-center py-8 text-xs italic" style="color:rgba(228,225,232,0.25)">No sections match the current filter</div>`;
-      }
-
-      data.reference.forEach((r, idx) => {
-        const s = r.section;
-        h += `
-          <div class="rounded-xl p-4 sec-card-${s.toLowerCase()} relative overflow-hidden" style="background:#0B0B0F;border:0.5px solid rgba(139,144,160,0.1)">
-            <div class="absolute inset-0 opacity-30 pointer-events-none" style="background:radial-gradient(ellipse at top left,${SEC_BG[s]},transparent 70%)"></div>
-            <div class="relative">
-              <!-- Header -->
-              <div class="flex items-start justify-between mb-3">
-                <div>
-                  <div class="flex items-center gap-2 mb-0.5">
-                    <span class="w-6 h-6 rounded flex items-center justify-center text-xs font-black text-white" style="background:${SEC_COLOR[s]}">${s}</span>
-                    <span class="text-xs font-semibold" style="color:rgba(228,225,232,0.5)">Section ${s}</span>
-                  </div>
-                </div>
-                <span class="text-5xl font-black opacity-5 select-none leading-none" style="color:${SEC_COLOR[s]}">${s}</span>
-              </div>
-              <!-- Big number -->
-              <div class="mono font-black mb-0.5" style="font-size:28px;letter-spacing:-0.02em;color:${SEC_COLOR[s]}">${fmtCY(r.sectionTotal)}</div>
-              <div class="all-caps-label mb-3" style="color:rgba(228,225,232,0.3)">Total Cubic Yards</div>
-              <!-- Breakdown grid -->
-              <div class="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                <div class="flex justify-between">
-                  <span class="text-xs" style="color:rgba(248,113,113,0.8)">8000 PSI</span>
-                  <span class="mono text-xs font-semibold" style="color:rgba(228,225,232,0.7)">${fmtCY(r.cy8000)}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-xs" style="color:rgba(74,142,255,0.8)">5000 PSI</span>
-                  <span class="mono text-xs font-semibold" style="color:rgba(228,225,232,0.7)">${fmtCY(r.cy5000)}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-xs" style="color:rgba(228,225,232,0.35)">Slurry</span>
-                  <span class="mono text-xs font-semibold" style="color:rgba(228,225,232,0.5)">${fmtCY(r.slurryVol)}</span>
-                </div>
-                ${r.plinthVol ? `
-                <div class="flex justify-between">
-                  <span class="text-xs" style="color:rgba(228,225,232,0.35)">Plinth</span>
-                  <span class="mono text-xs font-semibold" style="color:rgba(228,225,232,0.5)">${fmtCY(r.plinthVol)}</span>
-                </div>` : '<div></div>'}
-              </div>
-            </div>
-          </div>`;
-      });
-
-      h += `</div></div>`;
-
-      // ---- POUR LOG CARDS ----
-      h += `
-      <div class="anim-4 mb-5">
-        <div class="flex items-center gap-2 mb-3">
-          <span class="all-caps-label" style="color:rgba(228,225,232,0.4)">Pour Schedule — ${data.pours.length} Pour${data.pours.length !== 1 ? 's' : ''}</span>
-          <div class="flex-1 h-px" style="background:rgba(139,144,160,0.08)"></div>
-        </div>`;
-
-      if (data.pours.length === 0) {
-        h += `
-          <div class="rounded-xl py-12 text-center" style="background:#0B0B0F;border:0.5px dashed rgba(139,144,160,0.15)">
-            <span class="material-symbols-outlined block mx-auto mb-2" style="font-size:32px;color:rgba(228,225,232,0.15)">format_list_bulleted</span>
-            <p class="text-sm" style="color:rgba(228,225,232,0.25)">No pours match the current filter</p>
-          </div>`;
-      } else {
-        h += `<div class="pour-grid grid grid-cols-3 gap-3">`;
-        data.pours.forEach((p, idx) => {
-          const s = p.section;
-          const pct8 = maxPourCY > 0 ? (p.total8000 / maxPourCY * 100) : 0;
-          const pct5 = maxPourCY > 0 ? (p.total5000 / maxPourCY * 100) : 0;
-          const status = p.status.includes('order') ? 'ordered' : p.status.includes('pour') ? 'poured' : 'pending';
-          const statusLabel = status === 'ordered' ? 'Ordered' : status === 'poured' ? 'Poured' : 'Pending';
-          const statusStyle = status === 'ordered'
-            ? 'background:rgba(251,191,36,0.1);color:#fbbf24;border:0.5px solid rgba(251,191,36,0.2)'
-            : status === 'poured'
-            ? 'background:rgba(74,222,128,0.1);color:#4ade80;border:0.5px solid rgba(74,222,128,0.2)'
-            : 'background:rgba(139,144,160,0.06);color:rgba(228,225,232,0.3);border:0.5px solid rgba(139,144,160,0.1)';
-
-          h += `
-            <div class="rounded-xl p-4 pour-card-${s.toLowerCase()} relative overflow-hidden transition-all duration-200 hover:scale-[1.01]"
-              style="background:#0B0B0F;border:0.5px solid rgba(139,144,160,0.1)">
-              <!-- Top accent glow -->
-              <div class="absolute inset-x-0 top-0 h-16 pointer-events-none" style="background:linear-gradient(to bottom,${SEC_BG[s]},transparent)"></div>
-              <div class="relative">
-                <!-- Header row -->
-                <div class="flex items-start justify-between mb-3">
-                  <div class="flex items-center gap-2">
-                    <span class="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black text-white flex-shrink-0" style="background:${SEC_COLOR[s]}">${s}</span>
-                    <div>
-                      <div class="mono font-bold text-base leading-tight text-white">${p.label}</div>
-                      <div class="mono text-xs ${p.date ? '' : 'italic'}" style="color:${p.date ? 'rgba(228,225,232,0.45)' : 'rgba(228,225,232,0.2)'}">${p.date || 'No date set'}</div>
-                    </div>
-                  </div>
-                  <span class="rounded-full px-2 py-0.5 text-xs font-semibold all-caps-label" style="${statusStyle}">${statusLabel}</span>
-                </div>
-                <!-- 8000 PSI bar -->
-                <div class="flex items-center gap-2 mb-2">
-                  <span class="mono text-xs font-bold w-9 flex-shrink-0" style="color:#f87171">8000</span>
-                  <div class="flex-1 rounded-full overflow-hidden" style="height:5px;background:rgba(255,255,255,0.05)">
-                    <div class="h-full rounded-full progress-bar-fill" style="width:${pct8.toFixed(1)}%;background:linear-gradient(90deg,#ef4444,#f97316)"></div>
-                  </div>
-                  <span class="mono text-xs font-semibold w-16 text-right flex-shrink-0" style="color:rgba(228,225,232,0.6)">${fmtCY(p.total8000)}</span>
-                </div>
-                <!-- 5000 PSI bar -->
-                <div class="flex items-center gap-2 mb-3">
-                  <span class="mono text-xs font-bold w-9 flex-shrink-0" style="color:#4A8EFF">5000</span>
-                  <div class="flex-1 rounded-full overflow-hidden" style="height:5px;background:rgba(255,255,255,0.05)">
-                    <div class="h-full rounded-full progress-bar-fill" style="width:${pct5.toFixed(1)}%;background:linear-gradient(90deg,#4A8EFF,#818cf8)"></div>
-                  </div>
-                  <span class="mono text-xs font-semibold w-16 text-right flex-shrink-0" style="color:rgba(228,225,232,0.6)">${fmtCY(p.total5000)}</span>
-                </div>
-                <!-- Footer stats -->
-                <div class="flex items-center justify-between pt-2.5" style="border-top:0.5px solid rgba(139,144,160,0.1)">
-                  <div class="text-center">
-                    <div class="mono font-bold text-base" style="color:#FFBF00">${fmtCY(p.grandTotal)}</div>
-                    <div class="all-caps-label" style="color:rgba(228,225,232,0.25);font-size:8px">Total CY</div>
-                  </div>
-                  <div class="text-center">
-                    <div class="mono font-bold text-sm" style="color:rgba(228,225,232,0.7)">${fmtInt(p.trucks8000)}</div>
-                    <div class="all-caps-label" style="color:rgba(228,225,232,0.25);font-size:8px">8k Trucks</div>
-                  </div>
-                  <div class="text-center">
-                    <div class="mono font-bold text-sm" style="color:rgba(228,225,232,0.7)">${fmtInt(p.trucks5000)}</div>
-                    <div class="all-caps-label" style="color:rgba(228,225,232,0.25);font-size:8px">5k Trucks</div>
-                  </div>
-                  <div class="text-center">
-                    <div class="mono font-bold text-sm text-white">${fmtInt(p.totalTrucks)}</div>
-                    <div class="all-caps-label" style="color:rgba(228,225,232,0.25);font-size:8px">Total</div>
-                  </div>
-                </div>
-              </div>
-            </div>`;
-        });
-        h += `</div>`;
-      }
-
-      h += `</div>`; // end pour log section
-
-      // Set main content
-      document.getElementById('app').innerHTML = h;
-
-      // ---- GRAND TOTAL FOOTER ----
-      const footerGt = data.grandTotal;
-      document.getElementById('grand-footer').innerHTML = `
-        <div class="glass-sidebar" style="border-top:0.5px solid rgba(139,144,160,0.12)">
-          <div class="flex items-center justify-between px-5 py-3 max-w-screen-2xl mx-auto">
-            <!-- Left: mix totals -->
-            <div class="flex items-center gap-6">
-              <div>
-                <div class="mono font-black text-xl leading-tight" style="color:#f87171">${fmtCY(footerGt.total8000)}</div>
-                <div class="all-caps-label" style="color:rgba(248,113,113,0.5)">8000 PSI${filter.section !== 'ALL' ? ' · Sec ' + filter.section : ''}</div>
-              </div>
-              <div class="w-px h-8" style="background:rgba(139,144,160,0.12)"></div>
-              <div>
-                <div class="mono font-black text-xl leading-tight" style="color:#4A8EFF">${fmtCY(footerGt.total5000)}</div>
-                <div class="all-caps-label" style="color:rgba(74,142,255,0.5)">5000 PSI${filter.section !== 'ALL' ? ' · Sec ' + filter.section : ''}</div>
-              </div>
-              <div class="w-px h-8" style="background:rgba(139,144,160,0.12)"></div>
-              <div>
-                <div class="mono font-black text-xl leading-tight text-white">${fmtInt(footerGt.totalTrucks)}</div>
-                <div class="all-caps-label" style="color:rgba(228,225,232,0.3)">Total Trucks</div>
-              </div>
-            </div>
-
-            <!-- Center: grand total highlight -->
-            <div class="text-center">
-              <div class="all-caps-label mb-0.5" style="color:rgba(255,191,0,0.5)">
-                ${filter.section !== 'ALL' ? 'Section ' + filter.section + ' Total' : 'Project Grand Total'}
-              </div>
-              <div class="mono font-black" style="font-size:26px;letter-spacing:-0.02em;color:#FFBF00;text-shadow:0 0 30px rgba(255,191,0,0.3)">${fmtCY(footerGt.grandTotal)} <span class="text-base font-medium" style="color:rgba(255,191,0,0.5)">CY</span></div>
-            </div>
-
-            <!-- Right: actions -->
-            <div class="flex items-center gap-2">
-              <a href="https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit#gid=${GID}" target="_blank" rel="noopener"
-                class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all hover:brightness-110"
-                style="background:rgba(255,255,255,0.04);border:0.5px solid rgba(139,144,160,0.15);color:rgba(228,225,232,0.6)">
-                <span class="material-symbols-outlined" style="font-size:14px">open_in_new</span>
-                Open Sheet
-              </a>
-              <button onclick="exportCSV()"
-                class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all hover:brightness-110"
-                style="background:rgba(255,191,0,0.1);border:0.5px solid rgba(255,191,0,0.2);color:#FFBF00">
-                <span class="material-symbols-outlined" style="font-size:14px">download</span>
-                Export CSV
-              </button>
-            </div>
-          </div>
-        </div>`;
-    }
-
-    // ---- Filter handlers ----
-    window.setSection = function(v) {
-      filter.section = v;
-      render();
-    };
-    window.setDate = function(v) {
-      filter.date = v;
-      render();
-    };
-    window.clickZone = function(sec) {
-      filter.section = filter.section === sec ? 'ALL' : sec;
-      render();
-    };
-
-    // ---- Export CSV ----
-    window.exportCSV = function() {
-      if (!allData) return;
-      const data = filtered();
-      const rows = [
-        ['Pour ID', 'Section', 'Date', '8000 PSI (CY)', '5000 PSI (CY)', 'Grand Total (CY)', '8000 Trucks', '5000 Trucks', 'Total Trucks', 'Status'],
-        ...data.pours.map(p => [p.label, p.section, p.date || '', p.total8000, p.total5000, p.grandTotal, p.trucks8000, p.trucks5000, p.totalTrucks, p.status]),
-      ];
-      const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `cup-pour-dashboard-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    };
-
-    // ---- Error display ----
-    function showError(msg) {
-      document.getElementById('app').innerHTML = `
-        <div class="rounded-xl p-8 text-center my-8" style="background:rgba(239,68,68,0.06);border:0.5px solid rgba(239,68,68,0.2)">
-          <span class="material-symbols-outlined block mx-auto mb-3" style="font-size:40px;color:rgba(239,68,68,0.5)">error_outline</span>
-          <p class="font-semibold text-base mb-1" style="color:#fca5a5">Unable to load data</p>
-          <p class="text-sm mb-3" style="color:rgba(252,165,165,0.6)">${msg}</p>
-          <p class="text-xs" style="color:rgba(228,225,232,0.25)">Make sure the sheet is shared as "Anyone with the link" &rarr; Viewer</p>
-        </div>`;
-    }
-
-    // ---- Main loop ----
-    async function refresh() {
-      try {
-        const response = await fetchSheetData();
-        allData = extractData(response);
-        render();
-      } catch (err) {
-        console.error('Fetch error:', err);
-        if (!allData) showError(err.message);
       }
     }
+  }
+  return { refs, pours, grand };
+}
 
-    refresh();
-    setInterval(refresh, REFRESH_MS);
-  </script>
+// ── FILTER LOGIC ─────────────────────────────────────────────────────────────
+function filteredPours() {
+  return state.pours.filter(p => {
+    const secOk  = state.sectionFilter === 'ALL' || p.section === state.sectionFilter;
+    const dateOk = state.dateFilter    === 'ALL' || p.date    === state.dateFilter;
+    return secOk && dateOk;
+  });
+}
+
+// ── RENDER ───────────────────────────────────────────────────────────────────
+function render() {
+  const pours = filteredPours();
+  const refs  = state.refs;
+
+  renderZoneMap(pours);
+  renderSectionCards(pours, refs);
+  renderPourCards(pours);
+  renderFooter();
+  updateFilterPills();
+
+  const hasContent = pours.length > 0;
+  document.getElementById('emptyState').classList.toggle('hidden', hasContent || state.sectionFilter === 'ALL' && state.dateFilter === 'ALL');
+  if (!hasContent && (state.sectionFilter !== 'ALL' || state.dateFilter !== 'ALL')) {
+    document.getElementById('emptyState').classList.remove('hidden');
+  }
+}
+
+// Zone Map
+function renderZoneMap(pours) {
+  const svg  = document.getElementById('zoneSvg');
+  const secs = Object.keys(SEC_COLORS);
+  // Layout: D=left 22%, B=center-left upper 60%, C=center lower 40%, A=right 35%
+  // Approximate positions (x%, y%, w%, h%)
+  const layout = [
+    { s:'D', x:0,   y:0,   w:220, h:200 },
+    { s:'B', x:224, y:0,   w:336, h:120 },
+    { s:'C', x:224, y:124, w:336, h:76  },
+    { s:'A', x:564, y:0,   w:436, h:200 },
+  ];
+
+  const activeSec = state.sectionFilter;
+
+  let html = '';
+  for (const z of layout) {
+    const sec     = z.s;
+    const ref     = state.refs[sec] || {};
+    const active  = activeSec === 'ALL' || activeSec === sec;
+    const color   = SEC_COLORS[sec];
+    const dimFill = SEC_DIM[sec];
+    const fill    = active ? dimFill : '#0B0B0F';
+    const stroke  = active ? color : 'rgba(255,255,255,0.06)';
+    const opacity = active ? 1 : 0.35;
+
+    // Dates for this section
+    const secDates = pours.filter(p => p.section === sec).map(p => p.date).filter(Boolean);
+    const dateStr  = secDates.length ? secDates.join(', ') : '';
+
+    const cx = z.x + z.w/2;
+    const cy = z.y + z.h/2;
+
+    html += `<g style="cursor:pointer;opacity:${opacity}" onclick="setSectionFilter('${activeSec===sec?'ALL':sec}')">
+      <rect x="${z.x+2}" y="${z.y+2}" width="${z.w-4}" height="${z.h-4}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="${active&&activeSec===sec?2:1}"/>
+      <text x="${cx}" y="${cy-28}" text-anchor="middle" font-family="Inter,sans-serif" font-weight="900" font-size="48" fill="${color}" opacity="0.18">${sec}</text>
+      <text x="${cx}" y="${cy-4}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-weight="700" font-size="18" fill="${color}">${ref.secTotal||'—'} CY</text>
+      <text x="${cx}" y="${cy+16}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="rgba(255,255,255,0.55)">8000: ${ref.cy8000||0} · 5000: ${ref.cy5000||0}</text>
+      ${ref.slurryVol ? `<text x="${cx}" y="${cy+30}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="rgba(255,255,255,0.35)">Slurry: ${ref.slurryVol} CY</text>` : ''}
+      ${dateStr ? `<text x="${cx}" y="${cy+46}" text-anchor="middle" font-family="Inter,sans-serif" font-size="9" fill="rgba(255,255,255,0.3)">${dateStr}</text>` : ''}
+    </g>`;
+  }
+  svg.innerHTML = html;
+}
+
+// Section Summary Cards
+function renderSectionCards(pours, refs) {
+  const grid = document.getElementById('sectionGrid');
+  const secs = state.sectionFilter === 'ALL' ? ['A','B','C','D'] : [state.sectionFilter];
+  grid.innerHTML = secs.map(s => {
+    const r = refs[s] || {};
+    const c = SEC_COLORS[s];
+    return `<div class="rounded-xl p-4 border border-white/5" style="background:#0B0B0F;border-left:3px solid ${c}">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-xs font-bold px-2 py-0.5 rounded" style="background:${c}22;color:${c}">SECTION ${s}</span>
+      </div>
+      <div class="mono text-2xl font-bold mb-3" style="color:${c}">${r.secTotal||'—'} <span class="text-sm text-white/40 font-normal">CY</span></div>
+      <div class="space-y-1 text-xs">
+        <div class="flex justify-between"><span class="text-white/50">8000 PSI</span><span class="mono font-semibold text-red-300">${r.cy8000||0} CY</span></div>
+        <div class="flex justify-between"><span class="text-white/50">5000 PSI</span><span class="mono font-semibold text-blue-300">${r.cy5000||0} CY</span></div>
+        ${r.slurryVol ? `<div class="flex justify-between"><span class="text-white/50">Slurry</span><span class="mono font-semibold text-white/60">${r.slurryVol} CY</span></div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Pour Cards
+function renderPourCards(pours) {
+  const grid = document.getElementById('pourGrid');
+  if (!pours.length) { grid.innerHTML = ''; return; }
+
+  const maxCy8000 = Math.max(...pours.map(p => p.cy8000), 1);
+  const maxCy5000 = Math.max(...pours.map(p => p.cy5000), 1);
+
+  grid.innerHTML = pours.map(p => {
+    const c     = SEC_COLORS[p.section] || '#888';
+    const pct8  = Math.round((p.cy8000 / maxCy8000) * 100);
+    const pct5  = Math.round((p.cy5000 / maxCy5000) * 100);
+    const stat  = p.status ? `<span class="text-xs px-2 py-0.5 rounded-full border" style="border-color:${c}44;color:${c}">${p.status}</span>` : '';
+    return `<div class="rounded-xl p-4 border border-white/5" style="background:#0B0B0F">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold px-2 py-0.5 rounded" style="background:${c}22;color:${c}">${p.section}</span>
+          <span class="mono font-bold text-sm text-white/90">${p.id}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          ${p.date ? `<span class="text-xs text-white/40">${p.date}</span>` : ''}
+          ${stat}
+        </div>
+      </div>
+      ${p.cy8000 > 0 ? `<div class="mb-2">
+        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">8000 PSI</span><span class="mono text-red-300 font-semibold">${p.cy8000} CY</span></div>
+        <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400 bar-animate" style="width:${pct8}%"></div></div>
+      </div>` : ''}
+      ${p.cy5000 > 0 ? `<div class="mb-3">
+        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">5000 PSI</span><span class="mono text-blue-300 font-semibold">${p.cy5000} CY</span></div>
+        <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 bar-animate" style="width:${pct5}%"></div></div>
+      </div>` : ''}
+      <div class="flex items-center justify-between pt-2 border-t border-white/5">
+        <span class="mono text-yellow-300 font-bold text-sm">${p.total} <span class="text-white/40 font-normal text-xs">CY</span></span>
+        <span class="text-xs text-white/40">${p.trucks} trucks</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Footer
+function renderFooter() {
+  const g = state.grand;
+  document.getElementById('ftCy8000').textContent = g.cy8000  ?? '—';
+  document.getElementById('ftCy5000').textContent = g.cy5000  ?? '—';
+  document.getElementById('ftTrucks').textContent = g.trucks  ?? '—';
+  document.getElementById('ftTotal').textContent  = g.total   ?? '—';
+}
+
+// ── FILTER CONTROLS ───────────────────────────────────────────────────────────
+function setSectionFilter(sec) {
+  state.sectionFilter = sec;
+  render();
+}
+
+function setDateFilter(date) {
+  state.dateFilter = date;
+  render();
+}
+
+function updateFilterPills() {
+  // Section pills
+  document.querySelectorAll('.sec-pill').forEach(btn => {
+    const s   = btn.dataset.sec;
+    const col = SEC_COLORS[s];
+    const active = state.sectionFilter === s;
+    if (active && s === 'ALL') {
+      btn.style.cssText = 'background:rgba(255,255,255,0.12);color:white;border:1px solid rgba(255,255,255,0.2)';
+    } else if (active && col) {
+      btn.style.cssText = `background:${col}33;color:${col};border:1px solid ${col}66`;
+    } else {
+      btn.style.cssText = 'background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.06)';
+    }
+  });
+
+  // Date pills
+  const dates   = [...new Set(state.pours.map(p => p.date).filter(Boolean))].sort();
+  const dateCnt = document.getElementById('dateFilters');
+  dateCnt.innerHTML = '';
+
+  const allBtn = document.createElement('button');
+  allBtn.textContent = 'ALL DATES';
+  allBtn.onclick = () => setDateFilter('ALL');
+  allBtn.className = 'px-3 py-1 rounded-full text-xs font-semibold transition-all shrink-0';
+  allBtn.style.cssText = state.dateFilter === 'ALL'
+    ? 'background:rgba(255,255,255,0.12);color:white;border:1px solid rgba(255,255,255,0.2)'
+    : 'background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.06)';
+  dateCnt.appendChild(allBtn);
+
+  for (const d of dates) {
+    const btn = document.createElement('button');
+    btn.textContent = d;
+    btn.onclick = () => setDateFilter(d);
+    btn.className = 'px-3 py-1 rounded-full text-xs font-mono font-semibold transition-all shrink-0';
+    btn.style.cssText = state.dateFilter === d
+      ? 'background:rgba(255,215,0,0.18);color:#facc15;border:1px solid rgba(250,204,21,0.4)'
+      : 'background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.06)';
+    dateCnt.appendChild(btn);
+  }
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const { refs, pours, grand } = await fetchData();
+    state.refs  = refs;
+    state.pours = pours;
+    state.grand = grand;
+
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('zoneMap').classList.remove('hidden');
+    document.getElementById('sectionGrid').classList.remove('hidden');
+    document.getElementById('pourGrid').classList.remove('hidden');
+    document.getElementById('footer').classList.remove('hidden');
+
+    render();
+  } catch (err) {
+    console.error('Fetch error:', err);
+    document.getElementById('loading').innerHTML =
+      `<p class="text-red-400 text-sm">Error loading data. Check console.</p>`;
+  }
+}
+
+// ── AUTO-REFRESH ──────────────────────────────────────────────────────────────
+init();
+setInterval(async () => {
+  try {
+    const { refs, pours, grand } = await fetchData();
+    state.refs  = refs;
+    state.pours = pours;
+    state.grand = grand;
+    render();
+  } catch(e) { /* silent */ }
+}, 30000);
+</script>
 </body>
 </html>
