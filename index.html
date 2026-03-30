@@ -229,6 +229,50 @@
     .sec-card .bk-item .bk-label { color: var(--text-muted); }
     .sec-card .bk-item .bk-val { font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
 
+    /* ========== SEQUENCE DRAWING ========== */
+    .drawing-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+    .drawing-wrap {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #08080c;
+    }
+    .drawing-wrap img {
+      width: 100%;
+      display: block;
+      opacity: 0.88;
+      transition: opacity 0.3s;
+    }
+    .drawing-wrap:hover img { opacity: 0.95; }
+    .drawing-wrap svg {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+    .zone {
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+    .zone:hover { fill-opacity: 0.4 !important; stroke-width: 4; }
+    .zone.active { fill-opacity: 0.38 !important; stroke-width: 5; }
+    .zone.dimmed { fill-opacity: 0.04 !important; stroke-opacity: 0.15 !important; }
+    .zone-lbl, .zone-sub { pointer-events: none; text-anchor: middle; dominant-baseline: middle; }
+    .zone-lbl {
+      fill: white; font-family: 'Inter', sans-serif; font-weight: 900;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.9));
+    }
+    .zone-sub {
+      fill: rgba(255,255,255,0.8); font-family: 'JetBrains Mono', monospace; font-weight: 600;
+      filter: drop-shadow(0 1px 4px rgba(0,0,0,0.9));
+    }
+    .zone-lbl.dimmed, .zone-sub.dimmed { opacity: 0.15; }
+
     /* ========== CHARTS ========== */
     .charts-grid {
       display: grid;
@@ -752,6 +796,82 @@
       h += `</div></div>`;
       h += `</div>`;
 
+      // SEQUENCE DRAWING (stylized SVG zone map)
+      const refMap = {};
+      (allData.reference || []).forEach(r => { refMap[r.section] = r; });
+      const zCls = (s) => filter.section === 'ALL' ? 'zone' : filter.section === s ? 'zone active' : 'zone dimmed';
+      const lCls = (s) => filter.section !== 'ALL' && filter.section !== s ? ' dimmed' : '';
+      const glw = (s) => filter.section === s ? ' filter="url(#glow)"' : '';
+
+      h += `
+      <div class="drawing-section anim" style="animation-delay:0.08s">
+        <div class="section-label" style="margin-bottom:1rem">CUP Sequence Plan</div>
+        <div class="drawing-wrap">
+          <svg viewBox="0 0 1000 380" xmlns="http://www.w3.org/2000/svg" style="width:100%;border-radius:10px">
+            <defs>
+              <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+                <circle cx="12" cy="12" r="0.6" fill="rgba(255,255,255,0.04)"/>
+              </pattern>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="8" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+              <linearGradient id="gA" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#3b82f6" stop-opacity="0.22"/><stop offset="100%" stop-color="#1d4ed8" stop-opacity="0.10"/></linearGradient>
+              <linearGradient id="gB" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#10b981" stop-opacity="0.22"/><stop offset="100%" stop-color="#059669" stop-opacity="0.10"/></linearGradient>
+              <linearGradient id="gC" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f59e0b" stop-opacity="0.22"/><stop offset="100%" stop-color="#d97706" stop-opacity="0.10"/></linearGradient>
+              <linearGradient id="gD" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.22"/><stop offset="100%" stop-color="#6d28d9" stop-opacity="0.10"/></linearGradient>
+            </defs>
+
+            <!-- Background -->
+            <rect width="1000" height="380" fill="#08080c" rx="10"/>
+            <rect width="1000" height="380" fill="url(#dots)" rx="10"/>
+
+            <!-- CUP boundary -->
+            <rect x="12" y="16" width="976" height="348" rx="6" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+
+            <!-- Grid cols -->
+            ${['B','D','F','G','H','J','K','L','N','P','Q'].map((l,i) =>
+              `<text x="${40+i*88}" y="374" fill="rgba(255,255,255,0.08)" font-size="8" font-family="'JetBrains Mono',monospace" text-anchor="middle">${l}</text><line x1="${40+i*88}" y1="16" x2="${40+i*88}" y2="364" stroke="rgba(255,255,255,0.025)" stroke-width="1"/>`
+            ).join('')}
+
+            <!-- Shoring line -->
+            <line x1="12" y1="60" x2="530" y2="60" stroke="rgba(255,184,0,0.2)" stroke-width="1" stroke-dasharray="8,5"/>
+            <text x="270" y="54" fill="rgba(255,184,0,0.25)" font-size="7" font-family="'JetBrains Mono',monospace" text-anchor="middle" letter-spacing="3" font-weight="600">SHORING LINE</text>
+
+            <!-- SECTION D (purple, left) -->
+            <rect class="${zCls('D')}" onclick="clickZone('D')" x="18" y="72" width="215" height="260" rx="10"
+                  fill="url(#gD)" stroke="#8b5cf6" stroke-opacity="0.55" stroke-width="2"${glw('D')}/>
+            <text class="zone-lbl${lCls('D')}" x="125" y="178" font-size="52" fill="white" text-anchor="middle" dominant-baseline="middle" font-family="'Inter',sans-serif" font-weight="900" style="filter:drop-shadow(0 2px 8px rgba(0,0,0,0.9))">D</text>
+            <text class="zone-sub${lCls('D')}" x="125" y="218" font-size="15" fill="rgba(255,255,255,0.8)" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="600" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.9))">${fmtCY(refMap.D?.sectionTotal||0)} CY</text>
+            <text class="zone-sub${lCls('D')}" x="125" y="240" font-size="9" fill="rgba(255,255,255,0.45)" text-anchor="middle" font-family="'JetBrains Mono',monospace">${refMap.D?.pileCaps||4} PC · ${refMap.D?.footings||13} FTG · 3 pours</text>
+
+            <!-- SECTION B (green, upper center) -->
+            <rect class="${zCls('B')}" onclick="clickZone('B')" x="250" y="26" width="245" height="200" rx="10"
+                  fill="url(#gB)" stroke="#10b981" stroke-opacity="0.55" stroke-width="2"${glw('B')}/>
+            <text class="zone-lbl${lCls('B')}" x="372" y="106" font-size="52" fill="white" text-anchor="middle" dominant-baseline="middle" font-family="'Inter',sans-serif" font-weight="900" style="filter:drop-shadow(0 2px 8px rgba(0,0,0,0.9))">B</text>
+            <text class="zone-sub${lCls('B')}" x="372" y="146" font-size="15" fill="rgba(255,255,255,0.8)" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="600" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.9))">${fmtCY(refMap.B?.sectionTotal||0)} CY</text>
+            <text class="zone-sub${lCls('B')}" x="372" y="168" font-size="9" fill="rgba(255,255,255,0.45)" text-anchor="middle" font-family="'JetBrains Mono',monospace">${refMap.B?.pileCaps||2} PC · 2 pours</text>
+
+            <!-- SECTION C (amber, lower center) -->
+            <rect class="${zCls('C')}" onclick="clickZone('C')" x="280" y="236" width="275" height="116" rx="10"
+                  fill="url(#gC)" stroke="#f59e0b" stroke-opacity="0.55" stroke-width="2"${glw('C')}/>
+            <text class="zone-lbl${lCls('C')}" x="417" y="278" font-size="46" fill="white" text-anchor="middle" dominant-baseline="middle" font-family="'Inter',sans-serif" font-weight="900" style="filter:drop-shadow(0 2px 8px rgba(0,0,0,0.9))">C</text>
+            <text class="zone-sub${lCls('C')}" x="417" y="314" font-size="15" fill="rgba(255,255,255,0.8)" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="600" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.9))">${fmtCY(refMap.C?.sectionTotal||0)} CY</text>
+            <text class="zone-sub${lCls('C')}" x="417" y="336" font-size="9" fill="rgba(255,255,255,0.45)" text-anchor="middle" font-family="'JetBrains Mono',monospace">${refMap.C?.pileCaps||7} PC · ${refMap.C?.footings||3} FTG · 2 pours</text>
+
+            <!-- SECTION A (blue, right, largest) -->
+            <rect class="${zCls('A')}" onclick="clickZone('A')" x="570" y="26" width="400" height="306" rx="10"
+                  fill="url(#gA)" stroke="#3b82f6" stroke-opacity="0.55" stroke-width="2"${glw('A')}/>
+            <text class="zone-lbl${lCls('A')}" x="770" y="150" font-size="60" fill="white" text-anchor="middle" dominant-baseline="middle" font-family="'Inter',sans-serif" font-weight="900" style="filter:drop-shadow(0 2px 8px rgba(0,0,0,0.9))">A</text>
+            <text class="zone-sub${lCls('A')}" x="770" y="196" font-size="15" fill="rgba(255,255,255,0.8)" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="600" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.9))">${fmtCY(refMap.A?.sectionTotal||0)} CY</text>
+            <text class="zone-sub${lCls('A')}" x="770" y="218" font-size="9" fill="rgba(255,255,255,0.45)" text-anchor="middle" font-family="'JetBrains Mono',monospace">${refMap.A?.pileCaps||4} PC · ${refMap.A?.footings||12} FTG · 2 pours</text>
+
+            <!-- Building label -->
+            <text x="500" y="374" fill="rgba(255,255,255,0.06)" font-size="8" font-family="'Inter',sans-serif" text-anchor="middle" letter-spacing="4" font-weight="700">LACC CUP — STRUCTURAL EXCAVATION — SEQUENCE 0</text>
+          </svg>
+        </div>
+      </div>`;
+
       // SECTION CARDS
       h += `<div class="section-label anim" style="animation-delay:0.1s">${filter.section === 'ALL' ? 'Section Overview' : 'Section ' + filter.section}</div>`;
       h += `<div class="sections">`;
@@ -864,6 +984,10 @@
     };
     window.setDate = function(v) {
       filter.date = v;
+      render();
+    };
+    window.clickZone = function(sec) {
+      filter.section = filter.section === sec ? 'ALL' : sec;
       render();
     };
 
