@@ -41,45 +41,7 @@
     .bar-animate { animation:barGrow .9s cubic-bezier(.65,0,.35,1) forwards; }
   </style>
 </head>
-<body class="min-h-screen flex">
-
-<!-- SIDEBAR -->
-<aside class="hidden lg:flex fixed left-0 top-0 h-full z-50 w-56 flex-col border-r border-white/5" style="background:rgba(11,11,15,0.92);backdrop-filter:blur(24px)">
-  <div class="p-5">
-    <div class="flex items-center gap-3 mb-8">
-      <div class="w-9 h-9 rounded-lg bg-sa/10 border border-sa/20 flex items-center justify-center">
-        <span class="material-symbols-outlined text-sa text-lg" style="font-variation-settings:'FILL' 1">architecture</span>
-      </div>
-      <div>
-        <div class="text-sm font-black text-sa leading-tight">CUP PROJECT</div>
-        <div class="text-[9px] font-bold tracking-widest text-white/40 uppercase">Phase II Constr</div>
-      </div>
-    </div>
-    <nav class="space-y-1">
-      <a href="#" class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-sa/10 text-sa text-sm font-semibold border border-sa/15">
-        <span class="material-symbols-outlined text-lg" style="font-variation-settings:'FILL' 1">dashboard</span>Dashboard
-      </a>
-      <a href="#zoneMap" class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 text-sm transition-all">
-        <span class="material-symbols-outlined text-lg">map</span>Zone Map
-      </a>
-      <a href="#sectionGrid" class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 text-sm transition-all">
-        <span class="material-symbols-outlined text-lg">summarize</span>Sections
-      </a>
-      <a href="#pourGrid" class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 text-sm transition-all">
-        <span class="material-symbols-outlined text-lg">calendar_today</span>Pour Schedule
-      </a>
-      <a id="sidebarSheetLink" href="#" target="_blank" class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 text-sm transition-all">
-        <span class="material-symbols-outlined text-lg">open_in_new</span>Open Sheet
-      </a>
-    </nav>
-  </div>
-  <div class="mt-auto p-5 border-t border-white/5">
-    <div class="text-[9px] font-bold tracking-widest text-white/30 uppercase">OpenYap · CUP Dashboard</div>
-  </div>
-</aside>
-
-<!-- MAIN WRAPPER -->
-<div class="flex-1 lg:ml-56">
+<body class="min-h-screen">
 
 <!-- HEADER -->
 <header class="sticky top-0 z-50 border-b border-white/5" style="background:rgba(6,6,10,0.95);backdrop-filter:blur(20px)">
@@ -134,8 +96,8 @@
   </div>
 
   <!-- ZONE MAP -->
-  <div id="zoneMap" class="hidden rounded-xl overflow-hidden border border-white/5 dot-grid" style="height:200px">
-    <svg id="zoneSvg" viewBox="0 0 1000 200" preserveAspectRatio="none" class="w-full h-full" style="display:block"></svg>
+  <div id="zoneMap" class="hidden rounded-xl overflow-hidden border border-white/5 dot-grid" style="height:280px">
+    <svg id="zoneSvg" viewBox="0 0 1000 280" preserveAspectRatio="none" class="w-full h-full" style="display:block"></svg>
   </div>
 
   <!-- SECTION SUMMARY -->
@@ -149,11 +111,8 @@
 
 </main>
 
-<!-- close main wrapper -->
-</div>
-
 <!-- GRAND TOTAL FOOTER -->
-<div id="footer" class="hidden fixed bottom-0 left-0 right-0 lg:left-56 z-50 border-t border-yellow-400/20" style="background:rgba(6,6,10,0.97);backdrop-filter:blur(20px)">
+<div id="footer" class="hidden fixed bottom-0 left-0 right-0 z-50 border-t border-yellow-400/20" style="background:rgba(6,6,10,0.97);backdrop-filter:blur(20px)">
   <div class="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between gap-4">
     <div class="flex items-center gap-6 overflow-x-auto no-scroll">
       <div class="flex items-center gap-2 shrink-0">
@@ -193,11 +152,13 @@ const GViz_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq
 
 document.getElementById('sheetLink').href       = SHEET_URL;
 document.getElementById('footerSheetLink').href = SHEET_URL;
-const sbl = document.getElementById('sidebarSheetLink');
-if (sbl) sbl.href = SHEET_URL;
 
 const SEC_COLORS = { A:'#4A8EFF', B:'#41A447', C:'#FFBF00', D:'#8B5CF6' };
 const SEC_DIM    = { A:'#1a2d4d', B:'#162a18', C:'#3a2d00', D:'#2a1a4d' };
+
+// Editable pour labels (persisted in localStorage)
+function getPourLabel(id) { return localStorage.getItem('cup_label_'+id) || ''; }
+function setPourLabel(id, val) { localStorage.setItem('cup_label_'+id, val); }
 
 // ── PARSER HELPERS ───────────────────────────────────────────────────────────
 function anyNum(row, idx) {
@@ -316,47 +277,54 @@ function render() {
   }
 }
 
-// Zone Map
+// Zone Map — layout: C=left, B=upper-center, D=bottom-left, A=right (matches CUP site)
 function renderZoneMap(pours) {
-  const svg  = document.getElementById('zoneSvg');
-  const secs = Object.keys(SEC_COLORS);
-  // Layout: D=left 22%, B=center-left upper 60%, C=center lower 40%, A=right 35%
-  // Approximate positions (x%, y%, w%, h%)
+  const svg = document.getElementById('zoneSvg');
+  // C=left, B=upper-center, A=right full height, D=bottom spanning under C+B
   const layout = [
-    { s:'D', x:0,   y:0,   w:220, h:200 },
-    { s:'B', x:224, y:0,   w:336, h:120 },
-    { s:'C', x:224, y:124, w:336, h:76  },
-    { s:'A', x:564, y:0,   w:436, h:200 },
+    { s:'C', x:0,   y:0,   w:240, h:168 },
+    { s:'B', x:244, y:0,   w:352, h:168 },
+    { s:'A', x:600, y:0,   w:400, h:280 },
+    { s:'D', x:0,   y:172, w:596, h:108 },
   ];
-
   const activeSec = state.sectionFilter;
+  // Slurry hatching pattern
+  let html = `<defs>
+    <pattern id="slurryHatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+    </pattern>
+  </defs>`;
 
-  let html = '';
   for (const z of layout) {
-    const sec     = z.s;
-    const ref     = state.refs[sec] || {};
-    const active  = activeSec === 'ALL' || activeSec === sec;
-    const color   = SEC_COLORS[sec];
+    const sec = z.s;
+    const ref = state.refs[sec] || {};
+    const active = activeSec === 'ALL' || activeSec === sec;
+    const color = SEC_COLORS[sec];
     const dimFill = SEC_DIM[sec];
-    const fill    = active ? dimFill : '#0B0B0F';
-    const stroke  = active ? color : 'rgba(255,255,255,0.06)';
-    const opacity = active ? 1 : 0.35;
-
-    // Dates for this section
-    const secDates = pours.filter(p => p.section === sec).map(p => p.date).filter(Boolean);
-    const dateStr  = secDates.length ? secDates.join(', ') : '';
-
+    const fill = active ? dimFill : '#0B0B0F';
+    const stroke = active ? color : 'rgba(255,255,255,0.06)';
+    const opacity = active ? 1 : 0.3;
+    const secPours = pours.filter(p => p.section === sec);
+    const slurryPour = secPours.find(p => p.id.endsWith('-1'));
+    const structPour = secPours.find(p => !p.id.endsWith('-1') && !p.id.endsWith('-2') || p.id === 'D-3' || p.id === 'B-2' || p.id === 'C-2' || p.id === 'A-2');
     const cx = z.x + z.w/2;
     const cy = z.y + z.h/2;
 
     html += `<g style="cursor:pointer;opacity:${opacity}" onclick="setSectionFilter('${activeSec===sec?'ALL':sec}')">
-      <rect x="${z.x+2}" y="${z.y+2}" width="${z.w-4}" height="${z.h-4}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="${active&&activeSec===sec?2:1}"/>
-      <text x="${cx}" y="${cy-28}" text-anchor="middle" font-family="Inter,sans-serif" font-weight="900" font-size="48" fill="${color}" opacity="0.18">${sec}</text>
-      <text x="${cx}" y="${cy-4}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-weight="700" font-size="18" fill="${color}">${ref.secTotal||'—'} CY</text>
-      <text x="${cx}" y="${cy+16}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="rgba(255,255,255,0.55)">8000: ${ref.cy8000||0} · 5000: ${ref.cy5000||0}</text>
-      ${ref.slurryVol ? `<text x="${cx}" y="${cy+30}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="rgba(255,255,255,0.35)">Slurry: ${ref.slurryVol} CY</text>` : ''}
-      ${dateStr ? `<text x="${cx}" y="${cy+46}" text-anchor="middle" font-family="Inter,sans-serif" font-size="9" fill="rgba(255,255,255,0.3)">${dateStr}</text>` : ''}
-    </g>`;
+      <rect x="${z.x+2}" y="${z.y+2}" width="${z.w-4}" height="${z.h-4}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="${active&&activeSec===sec?2.5:1}"/>`;
+    // Slurry area indicator — hatched strip along bottom of zone
+    if (ref.slurryVol) {
+      const sh = Math.max(18, z.h * 0.2);
+      html += `<rect x="${z.x+3}" y="${z.y+z.h-sh-2}" width="${z.w-6}" height="${sh}" rx="3" fill="url(#slurryHatch)" opacity="${active?0.8:0.3}"/>
+        <text x="${z.x+z.w-10}" y="${z.y+z.h-sh+11}" text-anchor="end" font-family="JetBrains Mono,monospace" font-size="8" fill="${color}" opacity="0.5">SLURRY ${ref.slurryVol} CY</text>`;
+    }
+    html += `<text x="${cx}" y="${cy-24}" text-anchor="middle" font-family="Inter,sans-serif" font-weight="900" font-size="${z.h>150?48:36}" fill="${color}" opacity="0.15">${sec}</text>
+      <text x="${cx}" y="${cy}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-weight="700" font-size="${z.h>150?18:15}" fill="${color}">${ref.secTotal||'—'} CY</text>
+      <text x="${cx}" y="${cy+16}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="rgba(255,255,255,0.5)">8000: ${ref.cy8000||0} · 5000: ${ref.cy5000||0}</text>`;
+    // Pour dates
+    const dates = secPours.map(p => p.date ? `${p.id}: ${p.date}` : '').filter(Boolean);
+    if (dates.length) html += `<text x="${cx}" y="${cy+30}" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" fill="rgba(255,255,255,0.25)">${dates.join(' · ')}</text>`;
+    html += `</g>`;
   }
   svg.innerHTML = html;
 }
@@ -400,6 +368,7 @@ function renderPourCards(pours) {
         <div class="flex items-center gap-2">
           <span class="text-xs font-bold px-2 py-0.5 rounded" style="background:${c}22;color:${c}">${p.section}</span>
           <span class="mono font-bold text-sm text-white/90">${p.id}</span>
+          <input type="text" class="bg-transparent border-b border-dashed border-white/15 text-xs text-white/60 w-24 px-1 py-0.5 focus:border-white/40 focus:outline-none placeholder:text-white/20 placeholder:italic" placeholder="+ label" value="${getPourLabel(p.id)}" onchange="setPourLabel('${p.id}',this.value)"/>
         </div>
         <div class="flex items-center gap-2">
           ${p.date ? `<span class="text-xs text-white/40">${p.date}</span>` : ''}
