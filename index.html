@@ -504,11 +504,9 @@
           if (['A','B','C','D'].includes(a)) {
             data.reference.push({
               section: a,
-              pileCaps: cellNum(rows[i], 1), pcVol: cellNum(rows[i], 2),
-              footings: cellNum(rows[i], 3), ftgVol: cellNum(rows[i], 4),
-              gbVol: cellNum(rows[i], 5), slurryVol: cellNum(rows[i], 6),
-              slurryMix: cellNum(rows[i], 7), plinthVol: cellNum(rows[i], 8),
-              sectionTotal: cellNum(rows[i], 9),
+              cy8000: cellNum(rows[i], 1), cy5000: cellNum(rows[i], 2),
+              slurryVol: cellNum(rows[i], 3), slurryMix: cellNum(rows[i], 4),
+              plinthVol: cellNum(rows[i], 5), sectionTotal: cellNum(rows[i], 6),
             });
           }
           if (a === 'TOTAL') mode = 'scan';
@@ -714,14 +712,14 @@
             labels: sections.map(s => `Section ${s.section}`),
             datasets: [
               {
-                label: 'Pile Caps',
-                data: sections.map(s => s.pcVol),
+                label: '8000 PSI',
+                data: sections.map(s => s.cy8000),
                 backgroundColor: sections.map(s => filtSec === 'ALL' || filtSec === s.section ? SEC_HEX[s.section] : '#1a1a28'),
                 borderRadius: 3,
               },
               {
-                label: 'Footings',
-                data: sections.map(s => s.ftgVol),
+                label: '5000 PSI',
+                data: sections.map(s => s.cy5000),
                 backgroundColor: sections.map(s => filtSec === 'ALL' || filtSec === s.section ? SEC_HEX_DIM[s.section] : '#121218'),
                 borderRadius: 3,
               },
@@ -843,28 +841,28 @@
                   fill="url(#gD)" stroke="#8b5cf6" stroke-opacity="0.55" stroke-width="2"${glw('D')}/>
             <text class="zone-lbl${lCls('D')}" x="125" y="178" font-size="52" fill="white" text-anchor="middle" dominant-baseline="middle" font-family="'Inter',sans-serif" font-weight="900" style="filter:drop-shadow(0 2px 8px rgba(0,0,0,0.9))">D</text>
             <text class="zone-sub${lCls('D')}" x="125" y="218" font-size="15" fill="rgba(255,255,255,0.8)" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="600" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.9))">${fmtCY(refMap.D?.sectionTotal||0)} CY</text>
-            <text class="zone-sub${lCls('D')}" x="125" y="240" font-size="9" fill="rgba(255,255,255,0.45)" text-anchor="middle" font-family="'JetBrains Mono',monospace">${refMap.D?.pileCaps||4} PC · ${refMap.D?.footings||13} FTG · 3 pours</text>
+            <text class="zone-sub${lCls('D')}" x="125" y="240" font-size="9" fill="rgba(255,255,255,0.45)" text-anchor="middle" font-family="'JetBrains Mono',monospace">Slurry 4/17 · Plinth 4/23 · Pour 5/5</text>
 
             <!-- SECTION B (green, upper center) -->
             <rect class="${zCls('B')}" onclick="clickZone('B')" x="250" y="26" width="245" height="200" rx="10"
                   fill="url(#gB)" stroke="#10b981" stroke-opacity="0.55" stroke-width="2"${glw('B')}/>
             <text class="zone-lbl${lCls('B')}" x="372" y="106" font-size="52" fill="white" text-anchor="middle" dominant-baseline="middle" font-family="'Inter',sans-serif" font-weight="900" style="filter:drop-shadow(0 2px 8px rgba(0,0,0,0.9))">B</text>
             <text class="zone-sub${lCls('B')}" x="372" y="146" font-size="15" fill="rgba(255,255,255,0.8)" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="600" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.9))">${fmtCY(refMap.B?.sectionTotal||0)} CY</text>
-            <text class="zone-sub${lCls('B')}" x="372" y="168" font-size="9" fill="rgba(255,255,255,0.45)" text-anchor="middle" font-family="'JetBrains Mono',monospace">${refMap.B?.pileCaps||2} PC · 2 pours</text>
+            <text class="zone-sub${lCls('B')}" x="372" y="168" font-size="9" fill="rgba(255,255,255,0.45)" text-anchor="middle" font-family="'JetBrains Mono',monospace">Slurry 4/9 · Pour 4/23</text>
 
             <!-- SECTION C (amber, lower center) -->
             <rect class="${zCls('C')}" onclick="clickZone('C')" x="280" y="236" width="275" height="116" rx="10"
                   fill="url(#gC)" stroke="#f59e0b" stroke-opacity="0.55" stroke-width="2"${glw('C')}/>
             <text class="zone-lbl${lCls('C')}" x="417" y="278" font-size="46" fill="white" text-anchor="middle" dominant-baseline="middle" font-family="'Inter',sans-serif" font-weight="900" style="filter:drop-shadow(0 2px 8px rgba(0,0,0,0.9))">C</text>
             <text class="zone-sub${lCls('C')}" x="417" y="314" font-size="15" fill="rgba(255,255,255,0.8)" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="600" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.9))">${fmtCY(refMap.C?.sectionTotal||0)} CY</text>
-            <text class="zone-sub${lCls('C')}" x="417" y="336" font-size="9" fill="rgba(255,255,255,0.45)" text-anchor="middle" font-family="'JetBrains Mono',monospace">${refMap.C?.pileCaps||7} PC · ${refMap.C?.footings||3} FTG · 2 pours</text>
+            <text class="zone-sub${lCls('C')}" x="417" y="336" font-size="9" fill="rgba(255,255,255,0.45)" text-anchor="middle" font-family="'JetBrains Mono',monospace">Slurry 4/14 · Pour 4/28</text>
 
             <!-- SECTION A (blue, right, largest) -->
             <rect class="${zCls('A')}" onclick="clickZone('A')" x="570" y="26" width="400" height="306" rx="10"
                   fill="url(#gA)" stroke="#3b82f6" stroke-opacity="0.55" stroke-width="2"${glw('A')}/>
             <text class="zone-lbl${lCls('A')}" x="770" y="150" font-size="60" fill="white" text-anchor="middle" dominant-baseline="middle" font-family="'Inter',sans-serif" font-weight="900" style="filter:drop-shadow(0 2px 8px rgba(0,0,0,0.9))">A</text>
             <text class="zone-sub${lCls('A')}" x="770" y="196" font-size="15" fill="rgba(255,255,255,0.8)" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="600" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.9))">${fmtCY(refMap.A?.sectionTotal||0)} CY</text>
-            <text class="zone-sub${lCls('A')}" x="770" y="218" font-size="9" fill="rgba(255,255,255,0.45)" text-anchor="middle" font-family="'JetBrains Mono',monospace">${refMap.A?.pileCaps||4} PC · ${refMap.A?.footings||12} FTG · 2 pours</text>
+            <text class="zone-sub${lCls('A')}" x="770" y="218" font-size="9" fill="rgba(255,255,255,0.45)" text-anchor="middle" font-family="'JetBrains Mono',monospace">Slurry 4/2 · Pour 4/16</text>
 
             <!-- Building label -->
             <text x="500" y="374" fill="rgba(255,255,255,0.06)" font-size="8" font-family="'Inter',sans-serif" text-anchor="middle" letter-spacing="4" font-weight="700">LACC CUP — STRUCTURAL EXCAVATION — SEQUENCE 0</text>
@@ -887,9 +885,8 @@
             <div class="total-cy">${fmtCY(r.sectionTotal)}</div>
             <div class="total-label">Total Cubic Yards</div>
             <div class="breakdown">
-              <div class="bk-item"><span class="bk-label">Pile Caps</span><span class="bk-val">${fmtCY(r.pcVol)}</span></div>
-              <div class="bk-item"><span class="bk-label">Footings</span><span class="bk-val">${fmtCY(r.ftgVol)}</span></div>
-              <div class="bk-item"><span class="bk-label">Grade Beams</span><span class="bk-val">${fmtCY(r.gbVol)}</span></div>
+              <div class="bk-item"><span class="bk-label" style="color:var(--orange-8000)">8000 PSI</span><span class="bk-val">${fmtCY(r.cy8000)}</span></div>
+              <div class="bk-item"><span class="bk-label" style="color:var(--cyan-5000)">5000 PSI</span><span class="bk-val">${fmtCY(r.cy5000)}</span></div>
               <div class="bk-item"><span class="bk-label">Slurry</span><span class="bk-val">${fmtCY(r.slurryVol)}</span></div>
               ${r.plinthVol ? `<div class="bk-item"><span class="bk-label">Plinth</span><span class="bk-val">${fmtCY(r.plinthVol)}</span></div>` : ''}
             </div>
