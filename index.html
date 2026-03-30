@@ -102,8 +102,8 @@
   </div>
 
   <!-- TIMELINE -->
-  <div id="timeline" class="hidden rounded-xl overflow-hidden border border-white/5 p-4" style="background:#0B0B0F">
-    <div class="text-[10px] font-bold tracking-widest text-white/40 uppercase mb-3">Pour Timeline</div>
+  <div id="timeline" class="hidden rounded-xl overflow-hidden border border-white/5 p-5" style="background:#0B0B0F">
+    <div class="text-[11px] font-black tracking-widest text-white/50 uppercase mb-4">Pour Timeline</div>
     <div id="timelineContent" class="relative"></div>
   </div>
 
@@ -166,12 +166,23 @@ const GViz_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq
 document.getElementById('sheetLink').href       = SHEET_URL;
 document.getElementById('footerSheetLink').href = SHEET_URL;
 
-const SEC_COLORS = { A:'#4A8EFF', B:'#41A447', C:'#FFBF00', D:'#8B5CF6' };
-const SEC_DIM    = { A:'#1a2d4d', B:'#162a18', C:'#3a2d00', D:'#2a1a4d' };
+const SEC_COLORS = { A:'#41A447', B:'#FF8C00', C:'#4AB8FF', D:'#8B5CF6' };
+const SEC_DIM    = { A:'#162a18', B:'#3a2200', C:'#1a2d4d', D:'#2a1a4d' };
 
 // Editable pour labels (persisted in localStorage)
 function getPourLabel(id) { return localStorage.getItem('cup_label_'+id) || ''; }
 function setPourLabel(id, val) { localStorage.setItem('cup_label_'+id, val); }
+
+// Ordered status — writes to sheet via Apps Script
+const API_URL = 'https://script.google.com/macros/s/AKfycbwNOYItk1zZdQbVktGTND9TIloio1Su4FFIuccoX2hG22FpKug9M-3C3h5zgtkNFmks/exec';
+function getOrdered(id) { return localStorage.getItem('cup_ordered_'+id) === 'YES'; }
+function toggleOrdered(id) {
+  const newVal = !getOrdered(id);
+  localStorage.setItem('cup_ordered_'+id, newVal ? 'YES' : 'NO');
+  // Write to sheet
+  fetch(API_URL, { method:'POST', mode:'no-cors', body:JSON.stringify({ pourId:id, ordered:newVal }) }).catch(()=>{});
+  render();
+}
 
 // ── PARSER HELPERS ───────────────────────────────────────────────────────────
 function anyNum(row, idx) {
@@ -366,9 +377,10 @@ function renderTimeline(pours) {
   const pct = d => Math.max(1, Math.min(99, ((parseMD(d) - minD) / 86400000 / range) * 100));
 
   const sections = ['A','B','C','D'];
-  const laneH = 32;
-  const topPad = 24;
-  const totalH = topPad + sections.length * laneH + 8;
+  const laneH = 48;
+  const topPad = 28;
+  const leftPad = 36;
+  const totalH = topPad + sections.length * laneH + 12;
 
   let html = `<div class="relative" style="height:${totalH}px">`;
 
@@ -376,41 +388,43 @@ function renderTimeline(pours) {
   const daySpan = (maxD - minD) / 86400000;
   const step = daySpan > 28 ? 7 : daySpan > 14 ? 3 : 1;
   for (let i = 0; i <= daySpan; i += step) {
-    const d = new Date(minD.getTime() + i * 86400000);
-    const x = (i / range) * 100;
-    const label = `${d.getMonth()+1}/${d.getDate()}`;
-    html += `<div class="absolute text-[8px] mono text-white/20 font-medium" style="left:${x}%;top:0;transform:translateX(-50%)">${label}</div>`;
-    html += `<div class="absolute bg-white/[0.03]" style="left:${x}%;top:${topPad-4}px;width:1px;height:${totalH-topPad}px"></div>`;
+    const dd = new Date(minD.getTime() + i * 86400000);
+    const x = leftPad + (i / range) * (100 - leftPad/10);
+    const label = `${dd.getMonth()+1}/${dd.getDate()}`;
+    html += `<div class="absolute text-[10px] mono text-white/30 font-bold" style="left:${x}%;top:2px;transform:translateX(-50%)">${label}</div>`;
+    html += `<div class="absolute bg-white/[0.05]" style="left:${x}%;top:${topPad}px;width:1px;height:${totalH-topPad}px"></div>`;
   }
 
   // Swim lanes
   sections.forEach((sec, idx) => {
     const y = topPad + idx * laneH;
     const c = SEC_COLORS[sec];
+    // Lane bg
+    html += `<div class="absolute rounded" style="left:${leftPad-8}px;right:4px;top:${y+2}px;height:${laneH-4}px;background:${c}08"></div>`;
     // Lane label
-    html += `<div class="absolute text-[9px] font-bold mono" style="left:0;top:${y+8}px;color:${c};opacity:0.5">${sec}</div>`;
-    // Lane line
-    html += `<div class="absolute bg-white/[0.04]" style="left:20px;right:0;top:${y+laneH-1}px;height:1px"></div>`;
+    html += `<div class="absolute text-[11px] font-black mono" style="left:4px;top:${y+14}px;color:${c}">SEC ${sec}</div>`;
 
-    // Pour markers on this lane
+    // Pour markers
     const secPours = dated.filter(p => p.section === sec);
     secPours.forEach(p => {
-      const x = pct(p.date);
+      const x = leftPad + (pct(p.date) / 100) * (100 - leftPad/10) * 100 / 100;
       const isSlurry = p.type === 'Slurry';
       const isPlinth = p.type === 'Plinth';
-      const barW = Math.max(2, Math.min(8, p.total / 150));
-      const barH = isSlurry ? 12 : isPlinth ? 8 : 20;
+      const barW = isPlinth ? 16 : isSlurry ? 28 : Math.max(20, Math.min(60, p.total / 20));
+      const barH = laneH - 12;
       const barColor = isSlurry ? '#6b7280' : c;
-      const barY = y + (laneH - barH) / 2;
+      const barY = y + 6;
 
-      // Glow behind
-      html += `<div class="absolute rounded" style="left:calc(${x}% - ${barW/2+2}px);top:${barY-2}px;width:${barW+4}px;height:${barH+4}px;background:${barColor};opacity:0.08;filter:blur(4px)"></div>`;
+      // Glow
+      html += `<div class="absolute rounded-lg" style="left:calc(${x}% - 4px);top:${barY-3}px;width:${barW+8}px;height:${barH+6}px;background:${barColor};opacity:0.12;filter:blur(8px)"></div>`;
       // Bar
-      html += `<div class="absolute rounded cursor-pointer group" style="left:calc(${x}% - ${barW/2}px);top:${barY}px;width:${barW}px;height:${barH}px;background:${barColor};opacity:0.85;transition:all 0.2s" title="${p.id}: ${p.total} CY — ${p.date}${p.desc ? ' ('+p.desc+')' : ''}">
-        <div class="absolute -top-5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/90 text-[8px] mono text-white px-1.5 py-0.5 rounded pointer-events-none" style="border:1px solid ${barColor}44">${p.id} · ${p.total}CY</div>
+      html += `<div class="absolute rounded-md cursor-pointer group" style="left:${x}%;top:${barY}px;width:${barW}px;height:${barH}px;background:linear-gradient(135deg,${barColor},${barColor}cc);border:1px solid ${barColor}66;transition:all 0.2s">
+        <div class="flex flex-col items-center justify-center h-full px-1 overflow-hidden">
+          <span class="text-[9px] font-black text-white/90 mono leading-none">${p.id}</span>
+          <span class="text-[8px] font-bold text-white/60 mono leading-none mt-0.5">${p.total}CY</span>
+        </div>
+        <div class="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/95 text-[10px] mono text-white px-2 py-1 rounded-md pointer-events-none z-10" style="border:1px solid ${barColor}88">${p.id} · ${p.total} CY · ${p.date}</div>
       </div>`;
-      // Pour ID below bar
-      html += `<div class="absolute text-[7px] mono text-white/25 whitespace-nowrap" style="left:calc(${x}% + ${barW/2+3}px);top:${barY+2}px">${p.id}</div>`;
     });
   });
 
@@ -418,9 +432,9 @@ function renderTimeline(pours) {
   const today = new Date();
   const todayDays = (today - minD) / 86400000;
   if (todayDays >= 0 && todayDays <= range) {
-    const tx = (todayDays / range) * 100;
-    html += `<div class="absolute" style="left:${tx}%;top:${topPad-6}px;height:${totalH-topPad+6}px;width:2px;background:linear-gradient(180deg,#fbbf24,transparent);opacity:0.6"></div>`;
-    html += `<div class="absolute text-[7px] font-bold text-yellow-400/70" style="left:${tx}%;top:${topPad-14}px;transform:translateX(-50%)">TODAY</div>`;
+    const tx = leftPad + (todayDays / range) * (100 - leftPad/10);
+    html += `<div class="absolute" style="left:${tx}%;top:${topPad-2}px;height:${totalH-topPad+4}px;width:2px;background:linear-gradient(180deg,#fbbf24,#fbbf2400);opacity:0.8;z-index:5"></div>`;
+    html += `<div class="absolute text-[9px] font-black text-yellow-400 z-10" style="left:${tx}%;top:${topPad-16}px;transform:translateX(-50%)">TODAY</div>`;
   }
 
   html += `</div>`;
@@ -460,8 +474,8 @@ function renderPourCards(pours) {
     const c     = SEC_COLORS[p.section] || '#888';
     const pct8  = Math.round((p.cy8000 / maxCy8000) * 100);
     const pct5  = Math.round((p.cy5000 / maxCy5000) * 100);
-    const stat  = p.status ? `<span class="text-xs px-2 py-0.5 rounded-full border" style="border-color:${c}44;color:${c}">${p.status}</span>` : '';
-    return `<div class="rounded-xl p-4 border border-white/5" style="background:#0B0B0F">
+    const isOrdered = p.status?.toLowerCase().includes('yes') || getOrdered(p.id);
+    return `<div class="rounded-xl p-4 border ${isOrdered ? 'border-green-500/30' : 'border-white/5'}" style="background:#0B0B0F">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
           <span class="text-xs font-bold px-2 py-0.5 rounded" style="background:${c}22;color:${c}">${p.section}</span>
@@ -470,8 +484,8 @@ function renderPourCards(pours) {
           ${!p.label && !getPourLabel(p.id) ? `<input type="text" class="bg-transparent border-b border-dashed border-white/15 text-xs text-white/50 w-20 px-1 py-0.5 focus:border-white/40 focus:outline-none placeholder:text-white/15 placeholder:italic" placeholder="+ label" onchange="setPourLabel('${p.id}',this.value);render()"/>` : ''}
         </div>
         <div class="flex items-center gap-2">
-          ${p.date ? `<span class="text-xs text-white/40">${p.date}</span>` : ''}
-          ${stat}
+          ${p.date ? `<span class="text-xs text-white/40 mono">${p.date}</span>` : ''}
+          <button onclick="toggleOrdered('${p.id}')" class="text-[10px] font-bold px-2.5 py-1 rounded-full transition-all ${isOrdered ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-white/5 text-white/30 border border-white/10 hover:text-white/50'}">${isOrdered ? 'ORDERED' : 'PENDING'}</button>
         </div>
       </div>
       ${p.cy8000 > 0 ? `<div class="mb-2">
