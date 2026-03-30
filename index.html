@@ -382,74 +382,63 @@ function renderTimeline(pours) {
   const pct = d => Math.max(1, Math.min(99, ((parseMD(d) - minD) / 86400000 / range) * 100));
 
   const sections = ['A','B','C','D'];
-  const laneH = 44;
-  const topPad = 24;
-  const leftW = 50; // px for section labels
-  const totalH = topPad + sections.length * laneH + 4;
+  const laneH = 34;
+  const topPad = 18;
+  const leftW = 28;
+  const rightPad = 70;
+  const totalH = topPad + sections.length * laneH;
   const daySpan = (maxD - minD) / 86400000;
-
-  // Use px-based layout inside a min-width container for horizontal scroll
-  const pxPerDay = Math.max(22, 700 / Math.max(daySpan, 1));
+  const pxPerDay = Math.max(24, 660 / Math.max(daySpan, 1));
   const chartW = daySpan * pxPerDay;
 
-  let html = `<div class="relative" style="height:${totalH}px;min-width:${leftW + chartW + 20}px">`;
+  let html = `<div class="relative" style="height:${totalH}px;min-width:${leftW + chartW + rightPad}px">`;
 
-  // Date axis
-  const step = daySpan > 28 ? 7 : daySpan > 14 ? 3 : 1;
+  // Date axis — clean week markers
+  const step = daySpan > 21 ? 7 : daySpan > 10 ? 3 : 1;
   for (let i = 0; i <= daySpan; i += step) {
     const dd = new Date(minD.getTime() + i * 86400000);
     const x = leftW + i * pxPerDay;
-    html += `<div class="absolute text-[10px] mono text-white/35 font-bold" style="left:${x}px;top:2px;transform:translateX(-50%)">${dd.getMonth()+1}/${dd.getDate()}</div>`;
     html += `<div class="absolute" style="left:${x}px;top:${topPad}px;width:1px;height:${totalH-topPad}px;background:rgba(255,255,255,0.04)"></div>`;
+    html += `<div class="absolute mono font-semibold text-white/25" style="font-size:8px;left:${x}px;top:3px;transform:translateX(-50%)">${dd.getMonth()+1}/${dd.getDate()}</div>`;
   }
 
-  // Swim lanes
+  // Swim lanes — thin marker + label to the right
   sections.forEach((sec, idx) => {
     const y = topPad + idx * laneH;
     const c = SEC_COLORS[sec];
+    // Lane bg
+    html += `<div class="absolute" style="left:${leftW}px;right:0;top:${y}px;height:${laneH}px;background:${c}06;border-bottom:1px solid rgba(255,255,255,0.03)"></div>`;
+    // Section label
+    html += `<div class="absolute mono font-black" style="font-size:9px;left:6px;top:${y + laneH/2 - 5}px;color:${c};opacity:0.6">${sec}</div>`;
 
-    // Lane stripe
-    html += `<div class="absolute rounded" style="left:${leftW}px;right:0;top:${y+1}px;height:${laneH-2}px;background:${c}0a"></div>`;
-    // Label
-    html += `<div class="absolute flex items-center gap-1" style="left:0;top:${y}px;width:${leftW}px;height:${laneH}px">
-      <div class="w-3 h-full rounded-r" style="background:${c}"></div>
-      <span class="text-[11px] font-black mono" style="color:${c}">${sec}</span>
-    </div>`;
-
-    // Pours
-    const secPours = dated.filter(p => p.section === sec);
-    secPours.forEach(p => {
+    // Pours — thin colored marker with text to the right
+    dated.filter(p => p.section === sec).forEach(p => {
       const dayOff = (parseMD(p.date) - minD) / 86400000;
       const x = leftW + dayOff * pxPerDay;
       const isSlurry = p.type === 'Slurry';
-      const isPlinth = p.type === 'Plinth';
-      const barW = isPlinth ? 40 : isSlurry ? 56 : Math.max(56, Math.min(100, p.total / 8));
-      const barH = laneH - 10;
       const barColor = isSlurry ? '#6b7280' : c;
+      const barH = laneH - 10;
       const barY = y + 5;
 
-      // Glow
-      html += `<div class="absolute rounded-lg" style="left:${x-4}px;top:${barY-3}px;width:${barW+8}px;height:${barH+6}px;background:${barColor};opacity:0.1;filter:blur(6px)"></div>`;
-      // Bar
-      html += `<div class="absolute rounded-md cursor-pointer group" style="left:${x}px;top:${barY}px;width:${barW}px;height:${barH}px;background:linear-gradient(135deg,${barColor},${barColor}bb);border:1px solid ${barColor}55">
-        <div class="flex items-center justify-center gap-1.5 h-full px-2 overflow-hidden">
-          <span class="text-[10px] font-black text-white mono leading-none">${p.id}</span>
-          <span class="text-[9px] font-bold text-white/50 mono leading-none">${p.total}CY</span>
-        </div>
-        <div class="absolute -top-9 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/95 text-[10px] mono text-white px-2.5 py-1.5 rounded-md pointer-events-none z-20 shadow-lg" style="border:1px solid ${barColor}88">
-          <span class="font-black">${p.id}</span> · ${p.total} CY · <span class="text-white/60">${p.date}</span>
-        </div>
+      // Marker
+      html += `<div class="absolute rounded-sm group cursor-pointer" style="left:${x}px;top:${barY}px;width:8px;height:${barH}px;background:${barColor};box-shadow:0 0 4px ${barColor}44">
+        <div class="absolute -top-7 left-0 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/95 mono text-white px-2 py-1 rounded pointer-events-none z-20" style="font-size:9px;border:1px solid ${barColor}55">${p.id} · ${p.total} CY · ${p.date}</div>
+      </div>`;
+      // Label next to marker
+      html += `<div class="absolute mono flex items-center gap-1" style="left:${x + 14}px;top:${barY}px;height:${barH}px;white-space:nowrap">
+        <span class="font-bold text-white/80" style="font-size:10px">${p.id}</span>
+        <span class="text-white/30 font-medium" style="font-size:9px">${p.total > 0 ? p.total+'CY' : ''}</span>
       </div>`;
     });
   });
 
-  // Today marker
+  // Today line
   const today = new Date();
   const todayDays = (today - minD) / 86400000;
   if (todayDays >= 0 && todayDays <= daySpan) {
     const tx = leftW + todayDays * pxPerDay;
-    html += `<div class="absolute z-10" style="left:${tx}px;top:${topPad-4}px;height:${totalH-topPad+8}px;width:2px;background:#fbbf24;opacity:0.7;box-shadow:0 0 8px #fbbf2466"></div>`;
-    html += `<div class="absolute z-10 text-[9px] font-black text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded" style="left:${tx-16}px;top:${topPad-18}px">TODAY</div>`;
+    html += `<div class="absolute z-10" style="left:${tx}px;top:${topPad}px;height:${totalH-topPad}px;width:2px;background:#fbbf24;opacity:0.5"></div>`;
+    html += `<div class="absolute z-10 mono font-bold text-yellow-400/60" style="font-size:7px;left:${tx}px;top:${topPad-12}px;transform:translateX(-50%)">TODAY</div>`;
   }
 
   html += `</div>`;
