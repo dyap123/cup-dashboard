@@ -41,7 +41,45 @@
     .bar-animate { animation:barGrow .9s cubic-bezier(.65,0,.35,1) forwards; }
   </style>
 </head>
-<body class="min-h-screen">
+<body class="min-h-screen flex">
+
+<!-- SIDEBAR -->
+<aside class="hidden lg:flex fixed left-0 top-0 h-full z-50 w-56 flex-col border-r border-white/5" style="background:rgba(11,11,15,0.92);backdrop-filter:blur(24px)">
+  <div class="p-5">
+    <div class="flex items-center gap-3 mb-8">
+      <div class="w-9 h-9 rounded-lg bg-sa/10 border border-sa/20 flex items-center justify-center">
+        <span class="material-symbols-outlined text-sa text-lg" style="font-variation-settings:'FILL' 1">architecture</span>
+      </div>
+      <div>
+        <div class="text-sm font-black text-sa leading-tight">CUP PROJECT</div>
+        <div class="text-[9px] font-bold tracking-widest text-white/40 uppercase">Phase II Constr</div>
+      </div>
+    </div>
+    <nav class="space-y-1">
+      <a href="#" class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-sa/10 text-sa text-sm font-semibold border border-sa/15">
+        <span class="material-symbols-outlined text-lg" style="font-variation-settings:'FILL' 1">dashboard</span>Dashboard
+      </a>
+      <a href="#zoneMap" class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 text-sm transition-all">
+        <span class="material-symbols-outlined text-lg">map</span>Zone Map
+      </a>
+      <a href="#sectionGrid" class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 text-sm transition-all">
+        <span class="material-symbols-outlined text-lg">summarize</span>Sections
+      </a>
+      <a href="#pourGrid" class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 text-sm transition-all">
+        <span class="material-symbols-outlined text-lg">calendar_today</span>Pour Schedule
+      </a>
+      <a id="sidebarSheetLink" href="#" target="_blank" class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 text-sm transition-all">
+        <span class="material-symbols-outlined text-lg">open_in_new</span>Open Sheet
+      </a>
+    </nav>
+  </div>
+  <div class="mt-auto p-5 border-t border-white/5">
+    <div class="text-[9px] font-bold tracking-widest text-white/30 uppercase">OpenYap · CUP Dashboard</div>
+  </div>
+</aside>
+
+<!-- MAIN WRAPPER -->
+<div class="flex-1 lg:ml-56">
 
 <!-- HEADER -->
 <header class="sticky top-0 z-50 border-b border-white/5" style="background:rgba(6,6,10,0.95);backdrop-filter:blur(20px)">
@@ -111,8 +149,11 @@
 
 </main>
 
+<!-- close main wrapper -->
+</div>
+
 <!-- GRAND TOTAL FOOTER -->
-<div id="footer" class="hidden fixed bottom-0 left-0 right-0 z-50 border-t border-yellow-400/20" style="background:rgba(6,6,10,0.97);backdrop-filter:blur(20px)">
+<div id="footer" class="hidden fixed bottom-0 left-0 right-0 lg:left-56 z-50 border-t border-yellow-400/20" style="background:rgba(6,6,10,0.97);backdrop-filter:blur(20px)">
   <div class="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between gap-4">
     <div class="flex items-center gap-6 overflow-x-auto no-scroll">
       <div class="flex items-center gap-2 shrink-0">
@@ -145,13 +186,15 @@
 
 <script>
 // ── CONFIG ──────────────────────────────────────────────────────────────────
-const SHEET_ID = '1XKBf8a-RtSFJXv_iBNqV9xLW0RVagqQf1NUWj_ZmFMo';
-const GID      = '0';
-const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
+const SHEET_ID = '1fTL_w-kLz0Jzwni9r3kSuGqSvlsFhNm0RsfRurQH750';
+const GID      = '999';
+const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit#gid=${GID}`;
 const GViz_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${GID}`;
 
 document.getElementById('sheetLink').href       = SHEET_URL;
 document.getElementById('footerSheetLink').href = SHEET_URL;
+const sbl = document.getElementById('sidebarSheetLink');
+if (sbl) sbl.href = SHEET_URL;
 
 const SEC_COLORS = { A:'#4A8EFF', B:'#41A447', C:'#FFBF00', D:'#8B5CF6' };
 const SEC_DIM    = { A:'#1a2d4d', B:'#162a18', C:'#3a2d00', D:'#2a1a4d' };
@@ -188,7 +231,9 @@ let state = { refs:{}, pours:[], grand:{}, sectionFilter:'ALL', dateFilter:'ALL'
 async function fetchData() {
   const res  = await fetch(GViz_URL);
   const text = await res.text();
-  const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+  const m = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/);
+  if (!m) throw new Error('Invalid response from Google Sheets');
+  const json = JSON.parse(m[1]);
   const rows = json.table.rows;
 
   const refs  = {};
