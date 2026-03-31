@@ -622,7 +622,12 @@ function updateFilterPills() {
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init() {
   try {
-    const [pourData] = await Promise.all([fetchData(), fetchChecklist(), fetchPourDayData()]);
+    // Fetch all data — don't let checklist/pourday failures break the main dashboard
+    const [pourData] = await Promise.all([
+      fetchData(),
+      fetchChecklist().catch(()=>{}),
+      fetchPourDayData().catch(()=>{}),
+    ]);
     const { refs, pours, grand } = pourData;
     state.refs  = refs;
     state.pours = pours;
@@ -712,7 +717,13 @@ function checkKey(pourId, itemKey) { return `${pourId}__${itemKey}`; }
 function getCheckState() {
   try { return JSON.parse(localStorage.getItem('cup_checklist') || '{}'); } catch { return {}; }
 }
-function saveCheckState(s) { localStorage.setItem('cup_checklist', JSON.stringify(s)); }
+function saveCheckState(s) {
+  localStorage.setItem('cup_checklist', JSON.stringify(s));
+  // Persist to sheet via Apps Script
+  fetch(API_URL, { method:'POST', mode:'no-cors',
+    body: JSON.stringify({ action:'saveChecklist', state: s })
+  }).catch(()=>{});
+}
 function toggleCheck(key) {
   const s = getCheckState();
   s[key] = !s[key];
@@ -1385,7 +1396,7 @@ function renderPourDay() {
 init();
 setInterval(async () => {
   try {
-    await Promise.all([fetchChecklist(), fetchPourDayData()]);
+    await Promise.all([fetchChecklist().catch(()=>{}), fetchPourDayData().catch(()=>{})]);
     const { refs, pours, grand } = await fetchData();
     state.refs  = refs;
     state.pours = pours;
