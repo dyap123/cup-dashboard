@@ -1465,7 +1465,6 @@ function renderPourDay() {
               // Glow for active/done
               if (done || active) svg += `<rect x="${f.x-2}" y="${f.y-2}" width="${f.w+4}" height="${f.h+4}" rx="${rx+2}" fill="none" stroke="${shapeColor}" stroke-width="1" opacity="0.2" pointer-events="none"/>`;
             }
-            }
             if (isGB) {
               // Grade beam: show type label centered
               svg += `<text x="${cx}" y="${cy2+3}" text-anchor="middle" dominant-baseline="central" font-size="8" font-family="JetBrains Mono" fill="#FFB800cc" font-weight="700" pointer-events="none">${ftypeLabel} ${f.cy}CY</text>`;
