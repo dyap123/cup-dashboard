@@ -77,6 +77,7 @@
   <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 overflow-x-auto no-scroll">
     <div class="flex gap-1 shrink-0 mr-2">
       <button onclick="switchTab('dashboard')" id="tabDash" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white">Dashboard</button>
+      <button onclick="switchTab('pourday')" id="tabPour" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Pour Day</button>
       <button onclick="switchTab('checklist')" id="tabCheck" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Checklist</button>
     </div>
     <div class="w-px h-4 bg-white/10 shrink-0"></div>
@@ -95,6 +96,11 @@
 </div>
 
 <!-- CHECKLIST VIEW -->
+<!-- POUR DAY COMMAND CENTER -->
+<div id="pourdayView" class="hidden max-w-4xl mx-auto px-4 py-5 space-y-4 pb-20">
+  <div id="pourdayContent"></div>
+</div>
+
 <div id="checklistView" class="hidden max-w-4xl mx-auto px-4 py-6">
   <div class="flex items-center justify-between mb-5">
     <div>
@@ -616,7 +622,7 @@ function updateFilterPills() {
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init() {
   try {
-    const [pourData] = await Promise.all([fetchData(), fetchChecklist()]);
+    const [pourData] = await Promise.all([fetchData(), fetchChecklist(), fetchPourDayData()]);
     const { refs, pours, grand } = pourData;
     state.refs  = refs;
     state.pours = pours;
@@ -627,6 +633,11 @@ async function init() {
     document.getElementById('sectionGrid').classList.remove('hidden');
     document.getElementById('pourGrid').classList.remove('hidden');
     document.getElementById('footer').classList.remove('hidden');
+
+    // Manager view: auto-switch to Pour Day
+    if (new URLSearchParams(window.location.search).get('view') === 'manager') {
+      switchTab('pourday');
+    }
 
     render();
   } catch (err) {
@@ -822,29 +833,247 @@ function renderChecklist() {
 }
 
 function switchTab(tab) {
-  const dash = document.getElementById('dashboardView');
-  const check = document.getElementById('checklistView');
-  const footer = document.getElementById('footer');
-  const tabD = document.getElementById('tabDash');
-  const tabC = document.getElementById('tabCheck');
-  if (tab === 'checklist') {
-    dash.classList.add('hidden'); footer.classList.add('hidden');
-    check.classList.remove('hidden');
-    tabC.className = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white';
-    tabD.className = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60';
-    renderChecklist();
-  } else {
-    check.classList.add('hidden');
-    dash.classList.remove('hidden'); footer.classList.remove('hidden');
-    tabD.className = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white';
-    tabC.className = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60';
+  const views = { dashboard:'dashboardView', checklist:'checklistView', pourday:'pourdayView' };
+  const tabs = { dashboard:'tabDash', checklist:'tabCheck', pourday:'tabPour' };
+  const active = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white';
+  const inactive = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60';
+
+  Object.values(views).forEach(id => document.getElementById(id)?.classList.add('hidden'));
+  Object.values(tabs).forEach(id => { const el = document.getElementById(id); if (el) el.className = inactive; });
+
+  document.getElementById(views[tab])?.classList.remove('hidden');
+  const tabEl = document.getElementById(tabs[tab]); if (tabEl) tabEl.className = active;
+  document.getElementById('footer')?.classList.toggle('hidden', tab !== 'dashboard');
+
+  // Show/hide dashboard-only filters
+  const filtersVisible = tab === 'dashboard';
+  ['sectionFilters','dateFilters','sortDateBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = filtersVisible ? '' : 'none';
+  });
+
+  if (tab === 'checklist') renderChecklist();
+  if (tab === 'pourday') renderPourDay();
+}
+
+// ── POUR DAY COMMAND CENTER ─────────────────────────────────────────────────
+const POURDAY_GID = 777;
+const POURDAY_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${POURDAY_GID}`;
+
+let pourDay = {
+  activePourId: null,
+  trucks: [],       // { timestamp, pourId, truckNum, ticket, cy, cumulative }
+  defaultCY: 9,
+  showTicket: false,
+};
+
+async function fetchPourDayData() {
+  try {
+    const res = await fetch(POURDAY_URL);
+    const text = await res.text();
+    const m = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/);
+    if (!m) return;
+    const json = JSON.parse(m[1]);
+    const rows = json.table.rows;
+    const trucks = [];
+    for (const row of rows) {
+      if (!row?.c) continue;
+      const ts = anyStr(row, 0).trim();
+      const pid = anyStr(row, 1).trim();
+      if (!pid || pid === 'Pour ID') continue;
+      trucks.push({
+        timestamp: ts,
+        pourId: pid,
+        truckNum: anyNum(row, 2),
+        ticket: anyStr(row, 3).trim(),
+        cy: anyNum(row, 4),
+        cumulative: anyNum(row, 5),
+      });
+    }
+    pourDay.trucks = trucks;
+  } catch(e) { console.error('Pour day fetch:', e); }
+}
+
+function getTodaysPours() {
+  const today = new Date();
+  const m = today.getMonth() + 1, d = today.getDate();
+  const todayStr = `${m}/${d}`;
+  return state.pours.filter(p => p.date === todayStr);
+}
+
+function getActivePour() {
+  if (pourDay.activePourId) return state.pours.find(p => p.id === pourDay.activePourId);
+  const todays = getTodaysPours();
+  if (todays.length) return todays[0];
+  // Fall back to next upcoming
+  const upcoming = state.pours.filter(p => p.date).sort((a,b) => {
+    const [am,ad] = a.date.split('/').map(Number);
+    const [bm,bd] = b.date.split('/').map(Number);
+    return (am*100+ad) - (bm*100+bd);
+  });
+  const now = new Date(); now.setHours(0,0,0,0);
+  return upcoming.find(p => { const [pm,pd]=p.date.split('/').map(Number); return new Date(2026,pm-1,pd)>=now; }) || upcoming[0];
+}
+
+function selectPourDay(pourId) {
+  pourDay.activePourId = pourId;
+  renderPourDay();
+}
+
+async function logTruck() {
+  const pour = getActivePour();
+  if (!pour) return;
+  const ticket = document.getElementById('pdTicketInput')?.value || '';
+  const cy = pourDay.defaultCY;
+  const prevCum = pourDay.trucks.filter(t => t.pourId === pour.id).reduce((s,t) => Math.max(s, t.cumulative), 0);
+  const truckNum = pourDay.trucks.filter(t => t.pourId === pour.id).length + 1;
+
+  // Optimistic update
+  pourDay.trucks.push({
+    timestamp: new Date().toLocaleTimeString('en-US', {hour:'numeric',minute:'2-digit'}),
+    pourId: pour.id, truckNum, ticket, cy, cumulative: prevCum + cy
+  });
+  renderPourDay();
+
+  // Clear ticket
+  const inp = document.getElementById('pdTicketInput');
+  if (inp) inp.value = '';
+
+  // POST to Apps Script
+  fetch(API_URL, { method:'POST', mode:'no-cors',
+    body:JSON.stringify({ action:'logTruck', pourId:pour.id, ticketNum:ticket, cy })
+  }).catch(()=>{});
+}
+
+function setPourDayCY(cy) {
+  pourDay.defaultCY = cy;
+  renderPourDay();
+}
+
+function renderPourDay() {
+  const el = document.getElementById('pourdayContent');
+  const pour = getActivePour();
+  if (!pour) { el.innerHTML = '<p class="text-white/30 text-center py-16">No pours scheduled</p>'; return; }
+
+  const c = SEC_COLORS[pour.section] || '#888';
+  const pourTrucks = pourDay.trucks.filter(t => t.pourId === pour.id);
+  const delivered = pourTrucks.length ? pourTrucks[pourTrucks.length-1].cumulative : 0;
+  const ordered = pour.total || 0;
+  const remaining = Math.max(0, ordered - delivered);
+  const expectedTrucks = pour.trucks || Math.ceil(ordered / 9);
+  const pct = ordered > 0 ? Math.min(100, Math.round(delivered / ordered * 100)) : 0;
+  const isManagerView = new URLSearchParams(window.location.search).get('view') === 'manager';
+
+  let h = '';
+
+  // Pour selector
+  const allPours = state.pours.filter(p => p.date);
+  h += `<div class="flex flex-wrap items-center gap-2 mb-4">
+    <span class="text-[10px] font-bold text-white/30 uppercase tracking-wider">Select Pour:</span>
+    ${allPours.map(p => {
+      const pc = SEC_COLORS[p.section] || '#888';
+      const active = p.id === pour.id;
+      return `<button onclick="selectPourDay('${p.id}')" class="px-2.5 py-1 rounded text-[10px] mono font-bold transition-all ${active?'text-white':'text-white/30 hover:text-white/50'}" style="${active?'background:'+pc+'33;border:1px solid '+pc+'55':'border:1px solid transparent'}">${p.id} ${p.date}</button>`;
+    }).join('')}
+  </div>`;
+
+  // Pour info
+  const typeDesc = pour.type === 'Slurry' ? 'Slurry Backfill (S80S662L2)' : pour.type === 'Plinth' ? 'Concrete Plinth' : 'Structural Concrete';
+  h += `<div class="p-4 rounded-xl border mb-4" style="background:#0B0B0F;border-color:${c}33">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-lg flex items-center justify-center text-xl font-black" style="background:${c}22;color:${c}">${pour.section}</div>
+      <div>
+        <div class="text-base font-bold text-white">${pour.id} — ${typeDesc}</div>
+        <div class="text-xs text-white/40 mono">${pour.date} · ${ordered} CY ordered · ${expectedTrucks} trucks expected</div>
+      </div>
+    </div>
+  </div>`;
+
+  // Metrics strip
+  const pctColor = pct >= 100 ? '#41A447' : pct > 75 ? '#FFBF00' : '#4AB8FF';
+  h += `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+    <div class="p-3 rounded-xl border border-white/5" style="background:#0B0B0F">
+      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Ordered</div>
+      <div class="mono text-xl font-bold text-white">${ordered} <span class="text-xs text-white/30">CY</span></div>
+    </div>
+    <div class="p-3 rounded-xl border border-white/5" style="background:#0B0B0F">
+      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Delivered</div>
+      <div class="mono text-xl font-bold" style="color:${pctColor}">${delivered} <span class="text-xs text-white/30">CY</span></div>
+    </div>
+    <div class="p-3 rounded-xl border border-white/5" style="background:#0B0B0F">
+      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Remaining</div>
+      <div class="mono text-xl font-bold ${remaining<=0?'text-green-400':'text-white'}">${remaining} <span class="text-xs text-white/30">CY</span></div>
+    </div>
+    <div class="p-3 rounded-xl border border-white/5" style="background:#0B0B0F">
+      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Trucks</div>
+      <div class="mono text-xl font-bold text-white">${pourTrucks.length} <span class="text-xs text-white/30">of ${expectedTrucks}</span></div>
+    </div>
+  </div>`;
+
+  // Progress bar
+  h += `<div class="p-3 rounded-xl border border-white/5 mb-4" style="background:#0B0B0F">
+    <div class="flex items-center justify-between mb-1.5">
+      <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Pour Progress</span>
+      <span class="mono text-sm font-bold" style="color:${pctColor}">${pct}%</span>
+    </div>
+    <div class="h-3 rounded-full bg-white/5 overflow-hidden">
+      <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:${pctColor}"></div>
+    </div>
+  </div>`;
+
+  // Truck button + ticket input (hidden for managers)
+  if (!isManagerView) {
+    h += `<div class="space-y-2 mb-4">
+      <button onclick="logTruck()" class="w-full py-5 rounded-xl font-black text-xl tracking-wide active:scale-[0.98] transition-transform flex items-center justify-center gap-3" style="background:${c};color:#000">
+        <span class="material-symbols-outlined text-2xl">local_shipping</span>
+        TRUCK ARRIVED — ${pourDay.defaultCY} CY
+      </button>
+      <div class="flex gap-2">
+        <div class="flex gap-1">
+          ${[7,8,9,10,11].map(cy =>
+            `<button onclick="setPourDayCY(${cy})" class="px-3 py-1.5 rounded text-xs mono font-bold transition-all ${pourDay.defaultCY===cy?'bg-white/15 text-white':'bg-white/5 text-white/30 hover:text-white/50'}">${cy}</button>`
+          ).join('')}
+        </div>
+        <input id="pdTicketInput" type="text" placeholder="Ticket #" class="flex-1 bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs mono text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/30">
+      </div>
+    </div>`;
   }
+
+  // Truck log
+  const reverseTrucks = [...pourTrucks].reverse();
+  if (reverseTrucks.length) {
+    h += `<div class="rounded-xl border border-white/5 overflow-hidden" style="background:#0B0B0F">
+      <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between">
+        <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Truck Log</span>
+        <span class="text-[10px] mono text-white/20">${pourTrucks.length} arrivals</span>
+      </div>
+      <div class="max-h-64 overflow-y-auto">
+        ${reverseTrucks.map(t => `
+          <div class="px-4 py-2 flex items-center justify-between border-b border-white/[0.03] text-xs">
+            <div class="flex items-center gap-3">
+              <span class="mono font-bold text-white/60">#${t.truckNum}</span>
+              <span class="mono font-bold text-white">${t.cy} CY</span>
+              ${t.ticket ? `<span class="mono text-white/30">${t.ticket}</span>` : ''}
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="mono text-white/20">${t.timestamp}</span>
+              <span class="mono font-bold" style="color:${c}">${t.cumulative} CY</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+  } else {
+    h += `<div class="text-center py-8 text-white/20 text-sm rounded-xl border border-white/5" style="background:#0B0B0F">No trucks logged yet — tap the button when a truck arrives</div>`;
+  }
+
+  el.innerHTML = h;
 }
 
 init();
 setInterval(async () => {
   try {
-    await fetchChecklist();
+    await Promise.all([fetchChecklist(), fetchPourDayData()]);
     const { refs, pours, grand } = await fetchData();
     state.refs  = refs;
     state.pours = pours;
