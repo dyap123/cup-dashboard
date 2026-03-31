@@ -616,23 +616,26 @@ async function init() {
 // ── AUTO-REFRESH ──────────────────────────────────────────────────────────────
 // ── CHECKLIST ───────────────────────────────────────────────────────────────
 const CHECKLIST_ITEMS = [
+  { phase: 'INSPECTIONS (5 Required)', items: [
+    { what: '1. Concrete Pour Deputy', who: 'Twining', note: 'Deputy inspector during structural pour day. Attach mix design + pour area to request.' },
+    { what: '2. LADBS Rebar & Formwork', who: 'LADBS / WCG', note: 'City inspection for rebar and formwork — 1 form covers both. WCG responsible for filing if last minute.' },
+    { what: '3. Geotech / Soil', who: 'Geotech', note: 'Soil inspection for subgrade elevation in the pour area. Attach mix design + pour area.' },
+    { what: '4. Slurry Backfill Deputy', who: 'Twining', note: 'Deputy to watch slurry backfill pour. Attach mix design + pour area.' },
+    { what: '5. Plant Inspection', who: 'Twining', note: 'Batch plant inspector during concrete pour day to release concrete. Attach mix design + pour area.' },
+  ]},
   { phase: 'BEFORE POUR', items: [
     { what: 'Mix Design + Quantity', who: 'WCG', note: 'Check mix is approved, correct, and we have the right amount' },
     { what: 'Trial Batch', who: 'PWJV', note: 'Under category of mix design being approved' },
-    { what: 'Batch Plant Inspector', who: 'Twining', note: 'Make sure there is plant inspector for day of pour before the day of pour' },
     { what: 'Anchor Bolt + Embeds', who: 'WCG', note: 'Make sure anchor rods are ready, correct and QC (1 week before)' },
     { what: 'Temperature Sensors', who: 'WCG', note: 'Make sure temp sensors are set up as needed' },
     { what: 'Temperature Control', who: 'WCG', note: 'Make sure blankets and temp control (like ice) is ready' },
     { what: 'Break Data (7,28)', who: 'Twining/WCG', note: 'Make sure Twining knows what break data we need' },
-    { what: 'Soil', who: 'PWJV/Geotech', note: 'Make sure subgrade elevation and soil is satisfactory' },
-    { what: 'Rebar Inspection', who: 'Twining', note: 'Rebar inspection and city sign off form' },
     { what: 'Formwork', who: 'WCG', note: 'Make sure forms are accurate and correct elevation' },
     { what: 'Anchor Bolt Layout', who: 'WCG', note: 'Make sure it\'s laid out correctly' },
   ]},
   { phase: 'DURING POUR', items: [
     { what: 'Anchor Bolt Placement', who: 'WCG + SME', note: 'Pour watch to verify anchor bolts are poured correctly' },
     { what: 'Pour Watch', who: 'Twining/WCG', note: 'Pour watch to make sure pour is satisfactory' },
-    { what: 'Batch Plant', who: 'Twining', note: 'Batch plant inspector to release concrete' },
   ]},
   { phase: 'AFTER POUR', items: [
     { what: 'Anchor Bolts', who: 'Everyone', note: 'Make sure we installed anchor bolt correctly' },
@@ -646,7 +649,7 @@ const CHECKLIST_ITEMS = [
 let activeChecklistPour = null;
 
 function getUpcomingPours() {
-  const today = new Date(2026, 2, 30); // Use real date in prod
+  const today = new Date();
   return state.pours
     .filter(p => p.date)
     .map(p => {
@@ -700,8 +703,8 @@ function renderChecklist() {
   const doneCount = CHECKLIST_ITEMS.reduce((s, g) => s + g.items.filter(it => checks[checkKey(pid, it.what)]).length, 0);
   const pct = totalItems > 0 ? Math.round(doneCount / totalItems * 100) : 0;
 
-  const phaseColors = { 'BEFORE POUR': '#4AB8FF', 'DURING POUR': '#FFBF00', 'AFTER POUR': '#41A447' };
-  const phaseIcons = { 'BEFORE POUR': 'checklist', 'DURING POUR': 'engineering', 'AFTER POUR': 'verified' };
+  const phaseColors = { 'INSPECTIONS (5 Required)': '#FF6B6B', 'BEFORE POUR': '#4AB8FF', 'DURING POUR': '#FFBF00', 'AFTER POUR': '#41A447' };
+  const phaseIcons = { 'INSPECTIONS (5 Required)': 'assignment_turned_in', 'BEFORE POUR': 'checklist', 'DURING POUR': 'engineering', 'AFTER POUR': 'verified' };
   const secColor = SEC_COLORS[pour.section] || '#888';
 
   // Pour type description
