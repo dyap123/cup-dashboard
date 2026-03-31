@@ -518,7 +518,7 @@ function renderPourCards(pours) {
         <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 bar-animate" style="width:${pct5}%"></div></div>
       </div>` : ''}
       ${p.slurry > 0 ? `<div class="mb-3">
-        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">Slurry (3 sk)</span><span class="mono text-gray-300 font-semibold">${p.slurry} CY</span></div>
+        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">Slurry (S80S662L2)</span><span class="mono text-gray-300 font-semibold">${p.slurry} CY</span></div>
         <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-gray-500 to-gray-400 bar-animate" style="width:${Math.round((p.slurry/Math.max(...pours.map(x=>x.slurry),1))*100)}%"></div></div>
       </div>` : ''}
       <div class="flex items-center justify-between pt-2 border-t border-white/5">
@@ -709,7 +709,7 @@ function renderChecklist() {
   const mixInfo = [];
   if (pour.cy8000 > 0) mixInfo.push(`${pour.cy8000} CY 8000 PSI`);
   if (pour.cy5000 > 0) mixInfo.push(`${pour.cy5000} CY 5000 PSI`);
-  if (pour.slurry > 0) mixInfo.push(`${pour.slurry} CY 3sk Slurry`);
+  if (pour.slurry > 0) mixInfo.push(`${pour.slurry} CY S80S662L2 8sk`);
 
   let html = '';
 
