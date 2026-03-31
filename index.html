@@ -594,7 +594,8 @@ function updateFilterPills() {
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init() {
   try {
-    const { refs, pours, grand } = await fetchData();
+    const [pourData] = await Promise.all([fetchData(), fetchChecklist()]);
+    const { refs, pours, grand } = pourData;
     state.refs  = refs;
     state.pours = pours;
     state.grand = grand;
@@ -615,35 +616,43 @@ async function init() {
 
 // ── AUTO-REFRESH ──────────────────────────────────────────────────────────────
 // ── CHECKLIST ───────────────────────────────────────────────────────────────
-const CHECKLIST_ITEMS = [
-  { phase: 'INSPECTIONS (5 Required)', items: [
-    { what: '1. Concrete Pour Deputy', who: 'Twining', note: 'Deputy inspector during structural pour day. Attach mix design + pour area to request.' },
-    { what: '2. LADBS Rebar & Formwork', who: 'LADBS / WCG', note: 'City inspection for rebar and formwork — 1 form covers both. WCG responsible for filing if last minute.' },
-    { what: '3. Geotech / Soil', who: 'Geotech', note: 'Soil inspection for subgrade elevation in the pour area. Attach mix design + pour area.' },
-    { what: '4. Slurry Backfill Deputy', who: 'Twining', note: 'Deputy to watch slurry backfill pour. Attach mix design + pour area.' },
-    { what: '5. Plant Inspection', who: 'Twining', note: 'Batch plant inspector during concrete pour day to release concrete. Attach mix design + pour area.' },
-  ]},
-  { phase: 'BEFORE POUR', items: [
-    { what: 'Mix Design + Quantity', who: 'WCG', note: 'Check mix is approved, correct, and we have the right amount' },
-    { what: 'Trial Batch', who: 'PWJV', note: 'Under category of mix design being approved' },
-    { what: 'Anchor Bolt + Embeds', who: 'WCG', note: 'Make sure anchor rods are ready, correct and QC (1 week before)' },
-    { what: 'Temperature Sensors', who: 'WCG', note: 'Make sure temp sensors are set up as needed' },
-    { what: 'Temperature Control', who: 'WCG', note: 'Make sure blankets and temp control (like ice) is ready' },
-    { what: 'Break Data (7,28)', who: 'Twining/WCG', note: 'Make sure Twining knows what break data we need' },
-    { what: 'Formwork', who: 'WCG', note: 'Make sure forms are accurate and correct elevation' },
-    { what: 'Anchor Bolt Layout', who: 'WCG', note: 'Make sure it\'s laid out correctly' },
-  ]},
-  { phase: 'DURING POUR', items: [
-    { what: 'Anchor Bolt Placement', who: 'WCG + SME', note: 'Pour watch to verify anchor bolts are poured correctly' },
-    { what: 'Pour Watch', who: 'Twining/WCG', note: 'Pour watch to make sure pour is satisfactory' },
-  ]},
-  { phase: 'AFTER POUR', items: [
-    { what: 'Anchor Bolts', who: 'Everyone', note: 'Make sure we installed anchor bolt correctly' },
-    { what: 'Temperature', who: 'WCG', note: 'Middle and top differential not greater than 50 degrees' },
-    { what: '7+28 Day Breaks', who: 'WCG/Twining', note: 'Hunt down break data' },
-    { what: 'Curing/Finishing', who: 'WCG', note: 'Make sure concrete was properly finished and no cracking' },
-  ]},
-];
+// Checklist loaded from Google Sheets "Pour Checklist" tab (gid=888)
+let CHECKLIST_ITEMS = [];
+const CHECKLIST_GID = 888;
+const CHECKLIST_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${CHECKLIST_GID}`;
+
+async function fetchChecklist() {
+  try {
+    const res = await fetch(CHECKLIST_URL);
+    const text = await res.text();
+    const m = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/);
+    if (!m) return;
+    const json = JSON.parse(m[1]);
+    const rows = json.table.rows;
+
+    const phases = {};
+    const phaseOrder = [];
+    for (const row of rows) {
+      if (!row?.c) continue;
+      const phase = anyStr(row, 0).trim();
+      const what = anyStr(row, 1).trim();
+      if (!phase || !what || phase === 'Phase') continue;
+      const who = anyStr(row, 2).trim();
+      const notes = anyStr(row, 3).trim();
+      const protocol = anyStr(row, 4).trim();
+      const note = protocol ? `${notes}. ${protocol}` : notes;
+
+      if (!phases[phase]) { phases[phase] = []; phaseOrder.push(phase); }
+      phases[phase].push({ what, who, note });
+    }
+
+    CHECKLIST_ITEMS = phaseOrder.map(phase => ({
+      phase: phase === 'INSPECTIONS' ? `INSPECTIONS (${phases[phase].length} Required)` : phase,
+      phaseKey: phase,
+      items: phases[phase],
+    }));
+  } catch(e) { console.error('Checklist fetch error:', e); }
+}
 
 // Active pour for checklist (default: next upcoming)
 let activeChecklistPour = null;
@@ -703,8 +712,10 @@ function renderChecklist() {
   const doneCount = CHECKLIST_ITEMS.reduce((s, g) => s + g.items.filter(it => checks[checkKey(pid, it.what)]).length, 0);
   const pct = totalItems > 0 ? Math.round(doneCount / totalItems * 100) : 0;
 
-  const phaseColors = { 'INSPECTIONS (5 Required)': '#FF6B6B', 'BEFORE POUR': '#4AB8FF', 'DURING POUR': '#FFBF00', 'AFTER POUR': '#41A447' };
-  const phaseIcons = { 'INSPECTIONS (5 Required)': 'assignment_turned_in', 'BEFORE POUR': 'checklist', 'DURING POUR': 'engineering', 'AFTER POUR': 'verified' };
+  const phaseColorMap = { 'INSPECTIONS': '#FF6B6B', 'BEFORE POUR': '#4AB8FF', 'DURING POUR': '#FFBF00', 'AFTER POUR': '#41A447' };
+  const phaseIconMap = { 'INSPECTIONS': 'assignment_turned_in', 'BEFORE POUR': 'checklist', 'DURING POUR': 'engineering', 'AFTER POUR': 'verified' };
+  const getPhaseColor = (g) => phaseColorMap[g.phaseKey || g.phase] || '#888';
+  const getPhaseIcon = (g) => phaseIconMap[g.phaseKey || g.phase] || 'check_circle';
   const secColor = SEC_COLORS[pour.section] || '#888';
 
   // Pour type description
@@ -755,8 +766,8 @@ function renderChecklist() {
   </div>`;
 
   CHECKLIST_ITEMS.forEach(group => {
-    const c = phaseColors[group.phase] || '#fff';
-    const icon = phaseIcons[group.phase] || 'check_circle';
+    const c = getPhaseColor(group);
+    const icon = getPhaseIcon(group);
     const groupDone = group.items.filter(it => checks[checkKey(pid, it.what)]).length;
 
     html += `<div class="mb-4">
@@ -811,6 +822,7 @@ function switchTab(tab) {
 init();
 setInterval(async () => {
   try {
+    await fetchChecklist();
     const { refs, pours, grand } = await fetchData();
     state.refs  = refs;
     state.pours = pours;
