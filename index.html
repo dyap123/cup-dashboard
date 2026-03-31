@@ -860,47 +860,70 @@ function switchTab(tab) {
 const POURDAY_GID = 777;
 const POURDAY_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${POURDAY_GID}`;
 
-// Footing map data — Area A (from CUP Foundation drawing page 5)
-// Grid: L-Q horizontal, rows 28-33 vertical. ViewBox 0 0 800 500.
-// x=0 is grid L, x=800 is grid Q.2. y=0 is row 33, y=500 is row 28.
+// Footing map data — Area A (from CUP Foundation drawing page 5 + Footing Schedule)
+// Grid: N-Q.2 horizontal, rows 28-33 vertical. ViewBox 0 0 900 600.
+// Footing types from schedule: F7=4.08, F8=5.93, F8A=7.11, F9=9.00, F10=12.04, F10A=23.61
+// Pile caps: PC2K=32, PC3E=16.67, PC4D=18.38, PC4G=96, PC8E=72.89
 const FOOTING_MAPS = {
   'A': {
-    label: 'Area A — Pour 4/16',
-    viewBox: '0 0 800 500',
+    label: 'Area A — Structural Pour',
+    viewBox: '0 0 900 620',
+    // Grid labels for reference
+    gridCols: [{x:40,label:'N'},{x:150,label:'N.4'},{x:270,label:'P'},{x:390,label:'P.2'},{x:520,label:'Q'},{x:650,label:'Q.1'},{x:780,label:'Q.2'}],
+    gridRows: [{y:30,label:'33'},{y:110,label:'32'},{y:210,label:'31'},{y:310,label:'30'},{y:410,label:'29'},{y:510,label:'28'}],
     footings: [
-      // Upper row (row 32-33 area, grids N-Q)
-      { id:'F-N32', x:180, y:30,  w:36, h:36, cy:7.84,  type:'ftg', label:'7.84' },
-      { id:'F-N.433', x:260, y:20,  w:30, h:30, cy:5.70,  type:'ftg', label:'5.7' },
-      { id:'F-P32', x:340, y:20,  w:24, h:24, cy:1.45,  type:'ftg', label:'1.45' },
-      { id:'F-P.232', x:420, y:20,  w:32, h:32, cy:5.72,  type:'ftg', label:'5.72' },
-      { id:'F-Q32', x:510, y:30,  w:30, h:30, cy:4.38,  type:'ftg', label:'4.38' },
-      { id:'PC-Q.132', x:620, y:10, w:60, h:50, cy:23.0,  type:'pc', label:'23.0' },
-      { id:'F-Q33', x:720, y:10, w:30, h:30, cy:13.38, type:'ftg', label:'13.38' },
-      // Row 31 area (grids L-Q)
-      { id:'F-L31', x:20,  y:120, w:34, h:34, cy:6.34,  type:'ftg', label:'6.34' },
-      { id:'F-M31', x:100, y:120, w:38, h:38, cy:8.99,  type:'ftg', label:'8.99' },
-      { id:'F-N31', x:200, y:130, w:34, h:34, cy:5.93,  type:'ftg', label:'5.93' },
-      { id:'F-N.431', x:290, y:130, w:36, h:36, cy:7.13,  type:'ftg', label:'7.13' },
-      { id:'F-P31', x:380, y:130, w:34, h:34, cy:5.99,  type:'ftg', label:'5.99' },
-      { id:'F-P.231', x:460, y:130, w:34, h:34, cy:5.89,  type:'ftg', label:'5.89' },
-      { id:'PC-Q31', x:640, y:80, w:140, h:100, cy:106.81, type:'pc', label:'106.81' },
-      // 15.94 elements (grade beams / wall footings)
-      { id:'WF-Q30', x:680, y:200, w:80, h:20, cy:15.94, type:'gb', label:'15.94' },
-      // Row 30 area
-      { id:'F-L30', x:20,  y:260, w:34, h:34, cy:5.87,  type:'ftg', label:'5.87' },
-      { id:'F-M30', x:100, y:260, w:34, h:34, cy:5.93,  type:'ftg', label:'5.93' },
-      { id:'F-N30', x:200, y:260, w:34, h:34, cy:5.93,  type:'ftg', label:'5.93' },
-      { id:'F-N.430', x:290, y:260, w:34, h:34, cy:5.94,  type:'ftg', label:'5.94' },
-      { id:'F-P30', x:380, y:260, w:34, h:34, cy:5.33,  type:'ftg', label:'5.33' },
-      { id:'PC-Q30', x:600, y:240, w:80, h:60, cy:36.06, type:'pc', label:'36.06' },
-      // 15.94 element
-      { id:'WF-Q29', x:680, y:320, w:80, h:20, cy:15.94, type:'gb', label:'15.94' },
-      // Row 29 area (bottom)
-      { id:'PC-Q29', x:580, y:360, w:160, h:100, cy:108.29, type:'pc', label:'108.29' },
-      { id:'F-P29', x:380, y:400, w:34, h:34, cy:5.33,  type:'ftg', label:'5.33' },
-      { id:'F-N29', x:200, y:400, w:34, h:34, cy:5.33,  type:'ftg', label:'5.33' },
-      { id:'F-M29', x:100, y:400, w:34, h:34, cy:4.09,  type:'ftg', label:'4.09' },
-      { id:'F-L29', x:20,  y:400, w:34, h:34, cy:6.16,  type:'ftg', label:'6.16' },
+      // Row 32 — upper footings (grids N through Q.2)
+      { id:'#28-F10A', x:40,  y:80,  w:50, h:50, cy:23.61, type:'pc',  ftype:'F10A' },
+      { id:'#30-F8A',  x:150, y:90,  w:38, h:38, cy:7.11,  type:'ftg', ftype:'F8A' },
+      { id:'#29-F10A', x:270, y:80,  w:50, h:50, cy:23.61, type:'pc',  ftype:'F10A' },
+      { id:'#27-F8A',  x:390, y:90,  w:38, h:38, cy:7.11,  type:'ftg', ftype:'F8A' },
+      { id:'#42-F9',   x:520, y:85,  w:42, h:42, cy:9.00,  type:'ftg', ftype:'F9' },
+      { id:'#47-PC8E', x:650, y:60,  w:100, h:80, cy:72.89, type:'pc',  ftype:'PC8E' },
+
+      // Row 31 — middle footings
+      { id:'#35-F8',   x:40,  y:190, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'#36-F8',   x:150, y:190, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'#37-F8',   x:270, y:190, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'#38-F8',   x:390, y:190, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'#43-F8',   x:520, y:190, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
+      // Large pile cap right side (106.81 = PC4G + area)
+      { id:'#44-PC4G', x:640, y:170, w:120, h:70, cy:96.00, type:'pc',  ftype:'PC4G' },
+
+      // Grade beam connecting row 31 footings
+      { id:'GB-31', x:40, y:215, w:560, h:10, cy:15.94, type:'gb', ftype:'GB' },
+
+      // Row 30 — lower-middle footings
+      { id:'#13-F8',   x:40,  y:290, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'#14-F8',   x:150, y:290, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'#16-F8',   x:270, y:290, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'#17-F8',   x:390, y:290, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'#41-F8',   x:520, y:290, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
+      // Medium pile cap
+      { id:'#24-PC3E', x:640, y:280, w:70, h:50, cy:16.67, type:'pc',  ftype:'PC3E' },
+      // Grade beam row 30
+      { id:'GB-30', x:40, y:315, w:560, h:10, cy:15.94, type:'gb', ftype:'GB' },
+
+      // Row 29 — lower footings + large pile cap
+      { id:'#18-F7',   x:40,  y:390, w:30, h:30, cy:4.08,  type:'ftg', ftype:'F7' },
+      { id:'#19-F7',   x:150, y:390, w:30, h:30, cy:4.08,  type:'ftg', ftype:'F7' },
+      { id:'#21-F8',   x:270, y:385, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'#22-F8',   x:390, y:385, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'#23-PC2K', x:520, y:370, w:70, h:55, cy:32.00, type:'pc',  ftype:'PC2K' },
+      // Large pile cap bottom right (108.29 = PC4G + connections)
+      { id:'#46-PC4G', x:630, y:360, w:130, h:80, cy:96.00, type:'pc',  ftype:'PC4G' },
+
+      // Grade beam bottom row
+      { id:'GB-29', x:40, y:420, w:560, h:10, cy:15.94, type:'gb', ftype:'GB' },
+
+      // Row 28 — bottom footings
+      { id:'#31-F8',   x:270, y:480, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'#26-F8',   x:390, y:480, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'#25-PC2K', x:520, y:470, w:70, h:55, cy:32.00, type:'pc',  ftype:'PC2K' },
+      { id:'#34-PC4D', x:640, y:465, w:80, h:55, cy:18.38, type:'pc',  ftype:'PC4D' },
+
+      // Vertical grade beams (right side connecting pile caps)
+      { id:'GB-R1', x:695, y:140, w:10, h:220, cy:15.94, type:'gb', ftype:'GB' },
+      { id:'GB-R2', x:695, y:360, w:10, h:155, cy:15.94, type:'gb', ftype:'GB' },
     ],
   },
 };
@@ -1098,15 +1121,15 @@ function renderPourDay() {
           <span class="text-[10px] mono font-bold" style="color:${c}">${completedCY.toFixed(1)}/${totalCY.toFixed(0)} CY</span>
         </div>
       </div>
-      <div style="height:320px;overflow:auto">
-        <svg viewBox="${mapData.viewBox}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:600px">
+      <div style="height:380px;overflow:auto">
+        <svg viewBox="${mapData.viewBox}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:650px">
           <!-- Grid backdrop -->
-          <rect width="800" height="500" fill="#08080c"/>
+          <rect width="900" height="620" fill="#08080c"/>
           <defs><pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.5" fill="rgba(255,255,255,0.04)"/></pattern></defs>
-          <rect width="800" height="500" fill="url(#fgrid)"/>
-          <!-- Grid labels -->
-          ${['L','M','N','N.4','P','P.2','Q','Q.1','Q.2'].map((g,i) => `<text x="${i*95+20}" y="495" text-anchor="middle" font-size="9" font-family="JetBrains Mono" fill="rgba(255,255,255,0.12)">${g}</text>`).join('')}
-          ${['33','32','31','30','29','28'].map((r,i) => `<text x="790" y="${i*90+30}" text-anchor="end" font-size="9" font-family="JetBrains Mono" fill="rgba(255,255,255,0.12)">${r}</text>`).join('')}
+          <rect width="900" height="620" fill="url(#fgrid)"/>
+          <!-- Grid lines + labels -->
+          ${(mapData.gridCols||[]).map(g => `<line x1="${g.x}" y1="20" x2="${g.x}" y2="600" stroke="rgba(255,255,255,0.04)" stroke-width="1"/><text x="${g.x}" y="615" text-anchor="middle" font-size="9" font-family="JetBrains Mono" fill="rgba(255,255,255,0.12)">${g.label}</text>`).join('')}
+          ${(mapData.gridRows||[]).map(g => `<line x1="10" y1="${g.y}" x2="880" y2="${g.y}" stroke="rgba(255,255,255,0.03)" stroke-width="1"/><text x="885" y="${g.y+4}" text-anchor="end" font-size="8" font-family="JetBrains Mono" fill="rgba(255,255,255,0.10)">${g.label}</text>`).join('')}
           <!-- Footings -->
           ${ftgs.map(f => {
             const pct = getFootingPct(f.id);
@@ -1130,16 +1153,25 @@ function renderPourDay() {
               svg += `<defs><clipPath id="${clipId}"><rect x="${f.x}" y="${fillY}" width="${f.w}" height="${fillH}"/></clipPath></defs>`;
               svg += `<rect x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${fc}" opacity="${done?1:0.6}" clip-path="url(#${clipId})" class="cursor-pointer" onclick="toggleFooting('${f.id}')"/>`;
             }
-            // CY label
-            svg += `<text x="${cx}" y="${cy2-3}" text-anchor="middle" dominant-baseline="central" font-size="${labelSize}" font-family="JetBrains Mono" fill="${done?'#000':active?'white':'white'}" font-weight="700" pointer-events="none">${f.label}</text>`;
-            // Status badge
-            if (done) {
-              svg += `<text x="${f.x+f.w-2}" y="${f.y+9}" text-anchor="end" font-size="8" fill="#000" font-weight="700" pointer-events="none">✓</text>`;
-            } else if (active) {
-              svg += `<text x="${cx}" y="${cy2+10}" text-anchor="middle" font-size="8" font-family="JetBrains Mono" fill="white" font-weight="700" pointer-events="none">${pct}%</text>`;
+            const isGB = f.type === 'gb';
+            const ftypeLabel = f.ftype || '';
+            if (isGB) {
+              // Grade beam: show type label centered
+              svg += `<text x="${cx}" y="${cy2+3}" text-anchor="middle" dominant-baseline="central" font-size="7" font-family="JetBrains Mono" fill="rgba(255,255,255,0.3)" font-weight="600" pointer-events="none">${ftypeLabel} ${f.cy}CY</text>`;
+            } else {
+              // Footing type (primary label)
+              svg += `<text x="${cx}" y="${cy2 - (f.h > 50 ? 8 : 3)}" text-anchor="middle" dominant-baseline="central" font-size="${labelSize}" font-family="JetBrains Mono" fill="${done?'#000':active?'white':'white'}" font-weight="700" pointer-events="none">${ftypeLabel}</text>`;
+              // CY value (secondary, below type)
+              if (f.h > 40) svg += `<text x="${cx}" y="${cy2+8}" text-anchor="middle" font-size="8" font-family="JetBrains Mono" fill="${done?'#000':'rgba(255,255,255,0.5)'}" pointer-events="none">${f.cy}CY</text>`;
+              // Status badge
+              if (done) {
+                svg += `<text x="${f.x+f.w-3}" y="${f.y+10}" text-anchor="end" font-size="9" fill="#000" font-weight="800" pointer-events="none">✓</text>`;
+              } else if (active) {
+                svg += `<text x="${cx}" y="${cy2 + (f.h > 50 ? 20 : 12)}" text-anchor="middle" font-size="8" font-family="JetBrains Mono" fill="white" font-weight="700" pointer-events="none">${pct}%</text>`;
+              }
             }
-            // ID label (below, small)
-            svg += `<text x="${cx}" y="${f.y+f.h+10}" text-anchor="middle" font-size="5" fill="rgba(255,255,255,0.2)" font-family="JetBrains Mono" pointer-events="none">${f.id}</text>`;
+            // Element ID (below shape, tiny)
+            if (!isGB) svg += `<text x="${cx}" y="${f.y+f.h+9}" text-anchor="middle" font-size="6" fill="rgba(255,255,255,0.15)" font-family="JetBrains Mono" pointer-events="none">${f.id}</text>`;
             return svg;
           }).join('')}
         </svg>
