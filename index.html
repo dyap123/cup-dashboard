@@ -1345,7 +1345,13 @@ function renderPourDay() {
     const completedCY = ftgs.reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
     const totalCY = ftgs.reduce((s,f) => s+f.cy, 0);
     const inProgressCount = ftgs.filter(f => { const p = getFootingPct(f.id); return p > 0 && p < 100; }).length;
-    const typeColors = { ftg: c, pc: c, gb: '#888' };
+
+    // Mix breakdown: PC = 8000 PSI, Footing = 5000 PSI, GB = user choice (stored in localStorage)
+    const gbMix = localStorage.getItem('cup_gb_mix') || '8000';
+    const cy8000 = ftgs.filter(f => f.type === 'pc' || (f.type === 'gb' && gbMix === '8000')).reduce((s,f) => s+f.cy, 0);
+    const cy5000 = ftgs.filter(f => f.type === 'ftg' || (f.type === 'gb' && gbMix === '5000')).reduce((s,f) => s+f.cy, 0);
+    const done8000 = ftgs.filter(f => f.type === 'pc' || (f.type === 'gb' && gbMix === '8000')).reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
+    const done5000 = ftgs.filter(f => f.type === 'ftg' || (f.type === 'gb' && gbMix === '5000')).reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
 
     h += `<div class="rounded-xl border border-white/5 overflow-hidden mb-4" style="background:#0B0B0F">
       <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between flex-wrap gap-2">
@@ -1354,6 +1360,26 @@ function renderPourDay() {
           <span class="text-[10px] mono text-white/30">${doneCount} done${inProgressCount ? ', '+inProgressCount+' in progress' : ''}</span>
           <span class="text-[10px] mono font-bold" style="color:${c}">${completedCY.toFixed(1)}/${totalCY.toFixed(0)} CY</span>
           ${!isManagerView ? `<button onclick="toggleMapEdit()" class="text-[9px] font-bold px-2 py-1 rounded transition-all ${mapEditMode?'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30':'bg-white/5 text-white/30 hover:text-white/50'}">${mapEditMode?'EDITING':'EDIT MAP'}</button>` : ''}
+        </div>
+      </div>
+      <!-- Mix breakdown strip -->
+      <div class="px-4 py-2 border-b border-white/5 flex items-center gap-4 flex-wrap" style="background:#0a0e14">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+          <span class="text-[9px] font-bold text-red-300">8000 PSI</span>
+          <span class="text-[10px] mono font-bold text-red-200">${done8000.toFixed(1)}/${cy8000.toFixed(0)} CY</span>
+          <span class="text-[9px] text-white/30">(Pile Caps${gbMix==='8000'?' + GB':''})</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+          <span class="text-[9px] font-bold text-blue-300">5000 PSI</span>
+          <span class="text-[10px] mono font-bold text-blue-200">${done5000.toFixed(1)}/${cy5000.toFixed(0)} CY</span>
+          <span class="text-[9px] text-white/30">(Footings${gbMix==='5000'?' + GB':''})</span>
+        </div>
+        <div class="flex items-center gap-1.5 ml-auto">
+          <span class="text-[8px] text-white/30">GB Mix:</span>
+          <button onclick="localStorage.setItem('cup_gb_mix','8000');renderPourDay()" class="text-[9px] font-bold px-2 py-0.5 rounded transition-all ${gbMix==='8000'?'bg-red-500/20 text-red-300 border border-red-500/30':'bg-white/5 text-white/30'}">8000</button>
+          <button onclick="localStorage.setItem('cup_gb_mix','5000');renderPourDay()" class="text-[9px] font-bold px-2 py-0.5 rounded transition-all ${gbMix==='5000'?'bg-blue-500/20 text-blue-300 border border-blue-500/30':'bg-white/5 text-white/30'}">5000</button>
         </div>
       </div>
       ${mapEditMode && !isManagerView ? (() => {
@@ -1390,7 +1416,8 @@ function renderPourDay() {
             const pct = getFootingPct(f.id);
             const done = pct === 100;
             const active = pct > 0 && pct < 100;
-            const fc = f.type==='gb' ? '#888' : c;
+            const mixColor = f.type==='pc' ? '#ff6b6b' : f.type==='ftg' ? '#6bb5ff' : '#888';
+            const fc = mixColor;
             const rx = f.type==='gb' ? 2 : f.type==='pc' ? 4 : 6;
             const cx = f.x + f.w/2, cy2 = f.y + f.h/2;
             const labelSize = f.w > 50 ? 11 : f.w > 30 ? 9 : 7;
@@ -1455,10 +1482,13 @@ function renderPourDay() {
           }).join('')}
         </svg>
       </div>
-      <div class="px-4 py-2 border-t border-white/5 flex items-center gap-4 text-[9px] flex-wrap">
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded border" style="border-color:${c};background:${c}11"></span><span class="text-white/40">Not started</span></span>
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:linear-gradient(to top,${c}99 50%,${c}11 50%)"></span><span class="text-white/40">In progress</span></span>
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:${c}"></span><span class="text-white/40">100% Done</span></span>
+      <div class="px-4 py-2 border-t border-white/5 flex items-center gap-3 text-[9px] flex-wrap">
+        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#ff6b6b33;border:1.5px solid #ff6b6b88"></span><span class="text-white/40">Pile Cap <span class="text-red-300">(8000)</span></span></span>
+        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#6bb5ff33;border:1.5px solid #6bb5ff88"></span><span class="text-white/40">Footing <span class="text-blue-300">(5000)</span></span></span>
+        <span class="flex items-center gap-1"><span class="w-4 h-2 rounded-sm" style="background:#FFB80020;border:1.5px dashed #FFB800aa"></span><span class="text-white/40">Grade Beam</span></span>
+        <span class="text-white/15">|</span>
+        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:linear-gradient(to top,#fff8 50%,#fff1 50%)"></span><span class="text-white/40">In progress</span></span>
+        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#fff9"></span><span class="text-white/40">Done</span></span>
         ${!isManagerView ? '<span class="ml-auto text-white/20 italic">Tap to cycle: 0→25→50→75→100→0</span>' : ''}
       </div>
     </div>`;
