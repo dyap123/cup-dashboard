@@ -912,13 +912,16 @@ let pourDay = {
   defaultCY: 9,
 };
 
+// Footing status: cycles through '' → '25' → '50' → '75' → 'DONE' → ''
+const FTG_STAGES = ['', '25', '50', '75', 'DONE'];
 function getFootingStatus(id) { return pourDay.footingStatus[id] || localStorage.getItem('cup_ftg_'+id) || ''; }
+function getFootingPct(id) { const s = getFootingStatus(id); return s === 'DONE' ? 100 : parseInt(s) || 0; }
 function toggleFooting(id) {
   const cur = getFootingStatus(id);
-  const newStatus = cur === 'DONE' ? '' : 'DONE';
+  const idx = FTG_STAGES.indexOf(cur);
+  const newStatus = FTG_STAGES[(idx + 1) % FTG_STAGES.length];
   pourDay.footingStatus[id] = newStatus;
   localStorage.setItem('cup_ftg_'+id, newStatus);
-  // Write to sheet
   fetch(API_URL, { method:'POST', mode:'no-cors', body:JSON.stringify({ action:'markFooting', footingId:id, status:newStatus }) }).catch(()=>{});
   renderPourDay();
 }
@@ -1082,16 +1085,17 @@ function renderPourDay() {
   if (mapData) {
     const ftgs = mapData.footings;
     const doneCount = ftgs.filter(f => getFootingStatus(f.id) === 'DONE').length;
-    const doneCY = ftgs.filter(f => getFootingStatus(f.id) === 'DONE').reduce((s,f) => s+f.cy, 0);
+    const completedCY = ftgs.reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
     const totalCY = ftgs.reduce((s,f) => s+f.cy, 0);
+    const inProgressCount = ftgs.filter(f => { const p = getFootingPct(f.id); return p > 0 && p < 100; }).length;
     const typeColors = { ftg: c, pc: c, gb: '#888' };
 
     h += `<div class="rounded-xl border border-white/5 overflow-hidden mb-4" style="background:#0B0B0F">
       <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between">
         <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Footing Map — ${mapData.label}</span>
         <div class="flex items-center gap-3">
-          <span class="text-[10px] mono text-white/30">${doneCount}/${ftgs.length} done</span>
-          <span class="text-[10px] mono font-bold" style="color:${c}">${doneCY.toFixed(0)}/${totalCY.toFixed(0)} CY</span>
+          <span class="text-[10px] mono text-white/30">${doneCount} done${inProgressCount ? ', '+inProgressCount+' in progress' : ''}</span>
+          <span class="text-[10px] mono font-bold" style="color:${c}">${completedCY.toFixed(1)}/${totalCY.toFixed(0)} CY</span>
         </div>
       </div>
       <div style="height:320px;overflow:auto">
@@ -1105,29 +1109,46 @@ function renderPourDay() {
           ${['33','32','31','30','29','28'].map((r,i) => `<text x="790" y="${i*90+30}" text-anchor="end" font-size="9" font-family="JetBrains Mono" fill="rgba(255,255,255,0.12)">${r}</text>`).join('')}
           <!-- Footings -->
           ${ftgs.map(f => {
-            const done = getFootingStatus(f.id) === 'DONE';
-            const fc = done ? c : (f.type==='gb' ? '#666' : c);
-            const fill = done ? fc : `${fc}22`;
-            const stroke = done ? fc : `${fc}55`;
-            const opacity = done ? 1 : 0.9;
-            const isPC = f.type === 'pc';
-            const shape = isPC
-              ? `<rect x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="4" fill="${fill}" stroke="${stroke}" stroke-width="1.5" opacity="${opacity}" class="cursor-pointer" onclick="toggleFooting('${f.id}')"/>`
-              : `<rect x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${f.type==='gb'?2:6}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" opacity="${opacity}" class="cursor-pointer" onclick="toggleFooting('${f.id}')"/>`;
+            const pct = getFootingPct(f.id);
+            const done = pct === 100;
+            const active = pct > 0 && pct < 100;
+            const fc = f.type==='gb' ? '#888' : c;
+            const rx = f.type==='gb' ? 2 : f.type==='pc' ? 4 : 6;
             const cx = f.x + f.w/2, cy2 = f.y + f.h/2;
             const labelSize = f.w > 50 ? 11 : f.w > 30 ? 9 : 7;
-            return shape +
-              `<text x="${cx}" y="${cy2-2}" text-anchor="middle" dominant-baseline="central" font-size="${labelSize}" font-family="JetBrains Mono" fill="${done?'#000':'white'}" font-weight="700" pointer-events="none">${f.label}</text>` +
-              (done ? `<text x="${f.x+f.w-4}" y="${f.y+10}" font-size="10" fill="white" pointer-events="none">✓</text>` : '') +
-              `<text x="${cx}" y="${cy2+10}" text-anchor="middle" font-size="6" fill="${done?'#000':'rgba(255,255,255,0.3)'}" font-family="JetBrains Mono" pointer-events="none">${f.id}</text>`;
+
+            // Clip path for partial fill (fills from bottom up)
+            const clipId = 'clip_'+f.id.replace(/[^a-zA-Z0-9]/g,'_');
+            const fillH = f.h * (pct / 100);
+            const fillY = f.y + f.h - fillH;
+
+            let svg = '';
+            // Base shape (empty)
+            svg += `<rect x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${fc}11" stroke="${fc}${done?'':'44'}" stroke-width="1.5" class="cursor-pointer" onclick="toggleFooting('${f.id}')"/>`;
+            // Filled portion (from bottom up based on %)
+            if (pct > 0) {
+              svg += `<defs><clipPath id="${clipId}"><rect x="${f.x}" y="${fillY}" width="${f.w}" height="${fillH}"/></clipPath></defs>`;
+              svg += `<rect x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${fc}" opacity="${done?1:0.6}" clip-path="url(#${clipId})" class="cursor-pointer" onclick="toggleFooting('${f.id}')"/>`;
+            }
+            // CY label
+            svg += `<text x="${cx}" y="${cy2-3}" text-anchor="middle" dominant-baseline="central" font-size="${labelSize}" font-family="JetBrains Mono" fill="${done?'#000':active?'white':'white'}" font-weight="700" pointer-events="none">${f.label}</text>`;
+            // Status badge
+            if (done) {
+              svg += `<text x="${f.x+f.w-2}" y="${f.y+9}" text-anchor="end" font-size="8" fill="#000" font-weight="700" pointer-events="none">✓</text>`;
+            } else if (active) {
+              svg += `<text x="${cx}" y="${cy2+10}" text-anchor="middle" font-size="8" font-family="JetBrains Mono" fill="white" font-weight="700" pointer-events="none">${pct}%</text>`;
+            }
+            // ID label (below, small)
+            svg += `<text x="${cx}" y="${f.y+f.h+10}" text-anchor="middle" font-size="5" fill="rgba(255,255,255,0.2)" font-family="JetBrains Mono" pointer-events="none">${f.id}</text>`;
+            return svg;
           }).join('')}
         </svg>
       </div>
-      <div class="px-4 py-2 border-t border-white/5 flex items-center gap-4 text-[9px]">
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded border" style="border-color:${c};background:${c}22"></span><span class="text-white/40">Footing</span></span>
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:${c}"></span><span class="text-white/40">Done</span></span>
-        <span class="flex items-center gap-1.5"><span class="w-4 h-2 rounded-sm border" style="border-color:#666;background:#66622"></span><span class="text-white/40">Grade Beam</span></span>
-        ${!isManagerView ? '<span class="ml-auto text-white/20 italic">Tap to mark done</span>' : ''}
+      <div class="px-4 py-2 border-t border-white/5 flex items-center gap-4 text-[9px] flex-wrap">
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded border" style="border-color:${c};background:${c}11"></span><span class="text-white/40">Not started</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:linear-gradient(to top,${c}99 50%,${c}11 50%)"></span><span class="text-white/40">In progress</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:${c}"></span><span class="text-white/40">100% Done</span></span>
+        ${!isManagerView ? '<span class="ml-auto text-white/20 italic">Tap to cycle: 0→25→50→75→100→0</span>' : ''}
       </div>
     </div>`;
   }
