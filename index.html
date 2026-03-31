@@ -976,6 +976,8 @@ function toggleFooting(id) {
   renderPourDay();
 }
 
+function selectMapFooting(id) { mapSelected = id; renderPourDay(); }
+
 function toggleMapEdit() {
   mapEditMode = !mapEditMode;
   mapSelected = null;
@@ -1290,7 +1292,7 @@ function renderPourDay() {
             const gbColor = '#FFB800';
             const shapeColor = isGB ? gbColor : fc;
             const selected = mapEditMode && mapSelected === f.id;
-            const clickAction = mapEditMode ? `mapSelected='${f.id}';renderPourDay()` : `toggleFooting('${f.id}')`;
+            const clickAction = mapEditMode ? `selectMapFooting(&quot;${f.id}&quot;)` : `toggleFooting(&quot;${f.id}&quot;)`;
             // Base shape
             svg += `<rect data-ftg-id="${f.id}" x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${isGB ? gbColor+'22' : shapeColor+'11'}" stroke="${selected ? '#fff' : (isGB ? gbColor+'88' : shapeColor+(done?'':'44'))}" stroke-width="${selected?2.5:1.5}" class="cursor-pointer" onclick="${clickAction}"/>`;
             // Filled portion (from bottom up based on %)
