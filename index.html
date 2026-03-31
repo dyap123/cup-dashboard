@@ -860,12 +860,68 @@ function switchTab(tab) {
 const POURDAY_GID = 777;
 const POURDAY_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${POURDAY_GID}`;
 
+// Footing map data — Area A (from CUP Foundation drawing page 5)
+// Grid: L-Q horizontal, rows 28-33 vertical. ViewBox 0 0 800 500.
+// x=0 is grid L, x=800 is grid Q.2. y=0 is row 33, y=500 is row 28.
+const FOOTING_MAPS = {
+  'A': {
+    label: 'Area A — Pour 4/16',
+    viewBox: '0 0 800 500',
+    footings: [
+      // Upper row (row 32-33 area, grids N-Q)
+      { id:'F-N32', x:180, y:30,  w:36, h:36, cy:7.84,  type:'ftg', label:'7.84' },
+      { id:'F-N.433', x:260, y:20,  w:30, h:30, cy:5.70,  type:'ftg', label:'5.7' },
+      { id:'F-P32', x:340, y:20,  w:24, h:24, cy:1.45,  type:'ftg', label:'1.45' },
+      { id:'F-P.232', x:420, y:20,  w:32, h:32, cy:5.72,  type:'ftg', label:'5.72' },
+      { id:'F-Q32', x:510, y:30,  w:30, h:30, cy:4.38,  type:'ftg', label:'4.38' },
+      { id:'PC-Q.132', x:620, y:10, w:60, h:50, cy:23.0,  type:'pc', label:'23.0' },
+      { id:'F-Q33', x:720, y:10, w:30, h:30, cy:13.38, type:'ftg', label:'13.38' },
+      // Row 31 area (grids L-Q)
+      { id:'F-L31', x:20,  y:120, w:34, h:34, cy:6.34,  type:'ftg', label:'6.34' },
+      { id:'F-M31', x:100, y:120, w:38, h:38, cy:8.99,  type:'ftg', label:'8.99' },
+      { id:'F-N31', x:200, y:130, w:34, h:34, cy:5.93,  type:'ftg', label:'5.93' },
+      { id:'F-N.431', x:290, y:130, w:36, h:36, cy:7.13,  type:'ftg', label:'7.13' },
+      { id:'F-P31', x:380, y:130, w:34, h:34, cy:5.99,  type:'ftg', label:'5.99' },
+      { id:'F-P.231', x:460, y:130, w:34, h:34, cy:5.89,  type:'ftg', label:'5.89' },
+      { id:'PC-Q31', x:640, y:80, w:140, h:100, cy:106.81, type:'pc', label:'106.81' },
+      // 15.94 elements (grade beams / wall footings)
+      { id:'WF-Q30', x:680, y:200, w:80, h:20, cy:15.94, type:'gb', label:'15.94' },
+      // Row 30 area
+      { id:'F-L30', x:20,  y:260, w:34, h:34, cy:5.87,  type:'ftg', label:'5.87' },
+      { id:'F-M30', x:100, y:260, w:34, h:34, cy:5.93,  type:'ftg', label:'5.93' },
+      { id:'F-N30', x:200, y:260, w:34, h:34, cy:5.93,  type:'ftg', label:'5.93' },
+      { id:'F-N.430', x:290, y:260, w:34, h:34, cy:5.94,  type:'ftg', label:'5.94' },
+      { id:'F-P30', x:380, y:260, w:34, h:34, cy:5.33,  type:'ftg', label:'5.33' },
+      { id:'PC-Q30', x:600, y:240, w:80, h:60, cy:36.06, type:'pc', label:'36.06' },
+      // 15.94 element
+      { id:'WF-Q29', x:680, y:320, w:80, h:20, cy:15.94, type:'gb', label:'15.94' },
+      // Row 29 area (bottom)
+      { id:'PC-Q29', x:580, y:360, w:160, h:100, cy:108.29, type:'pc', label:'108.29' },
+      { id:'F-P29', x:380, y:400, w:34, h:34, cy:5.33,  type:'ftg', label:'5.33' },
+      { id:'F-N29', x:200, y:400, w:34, h:34, cy:5.33,  type:'ftg', label:'5.33' },
+      { id:'F-M29', x:100, y:400, w:34, h:34, cy:4.09,  type:'ftg', label:'4.09' },
+      { id:'F-L29', x:20,  y:400, w:34, h:34, cy:6.16,  type:'ftg', label:'6.16' },
+    ],
+  },
+};
+
 let pourDay = {
   activePourId: null,
-  trucks: [],       // { timestamp, pourId, truckNum, ticket, cy, cumulative }
+  trucks: [],
+  footingStatus: {},  // { footingId: 'DONE' }
   defaultCY: 9,
-  showTicket: false,
 };
+
+function getFootingStatus(id) { return pourDay.footingStatus[id] || localStorage.getItem('cup_ftg_'+id) || ''; }
+function toggleFooting(id) {
+  const cur = getFootingStatus(id);
+  const newStatus = cur === 'DONE' ? '' : 'DONE';
+  pourDay.footingStatus[id] = newStatus;
+  localStorage.setItem('cup_ftg_'+id, newStatus);
+  // Write to sheet
+  fetch(API_URL, { method:'POST', mode:'no-cors', body:JSON.stringify({ action:'markFooting', footingId:id, status:newStatus }) }).catch(()=>{});
+  renderPourDay();
+}
 
 async function fetchPourDayData() {
   try {
@@ -1020,6 +1076,61 @@ function renderPourDay() {
       <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:${pctColor}"></div>
     </div>
   </div>`;
+
+  // Footing map
+  const mapData = FOOTING_MAPS[pour.section];
+  if (mapData) {
+    const ftgs = mapData.footings;
+    const doneCount = ftgs.filter(f => getFootingStatus(f.id) === 'DONE').length;
+    const doneCY = ftgs.filter(f => getFootingStatus(f.id) === 'DONE').reduce((s,f) => s+f.cy, 0);
+    const totalCY = ftgs.reduce((s,f) => s+f.cy, 0);
+    const typeColors = { ftg: c, pc: c, gb: '#888' };
+
+    h += `<div class="rounded-xl border border-white/5 overflow-hidden mb-4" style="background:#0B0B0F">
+      <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between">
+        <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Footing Map — ${mapData.label}</span>
+        <div class="flex items-center gap-3">
+          <span class="text-[10px] mono text-white/30">${doneCount}/${ftgs.length} done</span>
+          <span class="text-[10px] mono font-bold" style="color:${c}">${doneCY.toFixed(0)}/${totalCY.toFixed(0)} CY</span>
+        </div>
+      </div>
+      <div style="height:320px;overflow:auto">
+        <svg viewBox="${mapData.viewBox}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:600px">
+          <!-- Grid backdrop -->
+          <rect width="800" height="500" fill="#08080c"/>
+          <defs><pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.5" fill="rgba(255,255,255,0.04)"/></pattern></defs>
+          <rect width="800" height="500" fill="url(#fgrid)"/>
+          <!-- Grid labels -->
+          ${['L','M','N','N.4','P','P.2','Q','Q.1','Q.2'].map((g,i) => `<text x="${i*95+20}" y="495" text-anchor="middle" font-size="9" font-family="JetBrains Mono" fill="rgba(255,255,255,0.12)">${g}</text>`).join('')}
+          ${['33','32','31','30','29','28'].map((r,i) => `<text x="790" y="${i*90+30}" text-anchor="end" font-size="9" font-family="JetBrains Mono" fill="rgba(255,255,255,0.12)">${r}</text>`).join('')}
+          <!-- Footings -->
+          ${ftgs.map(f => {
+            const done = getFootingStatus(f.id) === 'DONE';
+            const fc = done ? c : (f.type==='gb' ? '#666' : c);
+            const fill = done ? fc : `${fc}22`;
+            const stroke = done ? fc : `${fc}55`;
+            const opacity = done ? 1 : 0.9;
+            const isPC = f.type === 'pc';
+            const shape = isPC
+              ? `<rect x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="4" fill="${fill}" stroke="${stroke}" stroke-width="1.5" opacity="${opacity}" class="cursor-pointer" onclick="toggleFooting('${f.id}')"/>`
+              : `<rect x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${f.type==='gb'?2:6}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" opacity="${opacity}" class="cursor-pointer" onclick="toggleFooting('${f.id}')"/>`;
+            const cx = f.x + f.w/2, cy2 = f.y + f.h/2;
+            const labelSize = f.w > 50 ? 11 : f.w > 30 ? 9 : 7;
+            return shape +
+              `<text x="${cx}" y="${cy2-2}" text-anchor="middle" dominant-baseline="central" font-size="${labelSize}" font-family="JetBrains Mono" fill="${done?'#000':'white'}" font-weight="700" pointer-events="none">${f.label}</text>` +
+              (done ? `<text x="${f.x+f.w-4}" y="${f.y+10}" font-size="10" fill="white" pointer-events="none">✓</text>` : '') +
+              `<text x="${cx}" y="${cy2+10}" text-anchor="middle" font-size="6" fill="${done?'#000':'rgba(255,255,255,0.3)'}" font-family="JetBrains Mono" pointer-events="none">${f.id}</text>`;
+          }).join('')}
+        </svg>
+      </div>
+      <div class="px-4 py-2 border-t border-white/5 flex items-center gap-4 text-[9px]">
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded border" style="border-color:${c};background:${c}22"></span><span class="text-white/40">Footing</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:${c}"></span><span class="text-white/40">Done</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-4 h-2 rounded-sm border" style="border-color:#666;background:#66622"></span><span class="text-white/40">Grade Beam</span></span>
+        ${!isManagerView ? '<span class="ml-auto text-white/20 italic">Tap to mark done</span>' : ''}
+      </div>
+    </div>`;
+  }
 
   // Truck button + ticket input (hidden for managers)
   if (!isManagerView) {
