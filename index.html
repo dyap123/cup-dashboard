@@ -1437,7 +1437,8 @@ function renderPourDay() {
             const gbColor = '#FFB800';
             const shapeColor = isGB ? gbColor : fc;
             const selected = mapEditMode && mapSelected === f.id;
-            const clickAction = mapEditMode ? `selectMapFooting(&quot;${f.id}&quot;)` : `toggleFooting(&quot;${f.id}&quot;)`;
+            const safeId = f.id.replace(/'/g, "\\'");
+            const clickAction = mapEditMode ? "selectMapFooting('"+safeId+"')" : "toggleFooting('"+safeId+"')";
 
             let svg = '';
             if (isGB) {
