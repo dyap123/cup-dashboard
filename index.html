@@ -1123,8 +1123,8 @@ function initMapDrag() {
     if (!el) { mapSelected = null; renderPourDay(); return; }
     const id = el.dataset.ftgId;
     mapSelected = id;
-    const section = getActivePour()?.section;
-    const map = loadFootingMap(section);
+    const pourId = getActivePour()?.id;
+    const map = loadFootingMap(pourId);
     const f = map?.footings.find(ft => ft.id === id);
     if (!f) return;
 
@@ -1132,7 +1132,7 @@ function initMapDrag() {
     pt.x = e.clientX; pt.y = e.clientY;
     const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
 
-    mapDragging = { id, section, startX: svgP.x, startY: svgP.y, origX: f.x, origY: f.y };
+    mapDragging = { id, pourId, startX: svgP.x, startY: svgP.y, origX: f.x, origY: f.y };
     svg.setPointerCapture(e.pointerId);
     e.preventDefault();
   });
@@ -1146,23 +1146,23 @@ function initMapDrag() {
     const dx = svgP.x - mapDragging.startX;
     const dy = svgP.y - mapDragging.startY;
 
-    const map = loadFootingMap(mapDragging.section);
+    const map = loadFootingMap(mapDragging.pourId);
     const f = map?.footings.find(ft => ft.id === mapDragging.id);
     if (!f) return;
-    f.x = Math.max(0, mapDragging.origX + dx);
-    f.y = Math.max(0, mapDragging.origY + dy);
+    f.x = Math.max(0, Math.round(mapDragging.origX + dx));
+    f.y = Math.max(0, Math.round(mapDragging.origY + dy));
 
-    // Live update the SVG element position
-    const rect = svg.querySelector(`[data-ftg-id="${mapDragging.id}"]`);
-    if (rect) { rect.setAttribute('x', f.x); rect.setAttribute('y', f.y); }
+    // Live update all SVG elements for this footing (rect + texts)
+    const els = svg.querySelectorAll(`[data-ftg-id="${mapDragging.id}"]`);
+    els.forEach(el => { el.setAttribute('x', f.x); el.setAttribute('y', f.y); });
   });
 
   svg.addEventListener('pointerup', e => {
     if (!mapDragging) return;
-    const map = loadFootingMap(mapDragging.section);
-    saveFootingMap(mapDragging.section, map);
+    const map = loadFootingMap(mapDragging.pourId);
+    saveFootingMap(mapDragging.pourId, map);
     mapDragging = null;
-    renderPourDay(); // full re-render to update labels
+    renderPourDay();
   });
 }
 
@@ -1379,12 +1379,12 @@ function renderPourDay() {
       <div style="height:380px;overflow:auto">
         <svg viewBox="${mapData.viewBox}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:650px">
           <!-- Grid backdrop -->
-          <rect width="900" height="620" fill="#08080c"/>
-          <defs><pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.5" fill="rgba(255,255,255,0.04)"/></pattern></defs>
+          <rect width="900" height="620" fill="#0d1117"/>
+          <defs><pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.6" fill="rgba(255,255,255,0.06)"/></pattern></defs>
           <rect width="900" height="620" fill="url(#fgrid)"/>
           <!-- Grid lines + labels -->
-          ${(mapData.gridCols||[]).map(g => `<line x1="${g.x}" y1="20" x2="${g.x}" y2="600" stroke="rgba(255,255,255,0.04)" stroke-width="1"/><text x="${g.x}" y="615" text-anchor="middle" font-size="9" font-family="JetBrains Mono" fill="rgba(255,255,255,0.12)">${g.label}</text>`).join('')}
-          ${(mapData.gridRows||[]).map(g => `<line x1="10" y1="${g.y}" x2="880" y2="${g.y}" stroke="rgba(255,255,255,0.03)" stroke-width="1"/><text x="885" y="${g.y+4}" text-anchor="end" font-size="8" font-family="JetBrains Mono" fill="rgba(255,255,255,0.10)">${g.label}</text>`).join('')}
+          ${(mapData.gridCols||[]).map(g => `<line x1="${g.x}" y1="20" x2="${g.x}" y2="600" stroke="rgba(255,255,255,0.07)" stroke-width="1" stroke-dasharray="4,8"/><text x="${g.x}" y="615" text-anchor="middle" font-size="10" font-family="JetBrains Mono" fill="rgba(255,255,255,0.25)" font-weight="600">${g.label}</text>`).join('')}
+          ${(mapData.gridRows||[]).map(g => `<line x1="10" y1="${g.y}" x2="880" y2="${g.y}" stroke="rgba(255,255,255,0.05)" stroke-width="1" stroke-dasharray="4,8"/><text x="890" y="${g.y+4}" text-anchor="end" font-size="9" font-family="JetBrains Mono" fill="rgba(255,255,255,0.20)" font-weight="600">${g.label}</text>`).join('')}
           <!-- Footings -->
           ${ftgs.map(f => {
             const pct = getFootingPct(f.id);
@@ -1410,41 +1410,47 @@ function renderPourDay() {
             let svg = '';
             if (isGB) {
               // Grade beam — dashed connector style
-              svg += `<rect data-ftg-id="${f.id}" x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="3" fill="${gbColor}15" stroke="${selected?'#fff':gbColor}" stroke-width="${selected?2:1.5}" stroke-dasharray="6,3" class="cursor-pointer" onclick="${clickAction}"/>`;
+              svg += `<rect data-ftg-id="${f.id}" x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="4" fill="${gbColor}20" stroke="${selected?'#fff':gbColor+'aa'}" stroke-width="${selected?2.5:2}" stroke-dasharray="8,4" class="cursor-pointer" onclick="${clickAction}"/>`;
               // Filled portion for GB
               if (pct > 0) {
                 const gbFillW = f.w * (pct / 100);
-                svg += `<rect x="${f.x}" y="${f.y}" width="${gbFillW}" height="${f.h}" rx="3" fill="${gbColor}" opacity="${done?0.7:0.4}" pointer-events="none"/>`;
+                svg += `<rect x="${f.x}" y="${f.y}" width="${gbFillW}" height="${f.h}" rx="4" fill="${gbColor}" opacity="${done?0.8:0.45}" pointer-events="none"/>`;
               }
-              // Small diamond markers at each end
-              svg += `<polygon points="${f.x},${f.y+f.h/2} ${f.x+4},${f.y} ${f.x+8},${f.y+f.h/2} ${f.x+4},${f.y+f.h}" fill="${gbColor}66" pointer-events="none"/>`;
-              svg += `<polygon points="${f.x+f.w-8},${f.y+f.h/2} ${f.x+f.w-4},${f.y} ${f.x+f.w},${f.y+f.h/2} ${f.x+f.w-4},${f.y+f.h}" fill="${gbColor}66" pointer-events="none"/>`;
+              // Diamond markers at each end
+              const dh = f.h * 0.6;
+              svg += `<polygon points="${f.x},${f.y+f.h/2} ${f.x+5},${f.y+f.h/2-dh/2} ${f.x+10},${f.y+f.h/2} ${f.x+5},${f.y+f.h/2+dh/2}" fill="${gbColor}88" pointer-events="none"/>`;
+              svg += `<polygon points="${f.x+f.w},${f.y+f.h/2} ${f.x+f.w-5},${f.y+f.h/2-dh/2} ${f.x+f.w-10},${f.y+f.h/2} ${f.x+f.w-5},${f.y+f.h/2+dh/2}" fill="${gbColor}88" pointer-events="none"/>`;
             } else {
-              // Footing / Pile cap — solid shape
-              svg += `<rect data-ftg-id="${f.id}" x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${shapeColor}11" stroke="${selected?'#fff':shapeColor+(done?'':'44')}" stroke-width="${selected?2.5:1.5}" class="cursor-pointer" onclick="${clickAction}"/>`;
+              // Footing / Pile cap — vibrant shape
+              const baseFill = pct === 0 ? `${shapeColor}25` : `${shapeColor}15`;
+              const baseStroke = selected ? '#fff' : (done ? shapeColor : `${shapeColor}88`);
+              svg += `<rect data-ftg-id="${f.id}" x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${baseFill}" stroke="${baseStroke}" stroke-width="${selected?3:2}" class="cursor-pointer" onclick="${clickAction}"/>`;
               // Filled portion (from bottom up based on %)
               if (pct > 0) {
                 svg += `<defs><clipPath id="${clipId}"><rect x="${f.x}" y="${fillY}" width="${f.w}" height="${fillH}"/></clipPath></defs>`;
-                svg += `<rect x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${shapeColor}" opacity="${done?1:0.6}" clip-path="url(#${clipId})" pointer-events="none"/>`;
+                svg += `<rect x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${shapeColor}" opacity="${done?0.9:0.5}" clip-path="url(#${clipId})" pointer-events="none"/>`;
               }
+              // Glow for active/done
+              if (done || active) svg += `<rect x="${f.x-2}" y="${f.y-2}" width="${f.w+4}" height="${f.h+4}" rx="${rx+2}" fill="none" stroke="${shapeColor}" stroke-width="1" opacity="0.2" pointer-events="none"/>`;
+            }
             }
             if (isGB) {
               // Grade beam: show type label centered
-              svg += `<text x="${cx}" y="${cy2+3}" text-anchor="middle" dominant-baseline="central" font-size="7" font-family="JetBrains Mono" fill="#FFB80088" font-weight="600" pointer-events="none">${ftypeLabel} ${f.cy}CY</text>`;
+              svg += `<text x="${cx}" y="${cy2+3}" text-anchor="middle" dominant-baseline="central" font-size="8" font-family="JetBrains Mono" fill="#FFB800cc" font-weight="700" pointer-events="none">${ftypeLabel} ${f.cy}CY</text>`;
             } else {
               // Footing type (primary label)
-              svg += `<text x="${cx}" y="${cy2 - (f.h > 50 ? 8 : 3)}" text-anchor="middle" dominant-baseline="central" font-size="${labelSize}" font-family="JetBrains Mono" fill="${done?'#000':active?'white':'white'}" font-weight="700" pointer-events="none">${ftypeLabel}</text>`;
+              svg += `<text x="${cx}" y="${cy2 - (f.h > 50 ? 8 : 3)}" text-anchor="middle" dominant-baseline="central" font-size="${labelSize}" font-family="JetBrains Mono" fill="${done?'#000':'#fff'}" font-weight="800" pointer-events="none">${ftypeLabel}</text>`;
               // CY value (secondary, below type)
-              if (f.h > 40) svg += `<text x="${cx}" y="${cy2+8}" text-anchor="middle" font-size="8" font-family="JetBrains Mono" fill="${done?'#000':'rgba(255,255,255,0.5)'}" pointer-events="none">${f.cy}CY</text>`;
+              if (f.h > 40) svg += `<text x="${cx}" y="${cy2+10}" text-anchor="middle" font-size="9" font-family="JetBrains Mono" fill="${done?'#000':'rgba(255,255,255,0.7)'}" font-weight="600" pointer-events="none">${f.cy} CY</text>`;
               // Status badge
               if (done) {
-                svg += `<text x="${f.x+f.w-3}" y="${f.y+10}" text-anchor="end" font-size="9" fill="#000" font-weight="800" pointer-events="none">✓</text>`;
+                svg += `<text x="${f.x+f.w-3}" y="${f.y+12}" text-anchor="end" font-size="11" fill="#000" font-weight="900" pointer-events="none">✓</text>`;
               } else if (active) {
-                svg += `<text x="${cx}" y="${cy2 + (f.h > 50 ? 20 : 12)}" text-anchor="middle" font-size="8" font-family="JetBrains Mono" fill="white" font-weight="700" pointer-events="none">${pct}%</text>`;
+                svg += `<text x="${cx}" y="${cy2 + (f.h > 50 ? 22 : 13)}" text-anchor="middle" font-size="9" font-family="JetBrains Mono" fill="#fff" font-weight="800" pointer-events="none">${pct}%</text>`;
               }
             }
             // Element ID (below shape, tiny)
-            if (!isGB) svg += `<text x="${cx}" y="${f.y+f.h+9}" text-anchor="middle" font-size="6" fill="rgba(255,255,255,0.15)" font-family="JetBrains Mono" pointer-events="none">${f.id}</text>`;
+            if (!isGB) svg += `<text x="${cx}" y="${f.y+f.h+10}" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.3)" font-family="JetBrains Mono" font-weight="500" pointer-events="none">${f.id}</text>`;
             return svg;
           }).join('')}
         </svg>
