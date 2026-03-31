@@ -627,6 +627,7 @@ async function init() {
       fetchData(),
       fetchChecklist().catch(()=>{}),
       fetchPourDayData().catch(()=>{}),
+      loadChecklistFromSheet().catch(()=>{}),
     ]);
     const { refs, pours, grand } = pourData;
     state.refs  = refs;
@@ -716,6 +717,20 @@ function getNextPour() {
 function checkKey(pourId, itemKey) { return `${pourId}__${itemKey}`; }
 function getCheckState() {
   try { return JSON.parse(localStorage.getItem('cup_checklist') || '{}'); } catch { return {}; }
+}
+// Load checklist from sheet on startup (supplements localStorage)
+async function loadChecklistFromSheet() {
+  try {
+    const res = await fetch(API_URL + '?action=getChecklist');
+    if (!res.ok) return;
+    const sheetState = await res.json();
+    if (sheetState && typeof sheetState === 'object' && Object.keys(sheetState).length > 0) {
+      // Merge: sheet state wins over localStorage
+      const local = getCheckState();
+      const merged = { ...local, ...sheetState };
+      localStorage.setItem('cup_checklist', JSON.stringify(merged));
+    }
+  } catch {}
 }
 function saveCheckState(s) {
   localStorage.setItem('cup_checklist', JSON.stringify(s));
