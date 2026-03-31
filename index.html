@@ -1193,8 +1193,9 @@ function setPourDayCY(cy) {
 
 function renderPourDay() {
   const el = document.getElementById('pourdayContent');
+  try {
   const pour = getActivePour();
-  if (!pour) { el.innerHTML = '<p class="text-white/30 text-center py-16">No pours scheduled</p>'; return; }
+  if (!pour) { el.innerHTML = '<p class="text-white/30 text-center py-16">No pours scheduled — add pour dates in the sheet</p>'; return; }
 
   const c = SEC_COLORS[pour.section] || '#888';
   const pourTrucks = pourDay.trucks.filter(t => t.pourId === pour.id);
@@ -1406,6 +1407,10 @@ function renderPourDay() {
 
   el.innerHTML = h;
   if (mapEditMode) requestAnimationFrame(initMapDrag);
+  } catch(err) {
+    el.innerHTML = `<div class="p-4 text-red-400 text-sm"><p class="font-bold mb-1">Pour Day render error:</p><pre class="text-xs text-red-300/60 overflow-auto">${err.message}\n${err.stack}</pre></div>`;
+    console.error('renderPourDay error:', err);
+  }
 }
 
 init();
