@@ -860,11 +860,29 @@ function switchTab(tab) {
 const POURDAY_GID = 777;
 const POURDAY_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${POURDAY_GID}`;
 
-// Footing map data — Area A (from CUP Foundation drawing page 5 + Footing Schedule)
-// Grid: N-Q.2 horizontal, rows 28-33 vertical. ViewBox 0 0 900 600.
-// Footing types from schedule: F7=4.08, F8=5.93, F8A=7.11, F9=9.00, F10=12.04, F10A=23.61
-// Pile caps: PC2K=32, PC3E=16.67, PC4D=18.38, PC4G=96, PC8E=72.89
-const FOOTING_MAPS = {
+// Footing map — editable, saved to localStorage, initial reference from drawing
+// Common footing types for quick-add
+const FTG_PRESETS = {
+  'F7':4.08, 'F8':5.93, 'F8A':7.11, 'F9':9.00, 'F10':12.04, 'F10A':23.61,
+  'F6':2.67, 'F11':15.56, 'F12':8.89, 'F14':1.48, 'WF1':0,
+  'PC2K':32, 'PC3E':16.67, 'PC4D':18.38, 'PC4G':96, 'PC8E':72.89, 'PC15A':1030.81,
+  'GB':0,
+};
+
+function loadFootingMap(section) {
+  const saved = localStorage.getItem('cup_ftgmap_'+section);
+  if (saved) try { return JSON.parse(saved); } catch {}
+  return DEFAULT_FOOTING_MAPS[section] || null;
+}
+function saveFootingMap(section, data) {
+  localStorage.setItem('cup_ftgmap_'+section, JSON.stringify(data));
+}
+
+let mapEditMode = false;
+let mapDragging = null; // { id, startX, startY, origX, origY }
+let mapSelected = null; // footing id
+
+const DEFAULT_FOOTING_MAPS = {
   'A': {
     label: 'Area A — Structural Pour',
     viewBox: '0 0 900 620',
@@ -889,8 +907,11 @@ const FOOTING_MAPS = {
       // Large pile cap right side (106.81 = PC4G + area)
       { id:'#44-PC4G', x:640, y:170, w:120, h:70, cy:96.00, type:'pc',  ftype:'PC4G' },
 
-      // Grade beam connecting row 31 footings
-      { id:'GB-31', x:40, y:215, w:560, h:10, cy:15.94, type:'gb', ftype:'GB' },
+      // Grade beam connecting row 31 footings (between footings, not through)
+      { id:'GB-31a', x:74, y:218, w:76, h:8, cy:3.0, type:'gb', ftype:'GB' },
+      { id:'GB-31b', x:184, y:218, w:86, h:8, cy:3.0, type:'gb', ftype:'GB' },
+      { id:'GB-31c', x:304, y:218, w:86, h:8, cy:3.0, type:'gb', ftype:'GB' },
+      { id:'GB-31d', x:424, y:218, w:96, h:8, cy:3.0, type:'gb', ftype:'GB' },
 
       // Row 30 — lower-middle footings
       { id:'#13-F8',   x:40,  y:290, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
@@ -900,8 +921,11 @@ const FOOTING_MAPS = {
       { id:'#41-F8',   x:520, y:290, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
       // Medium pile cap
       { id:'#24-PC3E', x:640, y:280, w:70, h:50, cy:16.67, type:'pc',  ftype:'PC3E' },
-      // Grade beam row 30
-      { id:'GB-30', x:40, y:315, w:560, h:10, cy:15.94, type:'gb', ftype:'GB' },
+      // Grade beam row 30 (between footings)
+      { id:'GB-30a', x:74, y:318, w:76, h:8, cy:3.0, type:'gb', ftype:'GB' },
+      { id:'GB-30b', x:184, y:318, w:86, h:8, cy:3.0, type:'gb', ftype:'GB' },
+      { id:'GB-30c', x:304, y:318, w:86, h:8, cy:3.0, type:'gb', ftype:'GB' },
+      { id:'GB-30d', x:424, y:318, w:96, h:8, cy:3.0, type:'gb', ftype:'GB' },
 
       // Row 29 — lower footings + large pile cap
       { id:'#18-F7',   x:40,  y:390, w:30, h:30, cy:4.08,  type:'ftg', ftype:'F7' },
@@ -912,8 +936,10 @@ const FOOTING_MAPS = {
       // Large pile cap bottom right (108.29 = PC4G + connections)
       { id:'#46-PC4G', x:630, y:360, w:130, h:80, cy:96.00, type:'pc',  ftype:'PC4G' },
 
-      // Grade beam bottom row
-      { id:'GB-29', x:40, y:420, w:560, h:10, cy:15.94, type:'gb', ftype:'GB' },
+      // Grade beam bottom row (between footings)
+      { id:'GB-29a', x:70, y:415, w:80, h:8, cy:3.0, type:'gb', ftype:'GB' },
+      { id:'GB-29b', x:180, y:415, w:90, h:8, cy:3.0, type:'gb', ftype:'GB' },
+      { id:'GB-29c', x:304, y:415, w:86, h:8, cy:3.0, type:'gb', ftype:'GB' },
 
       // Row 28 — bottom footings
       { id:'#31-F8',   x:270, y:480, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
@@ -921,9 +947,10 @@ const FOOTING_MAPS = {
       { id:'#25-PC2K', x:520, y:470, w:70, h:55, cy:32.00, type:'pc',  ftype:'PC2K' },
       { id:'#34-PC4D', x:640, y:465, w:80, h:55, cy:18.38, type:'pc',  ftype:'PC4D' },
 
-      // Vertical grade beams (right side connecting pile caps)
-      { id:'GB-R1', x:695, y:140, w:10, h:220, cy:15.94, type:'gb', ftype:'GB' },
-      { id:'GB-R2', x:695, y:360, w:10, h:155, cy:15.94, type:'gb', ftype:'GB' },
+      // Vertical grade beams (right side, between pile caps)
+      { id:'GB-R1', x:697, y:240, w:8, h:40, cy:5.0, type:'gb', ftype:'GB' },
+      { id:'GB-R2', x:697, y:330, w:8, h:30, cy:5.0, type:'gb', ftype:'GB' },
+      { id:'GB-R3', x:697, y:440, w:8, h:25, cy:5.0, type:'gb', ftype:'GB' },
     ],
   },
 };
@@ -947,6 +974,110 @@ function toggleFooting(id) {
   localStorage.setItem('cup_ftg_'+id, newStatus);
   fetch(API_URL, { method:'POST', mode:'no-cors', body:JSON.stringify({ action:'markFooting', footingId:id, status:newStatus }) }).catch(()=>{});
   renderPourDay();
+}
+
+function toggleMapEdit() {
+  mapEditMode = !mapEditMode;
+  mapSelected = null;
+  renderPourDay();
+}
+
+function addFootingToMap(section, type) {
+  const map = loadFootingMap(section);
+  if (!map) return;
+  const defaults = { ftg:{w:34,h:34}, pc:{w:70,h:55}, gb:{w:80,h:8} };
+  const d = defaults[type] || defaults.ftg;
+  const num = map.footings.length + 1;
+  const ftype = prompt(`Footing type (e.g. ${type==='gb'?'GB1':'F8, PC4G'}):`, type==='gb'?'GB':'F8');
+  if (!ftype) return;
+  const cy = parseFloat(prompt('Concrete volume (CY):', FTG_PRESETS[ftype] || '0')) || 0;
+  const id = `${ftype}-${num}`;
+  map.footings.push({ id, x:400, y:300, w:d.w, h:d.h, cy, type, ftype });
+  saveFootingMap(section, map);
+  mapSelected = id;
+  renderPourDay();
+}
+
+function editSelectedFooting(section) {
+  if (!mapSelected) return;
+  const map = loadFootingMap(section);
+  const f = map?.footings.find(ft => ft.id === mapSelected);
+  if (!f) return;
+  const ftype = prompt('Footing type:', f.ftype);
+  if (ftype === null) return;
+  f.ftype = ftype;
+  const cy = prompt('CY:', f.cy);
+  if (cy !== null) f.cy = parseFloat(cy) || 0;
+  const w = prompt('Width:', f.w);
+  if (w !== null) f.w = parseInt(w) || f.w;
+  const h = prompt('Height:', f.h);
+  if (h !== null) f.h = parseInt(h) || f.h;
+  saveFootingMap(section, map);
+  renderPourDay();
+}
+
+function deleteSelectedFooting(section) {
+  if (!mapSelected) return;
+  const map = loadFootingMap(section);
+  if (!map) return;
+  map.footings = map.footings.filter(f => f.id !== mapSelected);
+  saveFootingMap(section, map);
+  mapSelected = null;
+  renderPourDay();
+}
+
+// SVG drag support for edit mode
+function initMapDrag() {
+  const svg = document.querySelector('#pourdayContent svg');
+  if (!svg) return;
+
+  svg.addEventListener('pointerdown', e => {
+    if (!mapEditMode) return;
+    const el = e.target.closest('[data-ftg-id]');
+    if (!el) { mapSelected = null; renderPourDay(); return; }
+    const id = el.dataset.ftgId;
+    mapSelected = id;
+    const section = getActivePour()?.section;
+    const map = loadFootingMap(section);
+    const f = map?.footings.find(ft => ft.id === id);
+    if (!f) return;
+
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX; pt.y = e.clientY;
+    const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+
+    mapDragging = { id, section, startX: svgP.x, startY: svgP.y, origX: f.x, origY: f.y };
+    svg.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  svg.addEventListener('pointermove', e => {
+    if (!mapDragging) return;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX; pt.y = e.clientY;
+    const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+
+    const dx = svgP.x - mapDragging.startX;
+    const dy = svgP.y - mapDragging.startY;
+
+    const map = loadFootingMap(mapDragging.section);
+    const f = map?.footings.find(ft => ft.id === mapDragging.id);
+    if (!f) return;
+    f.x = Math.max(0, mapDragging.origX + dx);
+    f.y = Math.max(0, mapDragging.origY + dy);
+
+    // Live update the SVG element position
+    const rect = svg.querySelector(`[data-ftg-id="${mapDragging.id}"]`);
+    if (rect) { rect.setAttribute('x', f.x); rect.setAttribute('y', f.y); }
+  });
+
+  svg.addEventListener('pointerup', e => {
+    if (!mapDragging) return;
+    const map = loadFootingMap(mapDragging.section);
+    saveFootingMap(mapDragging.section, map);
+    mapDragging = null;
+    renderPourDay(); // full re-render to update labels
+  });
 }
 
 async function fetchPourDayData() {
@@ -1103,8 +1234,8 @@ function renderPourDay() {
     </div>
   </div>`;
 
-  // Footing map
-  const mapData = FOOTING_MAPS[pour.section];
+  // Footing map (editable)
+  const mapData = loadFootingMap(pour.section);
   if (mapData) {
     const ftgs = mapData.footings;
     const doneCount = ftgs.filter(f => getFootingStatus(f.id) === 'DONE').length;
@@ -1114,13 +1245,23 @@ function renderPourDay() {
     const typeColors = { ftg: c, pc: c, gb: '#888' };
 
     h += `<div class="rounded-xl border border-white/5 overflow-hidden mb-4" style="background:#0B0B0F">
-      <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between">
+      <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between flex-wrap gap-2">
         <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Footing Map — ${mapData.label}</span>
         <div class="flex items-center gap-3">
           <span class="text-[10px] mono text-white/30">${doneCount} done${inProgressCount ? ', '+inProgressCount+' in progress' : ''}</span>
           <span class="text-[10px] mono font-bold" style="color:${c}">${completedCY.toFixed(1)}/${totalCY.toFixed(0)} CY</span>
+          ${!isManagerView ? `<button onclick="toggleMapEdit()" class="text-[9px] font-bold px-2 py-1 rounded transition-all ${mapEditMode?'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30':'bg-white/5 text-white/30 hover:text-white/50'}">${mapEditMode?'EDITING':'EDIT MAP'}</button>` : ''}
         </div>
       </div>
+      ${mapEditMode && !isManagerView ? `<div class="px-4 py-2 border-b border-white/5 flex items-center gap-2 flex-wrap" style="background:#0a0a10">
+        <button onclick="addFootingToMap('${pour.section}','ftg')" class="text-[9px] font-bold px-2 py-1 rounded bg-white/5 text-white/50 hover:text-white">+ Footing</button>
+        <button onclick="addFootingToMap('${pour.section}','pc')" class="text-[9px] font-bold px-2 py-1 rounded bg-white/5 text-white/50 hover:text-white">+ Pile Cap</button>
+        <button onclick="addFootingToMap('${pour.section}','gb')" class="text-[9px] font-bold px-2 py-1 rounded bg-white/5 text-white/50 hover:text-white">+ Grade Beam</button>
+        ${mapSelected ? `<span class="w-px h-3 bg-white/10"></span>
+        <button onclick="editSelectedFooting('${pour.section}')" class="text-[9px] font-bold px-2 py-1 rounded bg-blue-500/20 text-blue-400">Edit ${mapSelected}</button>
+        <button onclick="deleteSelectedFooting('${pour.section}')" class="text-[9px] font-bold px-2 py-1 rounded bg-red-500/20 text-red-400">Delete</button>` : '<span class="text-[9px] text-white/20 italic ml-2">Click element to select, drag to move</span>'}
+        <span class="ml-auto text-[9px] text-white/20">Changes auto-save</span>
+      </div>` : ''}
       <div style="height:380px;overflow:auto">
         <svg viewBox="${mapData.viewBox}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:650px">
           <!-- Grid backdrop -->
@@ -1146,18 +1287,22 @@ function renderPourDay() {
             const fillY = f.y + f.h - fillH;
 
             let svg = '';
-            // Base shape (empty)
-            svg += `<rect x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${fc}11" stroke="${fc}${done?'':'44'}" stroke-width="1.5" class="cursor-pointer" onclick="toggleFooting('${f.id}')"/>`;
+            const gbColor = '#FFB800';
+            const shapeColor = isGB ? gbColor : fc;
+            const selected = mapEditMode && mapSelected === f.id;
+            const clickAction = mapEditMode ? `mapSelected='${f.id}';renderPourDay()` : `toggleFooting('${f.id}')`;
+            // Base shape
+            svg += `<rect data-ftg-id="${f.id}" x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${isGB ? gbColor+'22' : shapeColor+'11'}" stroke="${selected ? '#fff' : (isGB ? gbColor+'88' : shapeColor+(done?'':'44'))}" stroke-width="${selected?2.5:1.5}" class="cursor-pointer" onclick="${clickAction}"/>`;
             // Filled portion (from bottom up based on %)
             if (pct > 0) {
               svg += `<defs><clipPath id="${clipId}"><rect x="${f.x}" y="${fillY}" width="${f.w}" height="${fillH}"/></clipPath></defs>`;
-              svg += `<rect x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${fc}" opacity="${done?1:0.6}" clip-path="url(#${clipId})" class="cursor-pointer" onclick="toggleFooting('${f.id}')"/>`;
+              svg += `<rect x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${shapeColor}" opacity="${done?1:0.6}" clip-path="url(#${clipId})" pointer-events="none"/>`;
             }
             const isGB = f.type === 'gb';
             const ftypeLabel = f.ftype || '';
             if (isGB) {
               // Grade beam: show type label centered
-              svg += `<text x="${cx}" y="${cy2+3}" text-anchor="middle" dominant-baseline="central" font-size="7" font-family="JetBrains Mono" fill="rgba(255,255,255,0.3)" font-weight="600" pointer-events="none">${ftypeLabel} ${f.cy}CY</text>`;
+              svg += `<text x="${cx}" y="${cy2+3}" text-anchor="middle" dominant-baseline="central" font-size="7" font-family="JetBrains Mono" fill="#FFB80088" font-weight="600" pointer-events="none">${ftypeLabel} ${f.cy}CY</text>`;
             } else {
               // Footing type (primary label)
               svg += `<text x="${cx}" y="${cy2 - (f.h > 50 ? 8 : 3)}" text-anchor="middle" dominant-baseline="central" font-size="${labelSize}" font-family="JetBrains Mono" fill="${done?'#000':active?'white':'white'}" font-weight="700" pointer-events="none">${ftypeLabel}</text>`;
@@ -1232,6 +1377,7 @@ function renderPourDay() {
   }
 
   el.innerHTML = h;
+  if (mapEditMode) requestAnimationFrame(initMapDrag);
 }
 
 init();
