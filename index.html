@@ -72,9 +72,14 @@
   </div>
 </header>
 
-<!-- FILTER BAR -->
+<!-- TAB BAR + FILTER BAR -->
 <div class="sticky top-14 z-40 border-b border-white/5" style="background:rgba(6,6,10,0.92);backdrop-filter:blur(16px)">
   <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 overflow-x-auto no-scroll">
+    <div class="flex gap-1 shrink-0 mr-2">
+      <button onclick="switchTab('dashboard')" id="tabDash" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white">Dashboard</button>
+      <button onclick="switchTab('checklist')" id="tabCheck" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Checklist</button>
+    </div>
+    <div class="w-px h-4 bg-white/10 shrink-0"></div>
     <div id="sectionFilters" class="flex gap-1.5 shrink-0">
       <button onclick="setSectionFilter('ALL')" data-sec="ALL" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all active-pill">ALL</button>
       <button onclick="setSectionFilter('A')" data-sec="A" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all" style="--sc:#4A8EFF">A</button>
@@ -87,8 +92,20 @@
   </div>
 </div>
 
+<!-- CHECKLIST VIEW -->
+<div id="checklistView" class="hidden max-w-4xl mx-auto px-4 py-6">
+  <div class="flex items-center justify-between mb-5">
+    <div>
+      <h2 class="text-lg font-black text-white tracking-tight">Pour Day Checklist</h2>
+      <p class="text-xs text-white/40 mt-0.5 mono">Central checklist for every pour — check off as you go</p>
+    </div>
+    <button onclick="resetChecklist()" class="text-[10px] font-bold text-white/30 hover:text-red-400 transition-colors uppercase tracking-wider">Reset All</button>
+  </div>
+  <div id="checklistContent"></div>
+</div>
+
 <!-- MAIN -->
-<main class="max-w-7xl mx-auto px-4 py-5 space-y-5">
+<main id="dashboardView" class="max-w-7xl mx-auto px-4 py-5 space-y-5">
 
   <!-- LOADING -->
   <div id="loading" class="flex flex-col items-center justify-center py-20 gap-3">
@@ -597,6 +614,126 @@ async function init() {
 }
 
 // ── AUTO-REFRESH ──────────────────────────────────────────────────────────────
+// ── CHECKLIST ───────────────────────────────────────────────────────────────
+const CHECKLIST_ITEMS = [
+  { phase: 'BEFORE POUR', items: [
+    { what: 'Mix Design + Quantity', who: 'WCG', note: 'Check mix is approved, correct, and we have the right amount' },
+    { what: 'Trial Batch', who: 'PWJV', note: 'Under category of mix design being approved' },
+    { what: 'Batch Plant Inspector', who: 'Twining', note: 'Make sure there is plant inspector for day of pour before the day of pour' },
+    { what: 'Anchor Bolt + Embeds', who: 'WCG', note: 'Make sure anchor rods are ready, correct and QC (1 week before)' },
+    { what: 'Temperature Sensors', who: 'WCG', note: 'Make sure temp sensors are set up as needed' },
+    { what: 'Temperature Control', who: 'WCG', note: 'Make sure blankets and temp control (like ice) is ready' },
+    { what: 'Break Data (7,28)', who: 'Twining/WCG', note: 'Make sure Twining knows what break data we need' },
+    { what: 'Soil', who: 'PWJV/Geotech', note: 'Make sure subgrade elevation and soil is satisfactory' },
+    { what: 'Rebar Inspection', who: 'Twining', note: 'Rebar inspection and city sign off form' },
+    { what: 'Formwork', who: 'WCG', note: 'Make sure forms are accurate and correct elevation' },
+    { what: 'Anchor Bolt Layout', who: 'WCG', note: 'Make sure it\'s laid out correctly' },
+  ]},
+  { phase: 'DURING POUR', items: [
+    { what: 'Anchor Bolt Placement', who: 'WCG + SME', note: 'Pour watch to verify anchor bolts are poured correctly' },
+    { what: 'Pour Watch', who: 'Twining/WCG', note: 'Pour watch to make sure pour is satisfactory' },
+    { what: 'Batch Plant', who: 'Twining', note: 'Batch plant inspector to release concrete' },
+  ]},
+  { phase: 'AFTER POUR', items: [
+    { what: 'Anchor Bolts', who: 'Everyone', note: 'Make sure we installed anchor bolt correctly' },
+    { what: 'Temperature', who: 'WCG', note: 'Middle and top differential not greater than 50 degrees' },
+    { what: '7+28 Day Breaks', who: 'WCG/Twining', note: 'Hunt down break data' },
+    { what: 'Curing/Finishing', who: 'WCG', note: 'Make sure concrete was properly finished and no cracking' },
+  ]},
+];
+
+function getCheckState() {
+  try { return JSON.parse(localStorage.getItem('cup_checklist') || '{}'); } catch { return {}; }
+}
+function saveCheckState(s) { localStorage.setItem('cup_checklist', JSON.stringify(s)); }
+function toggleCheck(key) {
+  const s = getCheckState();
+  s[key] = !s[key];
+  saveCheckState(s);
+  renderChecklist();
+}
+function resetChecklist() {
+  if (!confirm('Reset all checklist items?')) return;
+  localStorage.removeItem('cup_checklist');
+  renderChecklist();
+}
+
+function renderChecklist() {
+  const el = document.getElementById('checklistContent');
+  const checks = getCheckState();
+  const totalItems = CHECKLIST_ITEMS.reduce((s, g) => s + g.items.length, 0);
+  const doneCount = Object.values(checks).filter(Boolean).length;
+  const pct = totalItems > 0 ? Math.round(doneCount / totalItems * 100) : 0;
+
+  const phaseColors = { 'BEFORE POUR': '#4AB8FF', 'DURING POUR': '#FFBF00', 'AFTER POUR': '#41A447' };
+  const phaseIcons = { 'BEFORE POUR': 'checklist', 'DURING POUR': 'engineering', 'AFTER POUR': 'verified' };
+
+  let html = '';
+  // Progress bar
+  html += `<div class="mb-6 p-4 rounded-xl border border-white/5" style="background:#0B0B0F">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs font-bold text-white/50 uppercase tracking-wider">Progress</span>
+      <span class="mono text-sm font-bold" style="color:${pct===100?'#41A447':'#FFBF00'}">${doneCount}/${totalItems} — ${pct}%</span>
+    </div>
+    <div class="h-2 rounded-full bg-white/5 overflow-hidden">
+      <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:${pct===100?'#41A447':pct>50?'#FFBF00':'#4AB8FF'}"></div>
+    </div>
+  </div>`;
+
+  CHECKLIST_ITEMS.forEach(group => {
+    const c = phaseColors[group.phase] || '#fff';
+    const icon = phaseIcons[group.phase] || 'check_circle';
+    const groupDone = group.items.filter(it => checks[it.what]).length;
+
+    html += `<div class="mb-4">
+      <div class="flex items-center gap-2 mb-2 px-1">
+        <span class="material-symbols-outlined text-sm" style="color:${c}">${icon}</span>
+        <span class="text-[11px] font-black uppercase tracking-widest" style="color:${c}">${group.phase}</span>
+        <span class="text-[10px] mono text-white/30 ml-auto">${groupDone}/${group.items.length}</span>
+      </div>`;
+
+    group.items.forEach(item => {
+      const key = item.what;
+      const done = !!checks[key];
+      html += `<div onclick="toggleCheck('${key.replace(/'/g, "\\'")}')" class="flex items-start gap-3 p-3 rounded-lg mb-1 cursor-pointer transition-all ${done ? 'bg-white/[0.02]' : 'bg-white/[0.04] hover:bg-white/[0.06]'}" style="border-left:3px solid ${done ? c+'55' : c}">
+        <div class="mt-0.5 w-5 h-5 rounded flex items-center justify-center shrink-0 transition-all" style="background:${done ? c : 'transparent'};border:2px solid ${done ? c : 'rgba(255,255,255,0.15)'}">
+          ${done ? '<span class="material-symbols-outlined text-black" style="font-size:14px;font-variation-settings:\'FILL\' 1">check</span>' : ''}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-semibold ${done ? 'text-white/30 line-through' : 'text-white/90'}">${item.what}</span>
+            <span class="text-[9px] mono font-bold px-1.5 py-0.5 rounded ${done ? 'text-white/15 bg-white/[0.02]' : 'text-white/40 bg-white/[0.06]'}">${item.who}</span>
+          </div>
+          <p class="text-[11px] ${done ? 'text-white/15' : 'text-white/35'} mt-0.5 leading-relaxed">${item.note}</p>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+
+  el.innerHTML = html;
+}
+
+function switchTab(tab) {
+  const dash = document.getElementById('dashboardView');
+  const check = document.getElementById('checklistView');
+  const footer = document.getElementById('footer');
+  const tabD = document.getElementById('tabDash');
+  const tabC = document.getElementById('tabCheck');
+  if (tab === 'checklist') {
+    dash.classList.add('hidden'); footer.classList.add('hidden');
+    check.classList.remove('hidden');
+    tabC.className = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white';
+    tabD.className = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60';
+    renderChecklist();
+  } else {
+    check.classList.add('hidden');
+    dash.classList.remove('hidden'); footer.classList.remove('hidden');
+    tabD.className = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white';
+    tabC.className = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60';
+  }
+}
+
 init();
 setInterval(async () => {
   try {
