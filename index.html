@@ -89,6 +89,8 @@
     </div>
     <div class="w-px h-4 bg-white/10 shrink-0"></div>
     <div id="dateFilters" class="flex gap-1.5 overflow-x-auto no-scroll"></div>
+    <div class="w-px h-4 bg-white/10 shrink-0"></div>
+    <button onclick="toggleSortByDate()" id="sortDateBtn" class="text-[10px] font-bold text-white/30 hover:text-white/50 px-2 py-1 rounded transition-all shrink-0 flex items-center gap-1"><span class="material-symbols-outlined text-xs">sort</span>By Date</button>
   </div>
 </div>
 
@@ -232,7 +234,7 @@ function anyDate(row, idx) {
 }
 
 // ── STATE ────────────────────────────────────────────────────────────────────
-let state = { refs:{}, pours:[], grand:{}, sectionFilter:'ALL', dateFilter:'ALL' };
+let state = { refs:{}, pours:[], grand:{}, sectionFilter:'ALL', dateFilter:'ALL', sortByDate:false };
 // ── FETCH & PARSE (formatted sheet with REFERENCE + ORDER SUMMARY sections) ──
 async function fetchData() {
   const res  = await fetch(GViz_URL);
@@ -302,11 +304,31 @@ function openSheet() { window.open(SHEET_URL, '_blank'); }
 
 // ── FILTER LOGIC ─────────────────────────────────────────────────────────────
 function filteredPours() {
-  return state.pours.filter(p => {
+  let pours = state.pours.filter(p => {
     const secOk  = state.sectionFilter === 'ALL' || p.section === state.sectionFilter;
     const dateOk = state.dateFilter    === 'ALL' || p.date    === state.dateFilter;
     return secOk && dateOk;
   });
+  if (state.sortByDate) {
+    pours = [...pours].sort((a, b) => {
+      if (!a.date && !b.date) return 0;
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      const [am,ad] = a.date.split('/').map(Number);
+      const [bm,bd] = b.date.split('/').map(Number);
+      return (am*100+ad) - (bm*100+bd);
+    });
+  }
+  return pours;
+}
+
+function toggleSortByDate() {
+  state.sortByDate = !state.sortByDate;
+  const btn = document.getElementById('sortDateBtn');
+  if (btn) {
+    btn.style.cssText = state.sortByDate ? 'color:white;background:rgba(255,255,255,0.1);border-radius:4px' : '';
+  }
+  render();
 }
 
 // ── RENDER ───────────────────────────────────────────────────────────────────
