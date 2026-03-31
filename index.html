@@ -1315,11 +1315,14 @@ function renderPourDay() {
             const fillH = f.h * (pct / 100);
             const fillY = f.y + f.h - fillH;
 
-            let svg = '';
+            const isGB = f.type === 'gb';
+            const ftypeLabel = f.ftype || '';
             const gbColor = '#FFB800';
             const shapeColor = isGB ? gbColor : fc;
             const selected = mapEditMode && mapSelected === f.id;
             const clickAction = mapEditMode ? `selectMapFooting(&quot;${f.id}&quot;)` : `toggleFooting(&quot;${f.id}&quot;)`;
+
+            let svg = '';
             // Base shape
             svg += `<rect data-ftg-id="${f.id}" x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${isGB ? gbColor+'22' : shapeColor+'11'}" stroke="${selected ? '#fff' : (isGB ? gbColor+'88' : shapeColor+(done?'':'44'))}" stroke-width="${selected?2.5:1.5}" class="cursor-pointer" onclick="${clickAction}"/>`;
             // Filled portion (from bottom up based on %)
@@ -1327,8 +1330,6 @@ function renderPourDay() {
               svg += `<defs><clipPath id="${clipId}"><rect x="${f.x}" y="${fillY}" width="${f.w}" height="${fillH}"/></clipPath></defs>`;
               svg += `<rect x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${shapeColor}" opacity="${done?1:0.6}" clip-path="url(#${clipId})" pointer-events="none"/>`;
             }
-            const isGB = f.type === 'gb';
-            const ftypeLabel = f.ftype || '';
             if (isGB) {
               // Grade beam: show type label centered
               svg += `<text x="${cx}" y="${cy2+3}" text-anchor="middle" dominant-baseline="central" font-size="7" font-family="JetBrains Mono" fill="#FFB80088" font-weight="600" pointer-events="none">${ftypeLabel} ${f.cy}CY</text>`;
