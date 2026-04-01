@@ -42,16 +42,16 @@
     @keyframes barGrow { from{width:0} }
     .bar-animate { animation:barGrow .9s cubic-bezier(.65,0,.35,1) forwards; }
     /* Alfred Sidebar */
-    #alfredToggle { position:fixed; right:0; top:50%; z-index:99; transform:translateY(-50%); width:32px; height:64px; background:rgba(11,11,15,0.95); border:1px solid rgba(255,255,255,0.08); border-right:none; border-radius:8px 0 0 8px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
-    #alfredToggle:hover { background:rgba(20,20,30,1); width:36px; }
-    #alfredSidebar { position:fixed; top:0; right:0; bottom:0; width:340px; z-index:100; background:#06060A; border-left:1px solid rgba(255,255,255,0.06); transform:translateX(100%); transition:transform 0.3s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column; }
+    #alfredToggle { position:fixed; right:0; top:50%; z-index:99; transform:translateY(-50%); width:28px; height:56px; background:rgba(6,6,10,0.95); border:1px solid rgba(255,255,255,0.05); border-right:none; border-radius:6px 0 0 6px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
+    #alfredToggle:hover { background:rgba(15,15,22,1); }
+    #alfredSidebar { position:fixed; top:0; right:0; bottom:0; width:300px; z-index:100; background:#06060a; border-left:1px solid rgba(255,255,255,0.04); transform:translateX(100%); transition:transform 0.3s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column; }
     #alfredSidebar.open { transform:translateX(0); }
     @media(max-width:640px) { #alfredSidebar { width:100vw; } }
     #brainCanvas { width:100%; height:100%; display:block; cursor:grab; }
     #brainCanvas:active { cursor:grabbing; }
-    .alfred-msg { padding:8px 12px; margin:4px 0; border-radius:8px; font-size:12px; line-height:1.5; max-width:90%; word-wrap:break-word; }
-    .alfred-msg.user { background:rgba(255,255,255,0.08); margin-left:auto; text-align:right; color:rgba(255,255,255,0.8); }
-    .alfred-msg.ai { background:rgba(65,164,71,0.1); border:1px solid rgba(65,164,71,0.15); color:rgba(255,255,255,0.75); }
+    .alfred-msg { padding:6px 10px; margin:3px 0; border-radius:6px; font-size:11px; line-height:1.5; word-wrap:break-word; white-space:pre-wrap; }
+    .alfred-msg.user { background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.65); max-width:80%; margin-left:20%; }
+    .alfred-msg.ai { color:rgba(255,255,255,0.55); }
   </style>
 </head>
 <body class="min-h-screen">
@@ -2331,7 +2331,7 @@ async function sendAlfred() {
       method:'POST',
       headers:{
         'Content-Type':'application/json',
-        'x-api-key': key,
+        'Authorization': 'Bearer ' + key,
         'anthropic-version': '2023-06-01',
       },
       body:JSON.stringify({
@@ -2342,22 +2342,26 @@ async function sendAlfred() {
         max_tokens: 800,
       }),
     });
-    if (!res.ok) { const err = await res.text(); throw new Error(err); }
+    if (!res.ok) { const err = await res.text(); throw new Error(err.substring(0,100)); }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let full = '';
     const el = appendAlfredMsg('ai', '');
+    let buf = '';
     while (true) {
       const {done, value} = await reader.read();
       if (done) break;
-      for (const line of decoder.decode(value).split('\n')) {
+      buf += decoder.decode(value, {stream:true});
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+      for (const line of lines) {
         if (!line.startsWith('data:')) continue;
         const d = line.slice(5).trim();
-        if (!d || d === '[DONE]') continue;
+        if (!d) continue;
         try {
           const evt = JSON.parse(d);
-          // Anthropic streaming: content_block_delta with text delta
-          if (evt.type === 'content_block_delta' && evt.delta?.text) {
+          // Only show text deltas, skip thinking deltas
+          if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta' && evt.delta?.text) {
             full += evt.delta.text;
             el.textContent = full;
             scrollAlfredMessages();
