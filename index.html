@@ -1239,31 +1239,131 @@ async function logTruck() {
   const pour = getActivePour();
   if (!pour) return;
   const ticket = document.getElementById('pdTicketInput')?.value || '';
+  const mixerId = document.getElementById('pdMixerInput')?.value || '';
   const cy = pourDay.defaultCY;
   const prevCum = pourDay.trucks.filter(t => t.pourId === pour.id).reduce((s,t) => Math.max(s, t.cumulative), 0);
   const truckNum = pourDay.trucks.filter(t => t.pourId === pour.id).length + 1;
+  const ts = new Date().toISOString();
 
-  // Optimistic update
   pourDay.trucks.push({
-    timestamp: new Date().toLocaleTimeString('en-US', {hour:'numeric',minute:'2-digit'}),
-    pourId: pour.id, truckNum, ticket, cy, cumulative: prevCum + cy
+    timestamp: ts, pourId: pour.id, truckNum, ticket, mixerId, cy, cumulative: prevCum + cy
   });
   renderPourDay();
 
-  // Clear ticket
-  const inp = document.getElementById('pdTicketInput');
-  if (inp) inp.value = '';
+  // Clear inputs
+  const inp = document.getElementById('pdTicketInput'); if (inp) inp.value = '';
+  const mix = document.getElementById('pdMixerInput'); if (mix) mix.value = '';
 
-  // Push to Firebase
   fbPush(`trucks/${pour.id}`, {
-    timestamp: new Date().toISOString(),
-    pourId: pour.id, truckNum, ticket, cy, cumulative: prevCum + cy
+    timestamp: ts, pourId: pour.id, truckNum, ticket, mixerId, cy, cumulative: prevCum + cy
   });
 }
 
 function setPourDayCY(cy) {
   pourDay.defaultCY = cy;
   renderPourDay();
+}
+
+function exportPourReport() {
+  const pour = getActivePour();
+  if (!pour) return;
+  const c = SEC_COLORS[pour.section] || '#41A447';
+  const pourTrucks = pourDay.trucks.filter(t => t.pourId === pour.id);
+  const mapData = loadFootingMap(pour.id);
+  const ftgs = mapData?.footings || [];
+  const ordered = pour.total || 0;
+  const delivered = pourTrucks.length ? pourTrucks[pourTrucks.length-1].cumulative : 0;
+  const remaining = Math.max(0, ordered - delivered);
+
+  // Timing metrics
+  const timestamps = pourTrucks.map(t => new Date(t.timestamp)).filter(d => !isNaN(d));
+  const firstTruck = timestamps.length ? timestamps[0] : null;
+  const lastTruck = timestamps.length > 1 ? timestamps[timestamps.length-1] : null;
+  const totalDuration = firstTruck && lastTruck ? Math.round((lastTruck - firstTruck) / 60000) : 0;
+  const avgInterval = timestamps.length > 1 ? Math.round(totalDuration / (timestamps.length - 1)) : 0;
+  const fmtTime = d => d ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—';
+
+  // Footing progress
+  const totalFtgs = ftgs.length;
+  const doneFtgs = ftgs.filter(f => getFootingPct(f.id) === 100).length;
+  const completedCY = ftgs.reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
+  const totalCY = ftgs.reduce((s,f) => s+f.cy, 0);
+
+  // Mix breakdown
+  const gbMix = localStorage.getItem('cup_gb_mix') || '8000';
+  const cy8000 = ftgs.filter(f => f.type==='pc' || (f.type==='gb' && gbMix==='8000')).reduce((s,f) => s+f.cy, 0);
+  const cy5000 = ftgs.filter(f => f.type==='ftg' || (f.type==='gb' && gbMix==='5000')).reduce((s,f) => s+f.cy, 0);
+
+  const today = new Date().toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'});
+
+  let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pour Report — ${pour.id}</title>
+  <style>
+    body{font-family:Arial,sans-serif;font-size:10pt;color:#1a1a1a;margin:0;padding:0.5in 0.6in}
+    h1{font-size:16pt;color:#1C2E54;margin:0 0 4pt}
+    h2{font-size:11pt;color:#333;margin:16pt 0 6pt;border-bottom:1.5pt solid #1C2E54;padding-bottom:3pt}
+    .meta{font-size:8pt;color:#666;margin-bottom:12pt}
+    .kpi-row{display:flex;gap:20pt;margin:8pt 0 14pt}
+    .kpi{background:#f0f4f8;padding:8pt 14pt;border-radius:4pt;text-align:center;flex:1}
+    .kpi-val{font-size:18pt;font-weight:700;color:#1C2E54}
+    .kpi-label{font-size:7pt;text-transform:uppercase;color:#666;letter-spacing:0.5pt}
+    table{width:100%;border-collapse:collapse;margin:6pt 0}
+    th{background:#1C2E54;color:#fff;font-size:7.5pt;font-weight:700;padding:4pt 6pt;text-align:left;text-transform:uppercase}
+    td{padding:4pt 6pt;font-size:9pt;border-bottom:0.5pt solid #e2e8f0}
+    tr:nth-child(even){background:#f8fafc}
+    .ok{color:#166534} .warn{color:#92400e} .bad{color:#991b1b}
+    @media print{body{padding:0.3in 0.5in}}
+  </style></head><body>
+  <h1>WEBCOR CONCRETE — Pour Day Report</h1>
+  <div class="meta">Pour: <strong>${pour.id}</strong> · Section ${pour.section} · Date: ${pour.date || today} · Generated: ${today}</div>
+
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-val">${ordered}</div><div class="kpi-label">Ordered CY</div></div>
+    <div class="kpi"><div class="kpi-val ${delivered>=ordered?'ok':''}">${delivered}</div><div class="kpi-label">Delivered CY</div></div>
+    <div class="kpi"><div class="kpi-val ${remaining>0?'warn':''}">${remaining}</div><div class="kpi-label">Remaining CY</div></div>
+    <div class="kpi"><div class="kpi-val">${pourTrucks.length}</div><div class="kpi-label">Trucks</div></div>
+  </div>
+
+  <h2>Mix Breakdown</h2>
+  <table><tr><th>Mix</th><th>Code</th><th>Required CY</th></tr>
+  <tr><td>8000 PSI</td><td>O80D739K1</td><td><strong>${cy8000.toFixed(1)}</strong> CY (Pile Caps${gbMix==='8000'?' + GB':''})</td></tr>
+  <tr><td>5000 PSI</td><td>O60C649J1</td><td><strong>${cy5000.toFixed(1)}</strong> CY (Footings${gbMix==='5000'?' + GB':''})</td></tr>
+  </table>
+
+  <h2>Timing Metrics</h2>
+  <table><tr><th>Metric</th><th>Value</th></tr>
+  <tr><td>First Truck</td><td>${fmtTime(firstTruck)}</td></tr>
+  <tr><td>Last Truck</td><td>${fmtTime(lastTruck)}</td></tr>
+  <tr><td>Total Duration</td><td>${totalDuration} min (${(totalDuration/60).toFixed(1)} hrs)</td></tr>
+  <tr><td>Avg Interval Between Trucks</td><td>${avgInterval} min</td></tr>
+  <tr><td>Expected Trucks</td><td>${pour.trucks || Math.ceil(ordered/9)}</td></tr>
+  <tr><td>Actual Trucks</td><td>${pourTrucks.length} <span class="${pourTrucks.length >= (pour.trucks||Math.ceil(ordered/9)) ? 'ok' : 'warn'}">(${pourTrucks.length >= (pour.trucks||Math.ceil(ordered/9)) ? 'met' : 'under'})</span></td></tr>
+  </table>
+
+  <h2>Truck Log (${pourTrucks.length} arrivals)</h2>
+  <table><tr><th>#</th><th>Time</th><th>CY</th><th>Cumulative</th><th>Ticket #</th><th>Mixer ID</th></tr>
+  ${pourTrucks.map(t => {
+    const time = typeof t.timestamp==='string'&&t.timestamp.includes('T') ? new Date(t.timestamp).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : t.timestamp;
+    return `<tr><td>${t.truckNum}</td><td>${time}</td><td>${t.cy} CY</td><td><strong>${t.cumulative} CY</strong></td><td>${t.ticket||'—'}</td><td>${t.mixerId||'—'}</td></tr>`;
+  }).join('')}
+  </table>
+
+  ${ftgs.length ? `<h2>Footing Progress (${doneFtgs}/${totalFtgs} complete — ${completedCY.toFixed(1)}/${totalCY.toFixed(0)} CY)</h2>
+  <table><tr><th>ID</th><th>Type</th><th>CY</th><th>Mix</th><th>Progress</th></tr>
+  ${ftgs.filter(f=>f.type!=='gb').map(f => {
+    const pct = getFootingPct(f.id);
+    const mix = f.type==='pc'?'8000':'5000';
+    return `<tr><td>${f.id}</td><td>${f.ftype}</td><td>${f.cy}</td><td>${mix}</td><td><strong class="${pct===100?'ok':pct>0?'warn':''}">${pct}%</strong></td></tr>`;
+  }).join('')}
+  </table>` : ''}
+
+  <div style="margin-top:20pt;font-size:7pt;color:#999;border-top:0.5pt solid #ccc;padding-top:4pt">
+    ${pour.id} Pour Day Report · Generated ${today} · Webcor Concrete / OpenYap
+  </div>
+  </body></html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
 }
 
 async function resetPourDay() {
@@ -1409,10 +1509,38 @@ function renderPourDay() {
       ${mapEditMode && !isManagerView ? renderMapEditToolbar(pour.id) : ''}
       <div style="height:380px;overflow:auto">
         <svg viewBox="${mapData.viewBox}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:650px">
-          <!-- Grid backdrop -->
-          <rect width="900" height="620" fill="#0d1117"/>
-          <defs><pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.6" fill="rgba(255,255,255,0.06)"/></pattern></defs>
+          <!-- Grid backdrop with scan effect -->
+          <rect width="900" height="620" fill="#0c1018"/>
+          <defs>
+            <pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <circle cx="20" cy="20" r="0.7" fill="rgba(100,200,255,0.06)"/>
+            </pattern>
+            <linearGradient id="scanGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="${c}" stop-opacity="0"/>
+              <stop offset="45%" stop-color="${c}" stop-opacity="0.04"/>
+              <stop offset="50%" stop-color="${c}" stop-opacity="0.12"/>
+              <stop offset="55%" stop-color="${c}" stop-opacity="0.04"/>
+              <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
+            </linearGradient>
+            <radialGradient id="cornerGlow1" cx="0" cy="0" r="1">
+              <stop offset="0%" stop-color="${c}" stop-opacity="0.08"/>
+              <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="cornerGlow2" cx="1" cy="1" r="1">
+              <stop offset="0%" stop-color="${c}" stop-opacity="0.05"/>
+              <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
           <rect width="900" height="620" fill="url(#fgrid)"/>
+          <!-- Corner glows -->
+          <rect width="300" height="300" fill="url(#cornerGlow1)"/>
+          <rect x="600" y="320" width="300" height="300" fill="url(#cornerGlow2)"/>
+          <!-- Scan line animation -->
+          <rect width="900" height="620" fill="url(#scanGrad)" opacity="0.5">
+            <animate attributeName="y" from="-620" to="620" dur="4s" repeatCount="indefinite"/>
+          </rect>
+          <!-- Border frame -->
+          <rect x="2" y="2" width="896" height="616" rx="6" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.15"/>
           <!-- Grid lines + labels -->
           ${(mapData.gridCols||[]).map(g => `<line x1="${g.x}" y1="20" x2="${g.x}" y2="600" stroke="rgba(255,255,255,0.07)" stroke-width="1" stroke-dasharray="4,8"/><text x="${g.x}" y="615" text-anchor="middle" font-size="10" font-family="JetBrains Mono" fill="rgba(255,255,255,0.25)" font-weight="600">${g.label}</text>`).join('')}
           ${(mapData.gridRows||[]).map(g => `<line x1="10" y1="${g.y}" x2="880" y2="${g.y}" stroke="rgba(255,255,255,0.05)" stroke-width="1" stroke-dasharray="4,8"/><text x="890" y="${g.y+4}" text-anchor="end" font-size="9" font-family="JetBrains Mono" fill="rgba(255,255,255,0.20)" font-weight="600">${g.label}</text>`).join('')}
@@ -1504,15 +1632,16 @@ function renderPourDay() {
     h += `<div class="space-y-2 mb-4">
       <button onclick="logTruck()" class="w-full py-5 rounded-xl font-black text-xl tracking-wide active:scale-[0.98] transition-transform flex items-center justify-center gap-3" style="background:${c};color:#000">
         <span class="material-symbols-outlined text-2xl">local_shipping</span>
-        TRUCK ARRIVED — ${pourDay.defaultCY} CY
+        TRUCK #${pourTrucks.length + 1} — ${pourDay.defaultCY} CY
       </button>
-      <div class="flex gap-2">
+      <div class="flex gap-2 flex-wrap">
         <div class="flex gap-1">
           ${[7,8,9,10,11].map(cy =>
             `<button onclick="setPourDayCY(${cy})" class="px-3 py-1.5 rounded text-xs mono font-bold transition-all ${pourDay.defaultCY===cy?'bg-white/15 text-white':'bg-white/5 text-white/30 hover:text-white/50'}">${cy}</button>`
           ).join('')}
         </div>
-        <input id="pdTicketInput" type="text" placeholder="Ticket #" class="flex-1 bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs mono text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/30">
+        <input id="pdTicketInput" type="text" placeholder="Ticket #" class="w-24 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs mono text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/30">
+        <input id="pdMixerInput" type="text" placeholder="Mixer ID" class="w-24 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs mono text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/30">
       </div>
     </div>`;
   }
@@ -1523,22 +1652,27 @@ function renderPourDay() {
     h += `<div class="rounded-xl border border-white/5 overflow-hidden" style="background:#0B0B0F">
       <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between">
         <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Truck Log</span>
-        <span class="text-[10px] mono text-white/20">${pourTrucks.length} arrivals</span>
+        <div class="flex items-center gap-3">
+          <span class="text-[10px] mono text-white/20">${pourTrucks.length} arrivals</span>
+          <button onclick="exportPourReport()" class="text-[9px] font-bold px-2 py-1 rounded bg-white/5 text-white/40 hover:text-white border border-white/10 transition-all">Export Report</button>
+        </div>
       </div>
       <div class="max-h-64 overflow-y-auto">
-        ${reverseTrucks.map(t => `
-          <div class="px-4 py-2 flex items-center justify-between border-b border-white/[0.03] text-xs">
+        ${reverseTrucks.map(t => {
+          const time = typeof t.timestamp === 'string' && t.timestamp.includes('T') ? new Date(t.timestamp).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : t.timestamp;
+          return `<div class="px-4 py-2.5 flex items-center justify-between border-b border-white/[0.04] text-xs">
             <div class="flex items-center gap-3">
-              <span class="mono font-bold text-white/60">#${t.truckNum}</span>
-              <span class="mono font-bold text-white">${t.cy} CY</span>
-              ${t.ticket ? `<span class="mono text-white/30">${t.ticket}</span>` : ''}
+              <span class="mono font-bold text-white/80 text-sm">#${t.truckNum}</span>
+              <span class="mono font-bold text-white text-sm">${t.cy} CY</span>
+              ${t.mixerId ? `<span class="mono text-white/40 text-[10px]">Mixer: ${t.mixerId}</span>` : ''}
+              ${t.ticket ? `<span class="mono text-white/30 text-[10px]">Tkt: ${t.ticket}</span>` : ''}
             </div>
             <div class="flex items-center gap-3">
-              <span class="mono text-white/20">${t.timestamp}</span>
-              <span class="mono font-bold" style="color:${c}">${t.cumulative} CY</span>
+              <span class="mono text-white/30">${time}</span>
+              <span class="mono font-bold text-sm" style="color:${c}">${t.cumulative} CY</span>
             </div>
-          </div>
-        `).join('')}
+          </div>`;
+        }).join('')}
       </div>
     </div>`;
   } else {
