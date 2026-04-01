@@ -1024,6 +1024,171 @@ const DEFAULT_FOOTING_MAPS = {
       { id:'GB-R3', x:697, y:440, w:8, h:25, cy:5.0, type:'gb', ftype:'GB' },
     ],
   },
+
+  'B-2': {
+    label: 'B-2 — Structural Pour (All 8000)',
+    viewBox: '0 0 900 620',
+    gridCols: [{x:100,label:'F'},{x:200,label:'F.4'},{x:310,label:'G'},{x:430,label:'H'},{x:560,label:'I'},{x:690,label:'J'}],
+    gridRows: [{y:20,label:'33'},{y:130,label:'32'},{y:240,label:'31'},{y:355,label:'30'},{y:470,label:'29'}],
+    footings: [
+      // PC15A — huge pile cap taking up most of the upper area
+      { id:'PC15A-1', x:100, y:30, w:500, h:300, cy:1030.81, type:'pc', ftype:'PC15A' },
+
+      // Lower pile caps
+      { id:'PC4G-BL', x:50, y:380, w:100, h:70, cy:96.0, type:'pc', ftype:'PC4G' },
+      { id:'PC4G-BR', x:350, y:380, w:100, h:70, cy:96.0, type:'pc', ftype:'PC4G' },
+
+      // Small footings bottom row
+      { id:'F7-B1', x:200, y:400, w:28, h:28, cy:4.08, type:'ftg', ftype:'F7' },
+      { id:'F7-B2', x:280, y:400, w:28, h:28, cy:4.08, type:'ftg', ftype:'F7' },
+
+      // Grade beam connecting bottom footings
+      { id:'GB-bot', x:150, y:460, w:350, h:10, cy:5.0, type:'gb', ftype:'GB' },
+    ],
+  },
+
+  'C-2': {
+    label: 'C-2 — Structural Pour',
+    viewBox: '0 0 900 620',
+    gridCols: [{x:30,label:'G'},{x:160,label:'H'},{x:300,label:'I'},{x:430,label:'J'},{x:570,label:'K'},{x:710,label:'L'}],
+    gridRows: [{y:20,label:'30'},{y:140,label:'29.5'},{y:230,label:'29.3'},{y:310,label:'29'},{y:420,label:'28'}],
+    footings: [
+      // Row 29-30 area
+      { id:'C2-PC4G-1',  x:30,  y:50,  w:100, h:70,  cy:96.09, type:'pc',  ftype:'PC4G' },
+      { id:'C2-PC4G-2',  x:160, y:50,  w:100, h:70,  cy:96.08, type:'pc',  ftype:'PC4G' },
+      { id:'C2-F8-1',    x:300, y:70,  w:34,  h:34,  cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'C2-F8-2',    x:380, y:70,  w:34,  h:34,  cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'C2-F8-3',    x:460, y:70,  w:34,  h:34,  cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'C2-F8-4',    x:540, y:70,  w:34,  h:34,  cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'C2-PC3E-1',  x:650, y:60,  w:60,  h:45,  cy:16.67, type:'pc',  ftype:'PC3E' },
+      { id:'C2-PC2K-1',  x:760, y:50,  w:70,  h:55,  cy:32.0,  type:'pc',  ftype:'PC2K' },
+
+      // Row 29 area
+      { id:'C2-F8-5',    x:300, y:180, w:34,  h:34,  cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'C2-F8-6',    x:380, y:180, w:34,  h:34,  cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'C2-F8-7',    x:460, y:180, w:34,  h:34,  cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'C2-F8-8',    x:540, y:180, w:34,  h:34,  cy:5.93,  type:'ftg', ftype:'F8' },
+
+      // Row 28 area (bottom)
+      { id:'C2-F7-1',    x:30,  y:350, w:28,  h:28,  cy:4.08,  type:'ftg', ftype:'F7' },
+      { id:'C2-F10-1',   x:120, y:340, w:44,  h:44,  cy:12.04, type:'ftg', ftype:'F10' },
+      { id:'C2-F10-2',   x:200, y:340, w:44,  h:44,  cy:12.04, type:'ftg', ftype:'F10' },
+      { id:'C2-PC4G-3',  x:300, y:320, w:100, h:70,  cy:96.08, type:'pc',  ftype:'PC4G' },
+      { id:'C2-F8-9',    x:430, y:350, w:34,  h:34,  cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'C2-PC2K-2',  x:510, y:330, w:70,  h:55,  cy:32.06, type:'pc',  ftype:'PC2K' },
+      { id:'C2-F8-10',   x:620, y:350, w:34,  h:34,  cy:5.93,  type:'ftg', ftype:'F8' },
+      { id:'C2-PC8E-1',  x:700, y:310, w:120, h:80,  cy:95.64, type:'pc',  ftype:'PC8E' },
+
+      // Grade beams
+      { id:'C2-GB-r29',  x:100, y:145, w:500, h:10,  cy:8.0,   type:'gb',  ftype:'GB' },
+      { id:'C2-GB-r28',  x:70,  y:420, w:600, h:10,  cy:8.0,   type:'gb',  ftype:'GB' },
+      { id:'C2-GB-vL',   x:80,  y:120, w:10,  h:250, cy:5.0,   type:'gb',  ftype:'GB' },
+    ],
+  },
+
+  'D-4': {
+    label: 'D-4 — Structural Pour',
+    viewBox: '0 0 900 620',
+    gridCols: [{x:30,label:'B'},{x:130,label:'C'},{x:230,label:'C.3'},{x:330,label:'C.4'},{x:440,label:'D'},{x:560,label:'E'},{x:660,label:'E.3'},{x:770,label:'F'}],
+    gridRows: [{y:20,label:'31'},{y:120,label:'30.1'},{y:210,label:'30'},{y:320,label:'29.5'},{y:400,label:'29.3'},{y:470,label:'29'},{y:560,label:'28'}],
+    footings: [
+      // Row 30 area
+      { id:'D4-F8-1',   x:100, y:80,  w:32, h:32, cy:5.33,  type:'ftg', ftype:'F8' },
+      { id:'D4-F8-2',   x:220, y:80,  w:32, h:32, cy:5.54,  type:'ftg', ftype:'F8' },
+      { id:'D4-F8-3',   x:440, y:80,  w:32, h:32, cy:5.33,  type:'ftg', ftype:'F8' },
+      { id:'D4-F9-1',   x:560, y:75,  w:38, h:38, cy:9.01,  type:'ftg', ftype:'F9' },
+
+      // Row 30.1
+      { id:'D4-F7-1',   x:30,  y:150, w:30, h:30, cy:5.33,  type:'ftg', ftype:'F7' },
+      { id:'D4-PC2K-1', x:300, y:120, w:100, h:70, cy:81.97, type:'pc',  ftype:'PC2K' },
+
+      // Row 29 area
+      { id:'D4-F8-4',   x:100, y:220, w:32, h:32, cy:5.33,  type:'ftg', ftype:'F8' },
+      { id:'D4-F8-5',   x:220, y:220, w:32, h:32, cy:5.54,  type:'ftg', ftype:'F8' },
+      { id:'D4-F8-6',   x:440, y:220, w:32, h:32, cy:5.33,  type:'ftg', ftype:'F8' },
+      { id:'D4-F8-7',   x:560, y:220, w:34, h:34, cy:5.93,  type:'ftg', ftype:'F8' },
+
+      // Row 29.5 — wall footings
+      { id:'D4-WF1',    x:30,  y:150, w:10, h:80, cy:15.94, type:'gb',  ftype:'WF1' },
+      { id:'D4-WF2',    x:30,  y:280, w:10, h:80, cy:15.94, type:'gb',  ftype:'WF1' },
+
+      // Row 28 (bottom)
+      { id:'D4-F7-2',   x:30,  y:360, w:28, h:28, cy:4.09,  type:'ftg', ftype:'F7' },
+      { id:'D4-PC4G-1', x:130, y:330, w:100, h:70, cy:96.09, type:'pc',  ftype:'PC4G' },
+      { id:'D4-F7-3',   x:260, y:360, w:30, h:30, cy:6.42,  type:'ftg', ftype:'F7' },
+      { id:'D4-F6-1',   x:340, y:365, w:24, h:24, cy:3.08,  type:'ftg', ftype:'F6' },
+      { id:'D4-PC2K-2', x:580, y:330, w:70, h:55, cy:31.43, type:'pc',  ftype:'PC2K' },
+      { id:'D4-PC2K-3', x:700, y:330, w:80, h:60, cy:45.82, type:'pc',  ftype:'PC2K' },
+      { id:'D4-F7-4',   x:30,  y:440, w:30, h:30, cy:6.16,  type:'ftg', ftype:'F7' },
+
+      // Grade beams
+      { id:'D4-GB-r30a',  x:132, y:108, w:88,  h:10, cy:5.0,  type:'gb', ftype:'GB' },
+      { id:'D4-GB-r30b',  x:252, y:108, w:188, h:10, cy:5.0,  type:'gb', ftype:'GB' },
+      { id:'D4-GB-r29a',  x:132, y:248, w:88,  h:10, cy:5.0,  type:'gb', ftype:'GB' },
+      { id:'D4-GB-r29b',  x:252, y:248, w:188, h:10, cy:5.0,  type:'gb', ftype:'GB' },
+      { id:'D4-GB-bot',   x:60,  y:400, w:720, h:10, cy:10.0, type:'gb', ftype:'GB' },
+    ],
+  },
+
+  'A-1': {
+    label: 'A-1 — Slurry Backfill (S80S662L2)',
+    viewBox: '0 0 900 620',
+    gridCols: [{x:40,label:'N'},{x:150,label:'N.4'},{x:270,label:'P'},{x:390,label:'P.2'},{x:520,label:'Q'},{x:650,label:'Q.1'},{x:780,label:'Q.2'}],
+    gridRows: [{y:30,label:'33'},{y:110,label:'32'},{y:210,label:'31'},{y:310,label:'30'},{y:410,label:'29'},{y:510,label:'28'}],
+    footings: [
+      { id:'SLR-A', x:50, y:50, w:800, h:500, cy:108, type:'gb', ftype:'Slurry Zone' },
+    ],
+  },
+
+  'B-1': {
+    label: 'B-1 — Slurry Backfill (S80S662L2)',
+    viewBox: '0 0 900 620',
+    gridCols: [{x:100,label:'F'},{x:200,label:'F.4'},{x:310,label:'G'},{x:430,label:'H'},{x:560,label:'I'},{x:690,label:'J'}],
+    gridRows: [{y:20,label:'33'},{y:130,label:'32'},{y:240,label:'31'},{y:355,label:'30'},{y:470,label:'29'}],
+    footings: [
+      { id:'SLR-B', x:50, y:50, w:800, h:500, cy:22, type:'gb', ftype:'Slurry Zone' },
+    ],
+  },
+
+  'C-1': {
+    label: 'C-1 — Slurry Backfill (S80S662L2)',
+    viewBox: '0 0 900 620',
+    gridCols: [{x:30,label:'G'},{x:160,label:'H'},{x:300,label:'I'},{x:430,label:'J'},{x:570,label:'K'},{x:710,label:'L'}],
+    gridRows: [{y:20,label:'30'},{y:140,label:'29.5'},{y:230,label:'29.3'},{y:310,label:'29'},{y:420,label:'28'}],
+    footings: [
+      { id:'SLR-C', x:50, y:50, w:800, h:500, cy:11, type:'gb', ftype:'Slurry Zone' },
+    ],
+  },
+
+  'D-1': {
+    label: 'D-1 — Slurry Backfill (S80S662L2)',
+    viewBox: '0 0 900 620',
+    gridCols: [{x:30,label:'B'},{x:130,label:'C'},{x:280,label:'D'},{x:440,label:'E'},{x:600,label:'F'}],
+    gridRows: [{y:30,label:'31'},{y:150,label:'30'},{y:280,label:'29'},{y:420,label:'28'}],
+    footings: [
+      { id:'SLR-D1', x:50, y:50, w:800, h:500, cy:58, type:'gb', ftype:'Slurry Zone' },
+    ],
+  },
+
+  'D-2': {
+    label: 'D-2 — Slurry Backfill (S80S662L2)',
+    viewBox: '0 0 900 620',
+    gridCols: [{x:30,label:'B'},{x:130,label:'C'},{x:280,label:'D'},{x:440,label:'E'},{x:600,label:'F'}],
+    gridRows: [{y:30,label:'31'},{y:150,label:'30'},{y:280,label:'29'},{y:420,label:'28'}],
+    footings: [
+      { id:'SLR-D2', x:50, y:50, w:800, h:500, cy:24, type:'gb', ftype:'Slurry Zone' },
+    ],
+  },
+
+  'D-3': {
+    label: 'D-3 — Concrete Plinth',
+    viewBox: '0 0 900 620',
+    gridCols: [{x:30,label:'B'},{x:130,label:'C'},{x:280,label:'D'},{x:440,label:'E'},{x:600,label:'F'}],
+    gridRows: [{y:30,label:'31'},{y:150,label:'30'},{y:280,label:'29'},{y:420,label:'28'}],
+    footings: [
+      { id:'PLINTH-1', x:350, y:250, w:80, h:50, cy:3, type:'pc', ftype:'Plinth' },
+    ],
+  },
 };
 
 let pourDay = {
