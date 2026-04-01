@@ -32,7 +32,7 @@
     };
   </script>
   <style>
-    body { background:#06060A; color:#e4e1e8; font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; transition:margin-right 0.3s cubic-bezier(.4,0,.2,1); }
+    body { background:#060810; color:#e4e1e8; font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; transition:margin-right 0.3s cubic-bezier(.4,0,.2,1); }
     .mono { font-family:'JetBrains Mono',monospace; }
     .no-scroll::-webkit-scrollbar { display:none; }
     .no-scroll { -ms-overflow-style:none; scrollbar-width:none; }
@@ -60,9 +60,9 @@
 <body class="min-h-screen">
 
 <!-- HEADER -->
-<header class="sticky top-0 z-50 border-b border-white/5" style="background:rgba(6,6,10,0.95);backdrop-filter:blur(20px)">
+<header class="sticky top-0 z-50 border-b" style="border-color:rgba(50,80,130,0.06)" style="background:rgba(6,8,16,0.95);backdrop-filter:blur(20px)">
   <div class="max-w-7xl mx-auto px-4 h-14 flex items-center gap-4">
-    <span style="font-family:'Inter',sans-serif;font-weight:800;font-size:13px;letter-spacing:0.15em;color:rgba(255,255,255,0.4)" class="shrink-0">openyap</span>
+    <span style="font-family:'Inter',sans-serif;font-weight:300;font-size:12px;letter-spacing:0.25em;color:rgba(140,170,210,0.3)" class="shrink-0">openyap</span>
     <div class="flex-1"></div>
     <div class="flex items-center gap-3 shrink-0">
       <div class="flex items-center gap-1.5">
@@ -76,7 +76,7 @@
 </header>
 
 <!-- TAB BAR + FILTER BAR -->
-<div class="sticky top-14 z-40 border-b border-white/5" style="background:rgba(6,6,10,0.92);backdrop-filter:blur(16px)">
+<div class="sticky top-14 z-40 border-b" style="border-color:rgba(50,80,130,0.06)" style="background:rgba(6,8,16,0.92);backdrop-filter:blur(16px)">
   <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 overflow-x-auto no-scroll">
     <div class="flex gap-1 shrink-0 mr-2">
       <button onclick="switchTab('dashboard')" id="tabDash" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white">Dashboard</button>
@@ -153,11 +153,11 @@
 
   <!-- TIMELINE -->
   <div id="timelineWrap" class="hidden">
-    <button onclick="document.getElementById('timelineBody').classList.toggle('hidden');this.querySelector('span.arrow').textContent=document.getElementById('timelineBody').classList.contains('hidden')?'expand_more':'expand_less'" class="w-full flex items-center justify-between px-4 py-2.5 rounded-t-xl text-[11px] font-black tracking-widest text-white/50 uppercase hover:text-white/70 transition-colors" style="background:#0B0B0F">
+    <button onclick="document.getElementById('timelineBody').classList.toggle('hidden');this.querySelector('span.arrow').textContent=document.getElementById('timelineBody').classList.contains('hidden')?'expand_more':'expand_less'" class="w-full flex items-center justify-between px-4 py-2.5 rounded-t-xl text-[11px] font-black tracking-widest text-white/50 uppercase hover:text-white/70 transition-colors" style="background:#0a0c14">
       <span>Pour Timeline</span>
       <span class="arrow material-symbols-outlined text-sm">expand_less</span>
     </button>
-    <div id="timelineBody" class="rounded-b-xl p-4 overflow-x-auto" style="background:#0B0B0F">
+    <div id="timelineBody" class="rounded-b-xl p-4 overflow-x-auto" style="background:#0a0c14">
       <div id="timelineContent" class="relative" style="min-width:700px"></div>
     </div>
   </div>
@@ -174,7 +174,7 @@
 </main>
 
 <!-- GRAND TOTAL FOOTER -->
-<div id="footer" class="hidden fixed bottom-0 left-0 right-0 z-50 border-t border-yellow-400/20" style="background:rgba(6,6,10,0.97);backdrop-filter:blur(20px)">
+<div id="footer" class="hidden fixed bottom-0 left-0 right-0 z-50 border-t" style="border-color:rgba(50,80,130,0.08)" style="background:rgba(6,8,16,0.97);backdrop-filter:blur(20px)">
   <div class="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between gap-4">
     <div class="flex items-center gap-4 overflow-x-auto no-scroll">
       <div class="flex items-center gap-2 shrink-0">
@@ -602,7 +602,7 @@ function renderSectionCards(pours, refs) {
   grid.innerHTML = secs.map(s => {
     const r = refs[s] || {};
     const c = SEC_COLORS[s];
-    return `<div class="rounded-xl p-3" style="background:#0B0B0F;border-left:3px solid ${c}">
+    return `<div class="rounded-xl p-3" style="background:#0a0c14;border-left:3px solid ${c}">
       <div class="flex items-center gap-2 mb-3">
         <span class="text-xs font-bold px-2 py-0.5 rounded" style="background:${c}22;color:${c}">SECTION ${s}</span>
       </div>
@@ -629,7 +629,7 @@ function renderPourCards(pours) {
     const pct8  = Math.round((p.cy8000 / maxCy8000) * 100);
     const pct5  = Math.round((p.cy5000 / maxCy5000) * 100);
     const isOrdered = p.status?.toLowerCase().includes('yes') || getOrdered(p.id);
-    return `<div class="rounded-xl p-3 ${isOrdered ? 'border border-green-500/30' : ''}" style="background:#0B0B0F">
+    return `<div class="rounded-xl p-3 ${isOrdered ? 'border border-green-500/30' : ''}" style="background:#0a0c14">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
           <span class="text-xs font-bold px-2 py-0.5 rounded" style="background:${c}22;color:${c}">${p.section}</span>
@@ -884,7 +884,7 @@ function renderChecklist() {
 
   // Pour selector + info card
   const allPours = getUpcomingPours();
-  html += `<div class="mb-4 p-4 rounded-xl border" style="background:#0B0B0F;border-color:${secColor}33">
+  html += `<div class="mb-4 p-4 rounded-xl border" style="background:#0a0c14;border-color:${secColor}33">
     <div class="flex items-center justify-between mb-3">
       <div class="flex items-center gap-2 flex-wrap">
         ${allPours.map(p => {
@@ -910,7 +910,7 @@ function renderChecklist() {
   </div>`;
 
   // Progress bar
-  html += `<div class="mb-5 p-3 rounded-xl border border-white/5" style="background:#0B0B0F">
+  html += `<div class="mb-5 p-3 rounded-xl border border-white/5" style="background:#0a0c14">
     <div class="flex items-center justify-between mb-1.5">
       <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">${pour.id} Progress</span>
       <span class="mono text-xs font-bold" style="color:${pct===100?'#41A447':'#FFBF00'}">${doneCount}/${totalItems} — ${pct}%</span>
@@ -1764,7 +1764,7 @@ function renderPourDay() {
 
   // Pour info
   const typeDesc = pour.type === 'Slurry' ? 'Slurry Backfill (S80S662L2)' : pour.type === 'Plinth' ? 'Concrete Plinth' : 'Structural Concrete';
-  h += `<div class="p-4 rounded-xl border mb-4" style="background:#0B0B0F;border-color:${c}33">
+  h += `<div class="p-4 rounded-xl border mb-4" style="background:#0a0c14;border-color:${c}33">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-lg flex items-center justify-center text-xl font-black" style="background:${c}22;color:${c}">${pour.section}</div>
       <div>
@@ -1784,40 +1784,40 @@ function renderPourDay() {
   const cySlDel = trucksSl.reduce((s,t) => s+t.cy, 0);
 
   h += `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-    <div class="p-3 rounded-xl border border-white/5" style="background:#0B0B0F">
+    <div class="p-3 rounded-xl border border-white/5" style="background:#0a0c14">
       <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Ordered</div>
       <div class="mono text-xl font-bold text-white">${ordered} <span class="text-xs text-white/30">CY</span></div>
     </div>
-    <div class="p-3 rounded-xl border border-white/5" style="background:#0B0B0F">
+    <div class="p-3 rounded-xl border border-white/5" style="background:#0a0c14">
       <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Delivered</div>
       <div class="mono text-xl font-bold" style="color:${pctColor}">${delivered} <span class="text-xs text-white/30">CY</span></div>
     </div>
-    <div class="p-3 rounded-xl border border-white/5" style="background:#0B0B0F">
+    <div class="p-3 rounded-xl border border-white/5" style="background:#0a0c14">
       <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Remaining</div>
       <div class="mono text-xl font-bold ${remaining<=0?'text-green-400':'text-white'}">${remaining} <span class="text-xs text-white/30">CY</span></div>
     </div>
-    <div class="p-3 rounded-xl border border-white/5" style="background:#0B0B0F">
+    <div class="p-3 rounded-xl border border-white/5" style="background:#0a0c14">
       <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Total Trucks</div>
       <div class="mono text-xl font-bold text-white">${pourTrucks.length} <span class="text-xs text-white/30">of ${expectedTrucks}</span></div>
     </div>
   </div>
   <div class="grid grid-cols-3 gap-3 mb-4">
-    <div class="p-2.5 rounded-lg border border-red-500/15 flex items-center justify-between" style="background:#0B0B0F">
+    <div class="p-2.5 rounded-lg border border-red-500/15 flex items-center justify-between" style="background:#0a0c14">
       <div><div class="text-[8px] font-bold text-red-300/60 uppercase tracking-wider">8000 PSI</div><div class="mono text-xs text-red-300 font-bold">${cy8kDel} CY</div></div>
       <div class="mono text-lg font-bold text-red-400">${trucks8k.length}<span class="text-[9px] text-red-300/40 ml-0.5">trk</span></div>
     </div>
-    <div class="p-2.5 rounded-lg border border-blue-500/15 flex items-center justify-between" style="background:#0B0B0F">
+    <div class="p-2.5 rounded-lg border border-blue-500/15 flex items-center justify-between" style="background:#0a0c14">
       <div><div class="text-[8px] font-bold text-blue-300/60 uppercase tracking-wider">5000 PSI</div><div class="mono text-xs text-blue-300 font-bold">${cy5kDel} CY</div></div>
       <div class="mono text-lg font-bold text-blue-400">${trucks5k.length}<span class="text-[9px] text-blue-300/40 ml-0.5">trk</span></div>
     </div>
-    <div class="p-2.5 rounded-lg border border-gray-500/15 flex items-center justify-between" style="background:#0B0B0F">
+    <div class="p-2.5 rounded-lg border border-gray-500/15 flex items-center justify-between" style="background:#0a0c14">
       <div><div class="text-[8px] font-bold text-gray-300/60 uppercase tracking-wider">Slurry</div><div class="mono text-xs text-gray-300 font-bold">${cySlDel} CY</div></div>
       <div class="mono text-lg font-bold text-gray-400">${trucksSl.length}<span class="text-[9px] text-gray-300/40 ml-0.5">trk</span></div>
     </div>
   </div>`;
 
   // Progress bar
-  h += `<div class="p-3 rounded-xl border border-white/5 mb-4" style="background:#0B0B0F">
+  h += `<div class="p-3 rounded-xl border border-white/5 mb-4" style="background:#0a0c14">
     <div class="flex items-center justify-between mb-1.5">
       <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Pour Progress</span>
       <span class="mono text-sm font-bold" style="color:${pctColor}">${pct}%</span>
@@ -1831,7 +1831,7 @@ function renderPourDay() {
   const mapData = loadFootingMap(pour.id);
   if (!mapData && !isManagerView) {
     // No map for this pour — offer to create one
-    h += `<div class="rounded-xl border border-dashed border-white/10 p-6 mb-4 text-center" style="background:#0B0B0F">
+    h += `<div class="rounded-xl border border-dashed border-white/10 p-6 mb-4 text-center" style="background:#0a0c14">
       <p class="text-white/30 text-sm mb-3">No footing map for ${pour.id}</p>
       <button onclick="createNewMap('${pour.id}')" class="text-xs font-bold px-4 py-2 rounded-lg bg-white/5 text-white/50 hover:text-white hover:bg-white/10 border border-white/10 transition-all">+ Create Footing Map</button>
     </div>`;
@@ -1850,7 +1850,7 @@ function renderPourDay() {
     const done8000 = ftgs.filter(f => f.type === 'pc' || (f.type === 'gb' && gbMix === '8000')).reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
     const done5000 = ftgs.filter(f => f.type === 'ftg' || (f.type === 'gb' && gbMix === '5000')).reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
 
-    h += `<div class="rounded-xl border border-white/5 overflow-hidden mb-4" style="background:#0B0B0F">
+    h += `<div class="rounded-xl border border-white/5 overflow-hidden mb-4" style="background:#0a0c14">
       <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between flex-wrap gap-2">
         <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Footing Map — ${mapData.label}</span>
         <div class="flex items-center gap-3">
@@ -1883,7 +1883,7 @@ function renderPourDay() {
       <div style="height:400px;overflow:auto">
         <svg viewBox="${mapData.viewBox}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:800px">
           <!-- Grid backdrop -->
-          <rect width="1200" height="500" fill="#0d1117"/>
+          <rect width="1200" height="500" fill="#080c14"/>
           <defs><pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.6" fill="rgba(255,255,255,0.06)"/></pattern></defs>
           <rect width="1200" height="500" fill="url(#fgrid)"/>
           <!-- Grid lines + labels -->
@@ -1998,7 +1998,7 @@ function renderPourDay() {
   // Truck log
   const reverseTrucks = [...pourTrucks].reverse();
   if (reverseTrucks.length) {
-    h += `<div class="rounded-xl overflow-hidden" style="background:#0B0B0F">
+    h += `<div class="rounded-xl overflow-hidden" style="background:#0a0c14">
       <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between">
         <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Truck Log</span>
         <div class="flex items-center gap-3">
@@ -2025,11 +2025,11 @@ function renderPourDay() {
       </div>
     </div>`;
   } else {
-    h += `<div class="text-center py-8 text-white/20 text-sm rounded-xl border border-white/5" style="background:#0B0B0F">No trucks logged yet — tap the button when a truck arrives</div>`;
+    h += `<div class="text-center py-8 text-white/20 text-sm rounded-xl border border-white/5" style="background:#0a0c14">No trucks logged yet — tap the button when a truck arrives</div>`;
   }
 
   // Live activity feed
-  h += `<div id="liveFeedContainer" class="rounded-xl overflow-hidden mt-4" style="background:#0B0B0F">
+  h += `<div id="liveFeedContainer" class="rounded-xl overflow-hidden mt-4" style="background:#0a0c14">
     <div class="px-4 py-2 border-b border-white/5 flex items-center gap-2">
       <span class="w-2 h-2 rounded-full bg-green-400 pulse"></span>
       <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Live Feed</span>
