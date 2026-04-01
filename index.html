@@ -41,6 +41,17 @@
     .pulse { animation:pulse2 1.8s ease-in-out infinite; }
     @keyframes barGrow { from{width:0} }
     .bar-animate { animation:barGrow .9s cubic-bezier(.65,0,.35,1) forwards; }
+    /* Alfred Sidebar */
+    #alfredToggle { position:fixed; right:0; top:50%; z-index:99; transform:translateY(-50%); width:32px; height:64px; background:rgba(11,11,15,0.95); border:1px solid rgba(255,255,255,0.08); border-right:none; border-radius:8px 0 0 8px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
+    #alfredToggle:hover { background:rgba(20,20,30,1); width:36px; }
+    #alfredSidebar { position:fixed; top:0; right:0; bottom:0; width:340px; z-index:100; background:#06060A; border-left:1px solid rgba(255,255,255,0.06); transform:translateX(100%); transition:transform 0.3s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column; }
+    #alfredSidebar.open { transform:translateX(0); }
+    @media(max-width:640px) { #alfredSidebar { width:100vw; } }
+    #brainCanvas { width:100%; height:100%; display:block; cursor:grab; }
+    #brainCanvas:active { cursor:grabbing; }
+    .alfred-msg { padding:8px 12px; margin:4px 0; border-radius:8px; font-size:12px; line-height:1.5; max-width:90%; word-wrap:break-word; }
+    .alfred-msg.user { background:rgba(255,255,255,0.08); margin-left:auto; text-align:right; color:rgba(255,255,255,0.8); }
+    .alfred-msg.ai { background:rgba(65,164,71,0.1); border:1px solid rgba(65,164,71,0.15); color:rgba(255,255,255,0.75); }
   </style>
 </head>
 <body class="min-h-screen">
@@ -114,6 +125,35 @@
   </div>
   <div id="checklistContent"></div>
 </div>
+
+<!-- ALFRED SIDEBAR -->
+<div id="alfredToggle" onclick="toggleAlfred()">
+  <span class="material-symbols-outlined text-white/40 text-lg" style="font-variation-settings:'FILL' 1">psychology</span>
+</div>
+<aside id="alfredSidebar">
+  <div class="px-3 py-2 border-b border-white/5 flex items-center justify-between" style="background:#08080c">
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-green-400 text-sm" style="font-variation-settings:'FILL' 1">psychology</span>
+      <span class="text-xs font-bold text-white/70">ALFRED</span>
+      <span class="text-[8px] mono text-green-400/50">AI ASSISTANT</span>
+    </div>
+    <button onclick="toggleAlfred()" class="text-white/20 hover:text-white/50 transition-colors"><span class="material-symbols-outlined text-sm">close</span></button>
+  </div>
+  <div style="height:180px;background:#040608;border-bottom:1px solid rgba(255,255,255,0.04);position:relative;overflow:hidden">
+    <canvas id="brainCanvas"></canvas>
+    <div id="brainTip" class="hidden absolute px-2 py-1 rounded text-[9px] mono pointer-events-none z-10" style="background:rgba(0,0,0,0.9);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.7)"></div>
+    <div id="brainBootText" class="absolute inset-0 flex items-center justify-center pointer-events-none"><span class="text-sm font-black tracking-widest text-white/20">OpenYap</span></div>
+  </div>
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <div id="alfredMessages" class="flex-1 overflow-y-auto p-3 space-y-2" style="scrollbar-width:thin">
+      <div class="alfred-msg ai">Hey! I'm Alfred, your pour day assistant. Ask me about the schedule, concrete quantities, or footing progress.</div>
+    </div>
+    <div class="px-3 py-2 border-t border-white/5 flex gap-2" style="background:#08080c">
+      <input id="alfredInput" type="text" placeholder="Ask Alfred..." class="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/80 placeholder:text-white/20 focus:outline-none focus:border-green-500/30" onkeydown="if(event.key==='Enter')sendAlfred()">
+      <button onclick="sendAlfred()" class="px-3 py-2 rounded-lg bg-green-500/15 text-green-400 text-xs font-bold border border-green-500/20 hover:bg-green-500/25 transition-all"><span class="material-symbols-outlined text-sm">send</span></button>
+    </div>
+  </div>
+</aside>
 
 <!-- MAIN -->
 <main id="dashboardView" class="max-w-7xl mx-auto px-4 py-5 space-y-5">
@@ -1218,6 +1258,7 @@ function toggleFooting(id) {
   localStorage.setItem('cup_ftg_'+id, newStatus);
   fbSet(`footings/${id.replace(/[.$\[\]#]/g, '_')}`, newStatus);
   if (newStatus) fbPush('feed', { ts:new Date().toISOString(), type:'footing', msg:`${id} → ${newStatus === 'DONE' ? '100%' : newStatus+'%'}`, pourId: getActivePour()?.id || '' });
+  if (newStatus) appendPourLog('footing', id+' → '+(newStatus==='DONE'?'100%':newStatus+'%'));
   renderPourDay();
 }
 
@@ -1527,6 +1568,7 @@ async function logTruck() {
   });
   // Live feed
   fbPush('feed', { ts, type:'truck', pourId:pour.id, msg:`Truck #${truckNum} arrived — ${cy} CY ${mix}`, detail:`Cumulative: ${prevCum+cy} CY` });
+  appendPourLog('truck', 'Truck #'+truckNum+' — '+cy+' CY '+mix, 'Cumulative: '+(prevCum+cy)+' CY');
 }
 
 function setPourDayCY(cy) {
@@ -1997,6 +2039,349 @@ function renderPourDay() {
     el.innerHTML = `<div class="p-4 text-red-400 text-sm"><p class="font-bold mb-1">Pour Day render error:</p><pre class="text-xs text-red-300/60 overflow-auto">${err.message}\n${err.stack}</pre></div>`;
     console.error('renderPourDay error:', err);
   }
+}
+
+// ── ALFRED SIDEBAR + BRAIN ──────────────────────────────────────────────────
+
+// Vault data (lacc-brain — 25 notes)
+const VAULT_NOTES = [
+  {name:'LACC South Hall',folder:'',color:'#ffffff',size:'large',preview:'Job# 11088.70 | Webcor Concrete',links:['Submittals','RFIs','Drawings','Specs','Schedule','Concrete','Equipment','Team','Issues']},
+  {name:'Concrete',folder:'Concrete',color:'#52e28a',size:'large',preview:'Pour planning, mix designs, testing',links:['Pour Log','Mix Designs','Testing','Schedule','Submittals','Drawings','Equipment']},
+  {name:'Pour Log',folder:'Concrete',color:'#52e28a',size:'small',preview:'Daily pour records',links:['Concrete']},
+  {name:'Mix Designs',folder:'Concrete',color:'#52e28a',size:'small',preview:'O80D739K1, O60C649J1, S80S662L2',links:['Concrete']},
+  {name:'Testing',folder:'Concrete',color:'#52e28a',size:'small',preview:'Break data, QC',links:['Concrete','Pour Log']},
+  {name:'Schedule',folder:'Schedule',color:'#fbbf24',size:'large',preview:'CUP pour sequence timeline',links:['Area A','Area B','Area C','Concrete','Equipment','Issues']},
+  {name:'Area A',folder:'Schedule',color:'#41A447',size:'small',preview:'Section A pours — 4/16 main structural',links:['Schedule']},
+  {name:'Area B',folder:'Schedule',color:'#FF8C00',size:'small',preview:'Section B — 4/23 massive pile caps',links:['Schedule']},
+  {name:'Area C',folder:'Schedule',color:'#4AB8FF',size:'small',preview:'Section C — 4/28 structural',links:['Schedule']},
+  {name:'Drawings',folder:'Drawings',color:'#3b82f6',size:'large',preview:'Structural, architectural, MEP',links:['Structural','Architectural','MEP','Specs','RFIs','Submittals']},
+  {name:'Structural',folder:'Drawings',color:'#3b82f6',size:'small',preview:'Foundation & steel drawings',links:['Drawings','Concrete','RFIs']},
+  {name:'Architectural',folder:'Drawings',color:'#3b82f6',size:'small',preview:'Architectural set',links:['Drawings','Specs']},
+  {name:'MEP',folder:'Drawings',color:'#3b82f6',size:'small',preview:'Mechanical, electrical, plumbing',links:['Drawings','RFIs']},
+  {name:'Specs',folder:'Specs',color:'#a78bfa',size:'large',preview:'Technical specifications',links:['Division 03 - Concrete','Division 05 - Metals','Division 31 - Earthwork','Submittals','Drawings','RFIs']},
+  {name:'Division 03 - Concrete',folder:'Specs',color:'#a78bfa',size:'small',preview:'Cast-in-place concrete specs',links:['Specs']},
+  {name:'Division 05 - Metals',folder:'Specs',color:'#a78bfa',size:'small',preview:'Structural steel specs',links:['Specs']},
+  {name:'Division 31 - Earthwork',folder:'Specs',color:'#a78bfa',size:'small',preview:'Excavation, backfill specs',links:['Specs']},
+  {name:'Submittals',folder:'Submittals',color:'#e2a052',size:'large',preview:'Submittal log & packages',links:['03 30 00 - Cast-in-Place Concrete','03 20 00 - Concrete Reinforcing','05 12 00 - Structural Steel','RFIs','Schedule','Concrete','Specs','Drawings']},
+  {name:'03 30 00 - Cast-in-Place Concrete',folder:'Submittals',color:'#e2a052',size:'small',preview:'Concrete submittal',links:['Submittals']},
+  {name:'03 20 00 - Concrete Reinforcing',folder:'Submittals',color:'#e2a052',size:'small',preview:'Rebar submittal',links:['Submittals']},
+  {name:'05 12 00 - Structural Steel',folder:'Submittals',color:'#e2a052',size:'small',preview:'Steel submittal',links:['Submittals']},
+  {name:'RFIs',folder:'RFIs',color:'#f472b6',size:'large',preview:'Requests for information',links:['Drawings','Specs','Issues','Schedule','Concrete','Submittals']},
+  {name:'Equipment',folder:'Equipment',color:'#00d4ff',size:'large',preview:'Tools, pumps, vibrators',links:['Schedule','Issues']},
+  {name:'Team',folder:'Team',color:'#6eccc3',size:'large',preview:'Project team roster',links:['Schedule','Issues']},
+  {name:'Issues',folder:'Issues',color:'#e25252',size:'large',preview:'Open issues & flags',links:['Drawings','Specs','RFIs','Schedule','Team']},
+];
+
+let alfredOpen = false;
+let brainInit = false;
+let brainNodes = [];
+let brainConns = [];
+let brainParticles = [];
+let brainRotation = 0;
+let brainDragging = false;
+let brainDragStart = 0;
+let brainPulse = false;
+let brainBootTime = 0;
+let brainHover = -1;
+let alfredHistory = [];
+let alfredKey = null;
+
+function toggleAlfred() {
+  alfredOpen = !alfredOpen;
+  document.getElementById('alfredSidebar').classList.toggle('open', alfredOpen);
+  document.getElementById('alfredToggle').style.display = alfredOpen ? 'none' : '';
+  if (alfredOpen && !brainInit) initBrain();
+}
+
+// ── BRAIN VISUALIZATION ─────────────────────────────────────────────────────
+function initBrain() {
+  brainInit = true;
+  brainBootTime = Date.now();
+  const canvas = document.getElementById('brainCanvas');
+  const w = canvas.parentElement.clientWidth;
+  const h = canvas.parentElement.clientHeight;
+  canvas.width = w * 2; canvas.height = h * 2;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+
+  const cx = w, cy = h; // center in 2x space
+  const spread = Math.min(w, h) * 0.7;
+
+  // Build nodes
+  const nameIndex = {};
+  VAULT_NOTES.forEach((n, i) => { nameIndex[n.name] = i; });
+
+  // Central node
+  const centerIdx = nameIndex['LACC South Hall'] ?? 0;
+  brainNodes = VAULT_NOTES.map((n, i) => {
+    const isCenter = i === centerIdx;
+    const isZone = n.size === 'large' && !isCenter;
+    const r = isCenter ? 10 : isZone ? 7 : 4;
+    let angle, dist;
+    if (isCenter) { angle = 0; dist = 0; }
+    else if (isZone) {
+      const zoneIdx = VAULT_NOTES.filter((v,j) => j < i && v.size === 'large' && j !== centerIdx).length;
+      const totalZones = VAULT_NOTES.filter((v,j) => v.size === 'large' && j !== centerIdx).length;
+      angle = (zoneIdx / totalZones) * Math.PI * 2 - Math.PI/2;
+      dist = spread * 0.45;
+    } else {
+      // Find parent zone
+      const parentName = n.links?.[0];
+      const parentIdx = parentName ? nameIndex[parentName] : centerIdx;
+      const parent = brainNodes[parentIdx];
+      const siblingIdx = VAULT_NOTES.filter((v,j) => j < i && v.size === 'small' && v.folder === n.folder).length;
+      angle = parent ? Math.atan2(parent._oy || 0, parent._ox || 0) + (siblingIdx - 1) * 0.6 : Math.random() * Math.PI * 2;
+      dist = spread * (0.25 + Math.random() * 0.2);
+    }
+    const ox = Math.cos(angle) * dist;
+    const oy = Math.sin(angle) * dist;
+    return { name: n.name, color: n.color, r, x: cx + ox, y: cy + oy, _ox: ox, _oy: oy, _flash: 0, preview: n.preview, folder: n.folder };
+  });
+
+  // Build connections from wikilinks
+  brainConns = [];
+  VAULT_NOTES.forEach((n, i) => {
+    (n.links || []).forEach(link => {
+      const j = nameIndex[link];
+      if (j !== undefined && j !== i) {
+        if (!brainConns.find(c => (c[0]===i&&c[1]===j)||(c[0]===j&&c[1]===i))) {
+          brainConns.push([i, j]);
+        }
+      }
+    });
+  });
+
+  // Particles
+  brainParticles = [];
+  for (let i = 0; i < 40; i++) {
+    const conn = brainConns[Math.floor(Math.random() * brainConns.length)];
+    if (conn) brainParticles.push({ conn, t: Math.random(), speed: 0.002 + Math.random() * 0.004 });
+  }
+
+  // Drag rotation
+  canvas.addEventListener('pointerdown', e => { brainDragging = true; brainDragStart = e.clientX; });
+  canvas.addEventListener('pointermove', e => {
+    if (brainDragging) brainRotation += (e.clientX - brainDragStart) * 0.008; brainDragStart = e.clientX;
+    // Hover detection
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * 2, my = (e.clientY - rect.top) * 2;
+    brainHover = -1;
+    brainNodes.forEach((n, i) => {
+      const dx = n.x - mx, dy = n.y - my;
+      if (Math.sqrt(dx*dx+dy*dy) < n.r * 3) brainHover = i;
+    });
+    const tip = document.getElementById('brainTip');
+    if (brainHover >= 0) {
+      const bn = brainNodes[brainHover];
+      tip.textContent = bn.name + (bn.preview ? ' — ' + bn.preview : '');
+      tip.style.left = (e.clientX - rect.left + 10) + 'px';
+      tip.style.top = (e.clientY - rect.top - 20) + 'px';
+      tip.classList.remove('hidden');
+    } else tip.classList.add('hidden');
+  });
+  canvas.addEventListener('pointerup', () => { brainDragging = false; });
+  canvas.addEventListener('pointerleave', () => { brainDragging = false; document.getElementById('brainTip').classList.add('hidden'); });
+
+  drawBrain();
+}
+
+function drawBrain() {
+  const canvas = document.getElementById('brainCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const cx = w/2, cy = h/2;
+  const boot = Math.min(1, (Date.now() - brainBootTime) / 2000);
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Auto-rotate
+  if (!brainDragging) brainRotation += 0.002;
+
+  // Update positions with rotation
+  brainNodes.forEach(n => {
+    const cos = Math.cos(brainRotation), sin = Math.sin(brainRotation);
+    n.x = cx + n._ox * cos - n._oy * sin * 0.3;
+    n.y = cy + n._oy * cos * 0.6 + n._ox * sin * 0.3;
+  });
+
+  // Draw connections
+  brainConns.forEach(([i, j]) => {
+    const a = brainNodes[i], b = brainNodes[j];
+    const connBoot = Math.max(0, (boot - 0.3) / 0.5);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(a.x + (b.x-a.x)*connBoot, a.y + (b.y-a.y)*connBoot);
+    ctx.strokeStyle = 'rgba(100,170,240,0.06)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+
+  // Draw particles
+  brainParticles.forEach(p => {
+    p.t += p.speed * (brainPulse ? 3 : 1);
+    if (p.t > 1) { p.t = 0; p.conn = brainConns[Math.floor(Math.random()*brainConns.length)]; }
+    if (!p.conn) return;
+    const a = brainNodes[p.conn[0]], b = brainNodes[p.conn[1]];
+    if (!a || !b) return;
+    const x = a.x + (b.x-a.x)*p.t, y = a.y + (b.y-a.y)*p.t;
+    ctx.beginPath();
+    ctx.arc(x, y, brainPulse ? 2.5 : 1.5, 0, Math.PI*2);
+    ctx.fillStyle = brainPulse ? 'rgba(82,226,138,0.5)' : 'rgba(100,170,240,0.15)';
+    ctx.fill();
+  });
+
+  // Draw nodes
+  brainNodes.forEach((n, i) => {
+    const nodeBoot = Math.max(0, Math.min(1, (boot - i/brainNodes.length*0.5) / 0.3));
+    if (nodeBoot <= 0) return;
+    const flash = n._flash > 0 ? n._flash-- / 20 : 0;
+    const r = n.r * (1 + flash * 0.5);
+    const alpha = nodeBoot * (i === brainHover ? 1 : 0.8);
+
+    // Glow
+    const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 4);
+    grad.addColorStop(0, n.color + Math.round((0.2+flash*0.3)*255).toString(16).padStart(2,'0'));
+    grad.addColorStop(1, n.color + '00');
+    ctx.fillStyle = grad;
+    ctx.globalAlpha = alpha;
+    ctx.fillRect(n.x-r*4, n.y-r*4, r*8, r*8);
+
+    // Core
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r, 0, Math.PI*2);
+    ctx.fillStyle = n.color;
+    ctx.globalAlpha = alpha * (0.7 + flash * 0.3);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+
+  // Boot text
+  if (boot < 1) {
+    ctx.globalAlpha = 1 - boot;
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.font = 'bold 20px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('OpenYap', cx, cy + 6);
+    ctx.globalAlpha = 1;
+  }
+  // Hide boot text element after animation
+  const bootEl = document.getElementById('brainBootText');
+  if (bootEl) bootEl.style.opacity = boot < 0.5 ? 1 : Math.max(0, 1 - (boot-0.5)*4);
+
+  requestAnimationFrame(drawBrain);
+}
+
+function highlightBrainNode(name) {
+  const n = brainNodes.find(n => n.name === name);
+  if (n) n._flash = 20;
+}
+
+// ── ALFRED CHAT ─────────────────────────────────────────────────────────────
+const ALFRED_PROMPT = `You are Alfred, an AI construction assistant for the CUP concrete pour project at LACC South Hall (Webcor Concrete, Job# 11088.70).
+
+You help with:
+- Pour schedule questions (which pours are when, volumes, mix designs)
+- Truck delivery status (how many trucks, cumulative CY, remaining)
+- Footing progress (which are done, in progress, remaining)
+- Mix codes: 8000 PSI = O80D739K1, 5000 PSI = O60C649J1, Slurry = S80S662L2
+
+Keep answers concise and construction-focused. Use CY for cubic yards. Reference specific pour IDs (A-4, B-2, etc.) when relevant.`;
+
+// MiniMax API (Anthropic-compatible endpoint)
+const ALFRED_API_URL = 'https://api.minimax.io/anthropic/v1/chat/completions';
+const ALFRED_MODEL = 'MiniMax-M2.7';
+
+async function getAlfredKey() {
+  if (alfredKey) return alfredKey;
+  alfredKey = await fbGet('config/minimax_key');
+  if (!alfredKey) alfredKey = localStorage.getItem('cup_alfred_key');
+  if (!alfredKey) {
+    alfredKey = prompt('Enter MiniMax API key for Alfred:');
+    if (alfredKey) { localStorage.setItem('cup_alfred_key', alfredKey); fbSet('config/minimax_key', alfredKey); }
+  }
+  return alfredKey;
+}
+
+function buildAlfredContext() {
+  const pour = getActivePour();
+  const pt = pour ? pourDay.trucks.filter(t => t.pourId === pour.id) : [];
+  const del = pt.length ? pt[pt.length-1].cumulative : 0;
+  let ctx = '## Current State\n';
+  ctx += `Active pour: ${pour?.id||'none'} | Section ${pour?.section||'?'} | ${pour?.date||'TBD'}\n`;
+  ctx += `Ordered: ${pour?.total||0} CY | Delivered: ${del} CY | Trucks: ${pt.length}\n\n`;
+  ctx += '## All Pours\n';
+  state.pours.forEach(p => ctx += `${p.id}: Sec ${p.section} | ${p.date||'TBD'} | 8k:${p.cy8000} 5k:${p.cy5000} slr:${p.slurry} = ${p.total}CY\n`);
+  const ftgEntries = Object.entries(pourDay.footingStatus).filter(([,v])=>v);
+  if (ftgEntries.length) { ctx += '\n## Footing Progress\n'; ftgEntries.forEach(([id,s]) => ctx += `${id}: ${s==='DONE'?'100%':s+'%'}\n`); }
+  return ctx;
+}
+
+async function sendAlfred() {
+  const input = document.getElementById('alfredInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  const key = await getAlfredKey();
+  if (!key) return;
+
+  appendAlfredMsg('user', msg);
+  alfredHistory.push({role:'user',content:msg});
+  brainPulse = true;
+
+  const messages = [
+    {role:'system',content:ALFRED_PROMPT+'\n\n'+buildAlfredContext()},
+    ...alfredHistory.slice(-10)
+  ];
+
+  try {
+    const res = await fetch(ALFRED_API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body:JSON.stringify({model:ALFRED_MODEL,messages,stream:true,max_tokens:600}),
+    });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let full = '';
+    const el = appendAlfredMsg('ai', '');
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      for (const line of decoder.decode(value).split('\n')) {
+        if (!line.startsWith('data:')) continue;
+        const d = line.slice(5).trim();
+        if (d === '[DONE]') break;
+        try { const delta = JSON.parse(d).choices?.[0]?.delta?.content; if (delta) { full += delta; el.textContent = full; } } catch{}
+      }
+    }
+    alfredHistory.push({role:'assistant',content:full});
+    VAULT_NOTES.forEach(n => { if (full.includes(n.name)) highlightBrainNode(n.name); });
+  } catch(e) { appendAlfredMsg('ai','Error: '+e.message); }
+  brainPulse = false;
+  scrollAlfredMessages();
+}
+
+function appendAlfredMsg(type, text) {
+  const container = document.getElementById('alfredMessages');
+  const div = document.createElement('div');
+  div.className = 'alfred-msg ' + (type === 'user' ? 'user' : 'ai');
+  div.textContent = text;
+  container.appendChild(div);
+  scrollAlfredMessages();
+  return div;
+}
+function scrollAlfredMessages() {
+  const c = document.getElementById('alfredMessages');
+  if (c) c.scrollTop = c.scrollHeight;
+}
+
+// ── POUR EVENT AUTO-LOGGING ─────────────────────────────────────────────────
+function appendPourLog(type, msg, detail) {
+  const now = new Date();
+  const dateKey = now.toISOString().slice(0,10);
+  fbPush('pour-logs/'+dateKey+'/events', {
+    ts: now.toISOString(), type, msg, detail: detail||'',
+    pourId: getActivePour()?.id||'', section: getActivePour()?.section||'',
+  });
 }
 
 // Init Firebase synchronously before async init, then attach real-time listeners
