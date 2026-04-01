@@ -955,8 +955,9 @@ function saveFootingMap(key, data) {
 }
 
 let mapEditMode = false;
-let mapDragging = null; // { id, startX, startY, origX, origY }
-let mapSelected = null; // footing id
+let mapDragging = null;
+let mapSelected = []; // array of selected footing IDs
+let mapClipboard = []; // copied footings for paste
 
 const DEFAULT_FOOTING_MAPS = {
   'A-4': {
@@ -1220,26 +1221,91 @@ function toggleFooting(id) {
   renderPourDay();
 }
 
-function selectMapFooting(id) { mapSelected = id; renderPourDay(); }
+function selectMapFooting(id, ev) {
+  if (ev && ev.shiftKey) {
+    // Multi-select with shift
+    const idx = mapSelected.indexOf(id);
+    if (idx >= 0) mapSelected.splice(idx, 1); else mapSelected.push(id);
+  } else {
+    mapSelected = [id];
+  }
+  renderPourDay();
+}
+
+// Keyboard shortcuts for edit mode
+document.addEventListener('keydown', e => {
+  if (!mapEditMode || !mapSelected.length) return;
+  const pourId = getActivePour()?.id;
+  if (!pourId) return;
+
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    e.preventDefault();
+    const map = loadFootingMap(pourId);
+    if (!map) return;
+    map.footings = map.footings.filter(f => !mapSelected.includes(f.id));
+    saveFootingMap(pourId, map);
+    mapSelected = [];
+    renderPourDay();
+  }
+
+  if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+    // Copy selected
+    const map = loadFootingMap(pourId);
+    if (!map) return;
+    mapClipboard = map.footings.filter(f => mapSelected.includes(f.id)).map(f => ({...f}));
+  }
+
+  if ((e.ctrlKey || e.metaKey) && e.key === 'v' && mapClipboard.length) {
+    // Paste copied footings offset by 30px
+    const map = loadFootingMap(pourId);
+    if (!map) return;
+    const newIds = [];
+    mapClipboard.forEach(f => {
+      const newId = f.ftype + '-' + (map.footings.length + 1);
+      map.footings.push({...f, id: newId, x: f.x + 30, y: f.y + 30});
+      newIds.push(newId);
+    });
+    saveFootingMap(pourId, map);
+    mapSelected = newIds;
+    renderPourDay();
+  }
+});
 
 function renderMapEditToolbar(pourId) {
-  const sel = mapSelected ? (loadFootingMap(pourId)?.footings||[]).find(f=>f.id===mapSelected) : null;
+  const allFtgs = loadFootingMap(pourId)?.footings || [];
+  const sels = allFtgs.filter(f => mapSelected.includes(f.id));
+  const sel = sels.length === 1 ? sels[0] : null;
+  const multi = sels.length > 1;
+
   let tb = '<div class="px-3 py-2 border-b border-white/5 space-y-2" style="background:#0a0e14">';
   tb += '<div class="flex items-center gap-2 flex-wrap">';
-  tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'ftg\')" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20">+ Footing (5000)</button>';
-  tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'pc\')" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20">+ Pile Cap (8000)</button>';
+  tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'ftg\')" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20">+ Footing</button>';
+  tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'pc\')" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20">+ Pile Cap</button>';
   tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'gb\')" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20">+ Grade Beam</button>';
-  if (!sel) tb += '<span class="text-[9px] text-white/25 italic ml-2">Click to select · Drag to move</span>';
-  tb += '<span class="ml-auto text-[9px] text-white/20">Auto-saves to Firebase</span>';
+  if (!sels.length) tb += '<span class="text-[9px] text-white/25 italic ml-2">Click to select · Shift+click for multi · Ctrl+C/V · Delete key</span>';
+  tb += '<span class="ml-auto text-[9px] text-white/20">Auto-saves</span>';
   tb += '</div>';
-  if (sel) {
+
+  if (multi) {
+    // Multi-selection toolbar
     tb += '<div class="flex items-center gap-2 flex-wrap p-2 rounded-lg border border-white/10 bg-white/[0.03]">';
-    tb += '<span class="text-[9px] font-bold text-white/50 uppercase tracking-wider">Selected:</span>';
+    tb += '<span class="text-[9px] font-bold text-white/50 uppercase tracking-wider">' + sels.length + ' selected</span>';
+    tb += '<button onclick="changeSelectedType(\'' + pourId + '\',\'ftg\')" class="text-[9px] font-bold px-2 py-1 rounded bg-blue-500/10 text-blue-300 border border-blue-500/20">→ Footing</button>';
+    tb += '<button onclick="changeSelectedType(\'' + pourId + '\',\'pc\')" class="text-[9px] font-bold px-2 py-1 rounded bg-red-500/10 text-red-300 border border-red-500/20">→ Pile Cap</button>';
+    tb += '<button onclick="changeSelectedType(\'' + pourId + '\',\'gb\')" class="text-[9px] font-bold px-2 py-1 rounded bg-yellow-500/10 text-yellow-300 border border-yellow-500/20">→ GB</button>';
+    tb += '<button onclick="deleteSelectedFooting(\'' + pourId + '\')" class="text-[9px] font-bold px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 ml-auto">Delete (' + sels.length + ')</button>';
+    tb += '</div>';
+  } else if (sel) {
+    // Single selection toolbar
+    tb += '<div class="flex items-center gap-2 flex-wrap p-2 rounded-lg border border-white/10 bg-white/[0.03]">';
+    tb += '<span class="text-[9px] font-bold text-white/50 uppercase tracking-wider">' + sel.id + '</span>';
     tb += '<div class="flex items-center gap-1"><span class="text-[8px] text-white/30">Type</span><input type="text" value="' + sel.ftype + '" onchange="updateSelectedFooting(\'' + pourId + '\',\'ftype\',this.value)" class="w-14 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-[10px] mono text-white font-bold focus:outline-none focus:border-white/30"/></div>';
     tb += '<div class="flex items-center gap-1"><span class="text-[8px] text-white/30">CY</span><input type="number" step="0.1" value="' + sel.cy + '" onchange="updateSelectedFooting(\'' + pourId + '\',\'cy\',this.value)" class="w-16 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-[10px] mono text-white font-bold focus:outline-none focus:border-white/30"/></div>';
     tb += '<div class="flex items-center gap-1"><span class="text-[8px] text-white/30">W</span><input type="number" value="' + sel.w + '" onchange="updateSelectedFooting(\'' + pourId + '\',\'w\',this.value)" class="w-12 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-[10px] mono text-white focus:outline-none focus:border-white/30"/></div>';
     tb += '<div class="flex items-center gap-1"><span class="text-[8px] text-white/30">H</span><input type="number" value="' + sel.h + '" onchange="updateSelectedFooting(\'' + pourId + '\',\'h\',this.value)" class="w-12 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-[10px] mono text-white focus:outline-none focus:border-white/30"/></div>';
-    if (sel.type === 'gb') tb += '<button onclick="rotateSelectedFooting(\'' + pourId + '\')" class="text-[9px] font-bold px-2 py-1 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20">↻ Rotate</button>';
+    // Type toggle buttons
+    tb += '<button onclick="changeSelectedType(\'' + pourId + '\',\'' + (sel.type==='ftg'?'pc':sel.type==='pc'?'gb':'ftg') + '\')" class="text-[9px] font-bold px-2 py-1 rounded bg-white/5 text-white/40 border border-white/10 hover:text-white">→ ' + (sel.type==='ftg'?'Pile Cap':sel.type==='pc'?'GB':'Footing') + '</button>';
+    if (sel.type === 'gb') tb += '<button onclick="rotateSelectedFooting(\'' + pourId + '\')" class="text-[9px] font-bold px-2 py-1 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">↻</button>';
     tb += '<button onclick="deleteSelectedFooting(\'' + pourId + '\')" class="text-[9px] font-bold px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 ml-auto">Delete</button>';
     tb += '</div>';
   }
@@ -1262,7 +1328,7 @@ function createNewMap(pourId) {
 
 function toggleMapEdit() {
   mapEditMode = !mapEditMode;
-  mapSelected = null;
+  mapSelected = [];
   renderPourDay();
 }
 
@@ -1277,18 +1343,20 @@ function addFootingToMap(section, type) {
   const cy = FTG_PRESETS[defaultType] || 0;
   map.footings.push({ id, x:350, y:250, w:d.w, h:d.h, cy, type, ftype:defaultType });
   saveFootingMap(section, map);
-  mapSelected = id;
+  mapSelected = [id];
   renderPourDay();
 }
 
 // Live inline editor — updates map in real-time as user types
 function updateSelectedFooting(section, field, value) {
   const map = loadFootingMap(section);
-  const f = map?.footings.find(ft => ft.id === mapSelected);
+  const f = map?.footings.find(ft => ft.id === mapSelected[0]);
   if (!f) return;
   if (field === 'ftype') {
     f.ftype = value;
-    f.id = `${value}-${map.footings.indexOf(f)+1}`;
+    const newId = `${value}-${map.footings.indexOf(f)+1}`;
+    mapSelected = [newId];
+    f.id = newId;
     if (FTG_PRESETS[value] !== undefined && FTG_PRESETS[value] > 0) f.cy = FTG_PRESETS[value];
   }
   else if (field === 'cy') f.cy = parseFloat(value) || 0;
@@ -1299,25 +1367,42 @@ function updateSelectedFooting(section, field, value) {
 }
 
 function rotateSelectedFooting(pourId) {
-  if (!mapSelected) return;
+  if (!mapSelected.length) return;
   const map = loadFootingMap(pourId);
-  const f = map?.footings.find(ft => ft.id === mapSelected);
-  if (!f) return;
-  const tmp = f.w;
-  f.w = f.h;
-  f.h = tmp;
+  if (!map) return;
+  mapSelected.forEach(id => {
+    const f = map.footings.find(ft => ft.id === id);
+    if (f) { const tmp = f.w; f.w = f.h; f.h = tmp; }
+  });
   saveFootingMap(pourId, map);
   renderPourDay();
 }
 
-function deleteSelectedFooting(section) {
-  if (!mapSelected) return;
-  if (!confirm(`Delete ${mapSelected}?`)) return;
-  const map = loadFootingMap(section);
+function changeSelectedType(pourId, newType) {
+  if (!mapSelected.length) return;
+  const map = loadFootingMap(pourId);
   if (!map) return;
-  map.footings = map.footings.filter(f => f.id !== mapSelected);
-  saveFootingMap(section, map);
-  mapSelected = null;
+  const defaults = { ftg:{w:34,h:34}, pc:{w:70,h:55}, gb:{w:100,h:12} };
+  mapSelected.forEach(id => {
+    const f = map.footings.find(ft => ft.id === id);
+    if (f) {
+      f.type = newType;
+      if (newType === 'ftg' && f.w > 50) { f.w = defaults.ftg.w; f.h = defaults.ftg.h; }
+      if (newType === 'pc' && f.w < 50) { f.w = defaults.pc.w; f.h = defaults.pc.h; }
+      if (newType === 'gb') { f.w = Math.max(f.w, 80); f.h = 12; }
+    }
+  });
+  saveFootingMap(pourId, map);
+  renderPourDay();
+}
+
+function deleteSelectedFooting(pourId) {
+  if (!mapSelected.length) return;
+  const map = loadFootingMap(pourId);
+  if (!map) return;
+  map.footings = map.footings.filter(f => !mapSelected.includes(f.id));
+  saveFootingMap(pourId, map);
+  mapSelected = [];
   renderPourDay();
 }
 
@@ -1329,9 +1414,9 @@ function initMapDrag() {
   svg.addEventListener('pointerdown', e => {
     if (!mapEditMode) return;
     const el = e.target.closest('[data-ftg-id]');
-    if (!el) { mapSelected = null; renderPourDay(); return; }
+    if (!el) { mapSelected = []; renderPourDay(); return; }
     const id = el.dataset.ftgId;
-    mapSelected = id;
+    if (!mapSelected.includes(id)) mapSelected = [id];
     const pourId = getActivePour()?.id;
     const map = loadFootingMap(pourId);
     const f = map?.footings.find(ft => ft.id === id);
@@ -1744,15 +1829,15 @@ function renderPourDay() {
         </div>
       </div>
       ${mapEditMode && !isManagerView ? renderMapEditToolbar(pour.id) : ''}
-      <div style="height:380px;overflow:auto">
+      <div style="height:520px;overflow:auto">
         <svg viewBox="${mapData.viewBox}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:650px">
           <!-- Grid backdrop -->
           <rect width="900" height="620" fill="#0d1117"/>
           <defs><pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.6" fill="rgba(255,255,255,0.06)"/></pattern></defs>
           <rect width="900" height="620" fill="url(#fgrid)"/>
           <!-- Grid lines + labels -->
-          ${(mapData.gridCols||[]).map(g => `<line x1="${g.x}" y1="20" x2="${g.x}" y2="600" stroke="rgba(255,255,255,0.07)" stroke-width="1" stroke-dasharray="4,8"/><text x="${g.x}" y="615" text-anchor="middle" font-size="10" font-family="JetBrains Mono" fill="rgba(255,255,255,0.25)" font-weight="600">${g.label}</text>`).join('')}
-          ${(mapData.gridRows||[]).map(g => `<line x1="10" y1="${g.y}" x2="880" y2="${g.y}" stroke="rgba(255,255,255,0.05)" stroke-width="1" stroke-dasharray="4,8"/><text x="890" y="${g.y+4}" text-anchor="end" font-size="9" font-family="JetBrains Mono" fill="rgba(255,255,255,0.20)" font-weight="600">${g.label}</text>`).join('')}
+          ${(mapData.gridCols||[]).map(g => `<line x1="${g.x}" y1="15" x2="${g.x}" y2="605" stroke="rgba(255,255,255,0.08)" stroke-width="1"/><text x="${g.x}" y="12" text-anchor="middle" font-size="11" font-family="JetBrains Mono" fill="rgba(255,255,255,0.30)" font-weight="700">${g.label}</text>`).join('')}
+          ${(mapData.gridRows||[]).map(g => `<line x1="5" y1="${g.y}" x2="895" y2="${g.y}" stroke="rgba(255,255,255,0.06)" stroke-width="1"/><text x="4" y="${g.y+4}" font-size="10" font-family="JetBrains Mono" fill="rgba(255,255,255,0.25)" font-weight="700">${g.label}</text>`).join('')}
           <!-- Footings -->
           ${ftgs.map(f => {
             const pct = getFootingPct(f.id);
@@ -1773,9 +1858,9 @@ function renderPourDay() {
             const ftypeLabel = f.ftype || '';
             const gbColor = '#FFB800';
             const shapeColor = isGB ? gbColor : fc;
-            const selected = mapEditMode && mapSelected === f.id;
+            const selected = mapEditMode && mapSelected.includes(f.id);
             const safeId = f.id.replace(/'/g, "\\'");
-            const clickAction = mapEditMode ? "selectMapFooting('"+safeId+"')" : "toggleFooting('"+safeId+"')";
+            const clickAction = mapEditMode ? "selectMapFooting('"+safeId+"',event)" : "toggleFooting('"+safeId+"')";
 
             let svg = '';
             if (isGB) {
