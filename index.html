@@ -42,16 +42,19 @@
     @keyframes barGrow { from{width:0} }
     .bar-animate { animation:barGrow .9s cubic-bezier(.65,0,.35,1) forwards; }
     /* Alfred Sidebar */
-    #alfredToggle { position:fixed; right:0; top:50%; z-index:99; transform:translateY(-50%); width:28px; height:56px; background:rgba(6,6,10,0.95); border:1px solid rgba(255,255,255,0.05); border-right:none; border-radius:6px 0 0 6px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
-    #alfredToggle:hover { background:rgba(15,15,22,1); }
-    #alfredSidebar { position:fixed; top:0; right:0; bottom:0; width:300px; z-index:100; background:#06060a; border-left:1px solid rgba(255,255,255,0.04); transform:translateX(100%); transition:transform 0.3s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column; }
+    #alfredToggle { position:fixed; right:0; top:50%; z-index:99; transform:translateY(-50%); width:28px; height:56px; background:rgba(8,12,22,0.95); border:1px solid rgba(100,160,240,0.08); border-right:none; border-radius:6px 0 0 6px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
+    #alfredToggle:hover { background:rgba(12,18,32,1); border-color:rgba(100,160,240,0.15); }
+    #alfredSidebar { position:fixed; top:0; right:0; bottom:0; width:300px; z-index:100; background:#080c16; border-left:1px solid rgba(100,160,240,0.06); transform:translateX(100%); transition:transform 0.3s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column; touch-action:pan-y; }
     #alfredSidebar.open { transform:translateX(0); }
     @media(max-width:640px) { #alfredSidebar { width:100vw; } }
     #brainCanvas { width:100%; height:100%; display:block; cursor:grab; }
     #brainCanvas:active { cursor:grabbing; }
     .alfred-msg { padding:6px 10px; margin:3px 0; border-radius:6px; font-size:11px; line-height:1.5; word-wrap:break-word; white-space:pre-wrap; }
-    .alfred-msg.user { background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.65); max-width:80%; margin-left:20%; }
-    .alfred-msg.ai { color:rgba(255,255,255,0.55); }
+    .alfred-msg.user { background:rgba(100,160,240,0.06); color:rgba(255,255,255,0.65); max-width:70%; margin-left:auto; display:inline-block; float:right; clear:both; }
+    .alfred-msg.ai { color:rgba(200,218,240,0.6); clear:both; }
+    .alfred-msg.ai.streaming { border-left:2px solid rgba(100,200,255,0.3); padding-left:8px; }
+    @keyframes alfredPulse { 0%,100%{box-shadow:0 0 0 rgba(100,160,240,0)} 50%{box-shadow:0 0 20px rgba(100,160,240,0.15)} }
+    #alfredSidebar.thinking { animation:alfredPulse 1.5s ease-in-out infinite; }
   </style>
 </head>
 <body class="min-h-screen">
@@ -131,11 +134,11 @@
   <span class="text-[9px] font-bold text-white/25" style="writing-mode:vertical-lr;letter-spacing:2px">AI</span>
 </div>
 <aside id="alfredSidebar">
-  <div class="px-3 py-1.5 border-b border-white/[0.04] flex items-center justify-between">
-    <span class="text-[10px] font-bold text-white/40 tracking-widest">ALFRED</span>
+  <div class="px-3 py-1.5 border-b flex items-center justify-between" style="border-color:rgba(100,160,240,0.06)">
+    <span class="text-[10px] font-bold tracking-widest" style="color:rgba(100,160,240,0.4)">ALFRED</span>
     <button onclick="toggleAlfred()" class="text-white/15 hover:text-white/40 transition-colors"><span class="material-symbols-outlined text-sm">close</span></button>
   </div>
-  <div style="height:180px;background:#040608;border-bottom:1px solid rgba(255,255,255,0.04);position:relative;overflow:hidden">
+  <div style="height:180px;background:#050a14;border-bottom:1px solid rgba(100,160,240,0.06);position:relative;overflow:hidden">
     <canvas id="brainCanvas"></canvas>
     <div id="brainTip" class="hidden absolute px-2 py-1 rounded text-[9px] mono pointer-events-none z-10" style="background:rgba(0,0,0,0.9);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.7)"></div>
     <div id="brainBootText" class="absolute inset-0 flex items-center justify-center pointer-events-none"><span class="text-sm font-black tracking-widest text-white/20">OpenYap</span></div>
@@ -144,9 +147,9 @@
     <div id="alfredMessages" class="flex-1 overflow-y-auto p-3 space-y-2" style="scrollbar-width:thin">
       <div class="alfred-msg ai">What's up — need anything on the pour schedule, quantities, or footings?</div>
     </div>
-    <div class="px-3 py-2 border-t border-white/5 flex gap-2" style="background:#08080c">
-      <input id="alfredInput" type="text" placeholder="Ask Alfred..." class="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/80 placeholder:text-white/20 focus:outline-none focus:border-green-500/30" onkeydown="if(event.key==='Enter')sendAlfred()">
-      <button onclick="sendAlfred()" class="px-3 py-2 rounded-lg bg-green-500/15 text-green-400 text-xs font-bold border border-green-500/20 hover:bg-green-500/25 transition-all"><span class="material-symbols-outlined text-sm">send</span></button>
+    <div class="px-3 py-2 flex gap-2" style="border-top:1px solid rgba(100,160,240,0.06);background:#060a12">
+      <input id="alfredInput" type="text" placeholder="Ask Alfred..." class="flex-1 bg-white/[0.03] border rounded-lg px-3 py-2 text-xs text-white/80 placeholder:text-white/20 focus:outline-none" style="border-color:rgba(100,160,240,0.1)" onfocus="this.style.borderColor='rgba(100,160,240,0.25)'" onblur="this.style.borderColor='rgba(100,160,240,0.1)'" onkeydown="if(event.key==='Enter')sendAlfred()">
+      <button onclick="sendAlfred()" class="px-3 py-2 rounded-lg text-xs font-bold transition-all" style="background:rgba(100,160,240,0.1);color:rgba(100,160,240,0.6);border:1px solid rgba(100,160,240,0.15)"><span class="material-symbols-outlined text-sm">send</span></button>
     </div>
   </div>
 </aside>
@@ -2089,6 +2092,18 @@ function toggleAlfred() {
   if (alfredOpen && !brainInit) initBrain();
 }
 
+// Swipe to open/close on touch devices
+let swipeStartX = 0;
+document.addEventListener('touchstart', e => { swipeStartX = e.touches[0].clientX; }, {passive:true});
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - swipeStartX;
+  const screenW = window.innerWidth;
+  // Swipe left from right edge → open
+  if (!alfredOpen && swipeStartX > screenW - 40 && dx < -60) toggleAlfred();
+  // Swipe right → close
+  if (alfredOpen && dx > 60) toggleAlfred();
+}, {passive:true});
+
 // ── BRAIN VISUALIZATION ─────────────────────────────────────────────────────
 function initBrain() {
   brainInit = true;
@@ -2100,7 +2115,7 @@ function initBrain() {
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
 
   const cx = w, cy = h; // center in 2x space
-  const spread = Math.min(w, h) * 1.1;
+  const spread = Math.min(w, h) * 1.4;
 
   // Build nodes
   const nameIndex = {};
@@ -2222,7 +2237,7 @@ function drawBrain() {
     const x = a.x + (b.x-a.x)*p.t, y = a.y + (b.y-a.y)*p.t;
     ctx.beginPath();
     ctx.arc(x, y, brainPulse ? 2.5 : 1.5, 0, Math.PI*2);
-    ctx.fillStyle = brainPulse ? 'rgba(82,226,138,0.5)' : 'rgba(100,170,240,0.15)';
+    ctx.fillStyle = brainPulse ? 'rgba(100,180,255,0.6)' : 'rgba(100,170,240,0.12)';
     ctx.fill();
   });
 
@@ -2322,6 +2337,7 @@ async function sendAlfred() {
   appendAlfredMsg('user', msg);
   alfredHistory.push({role:'user',content:msg});
   brainPulse = true;
+  document.getElementById('alfredSidebar').classList.add('thinking');
 
   // Anthropic format: system is separate, messages are user/assistant only
   const messages = alfredHistory.slice(-10).filter(m => m.role !== 'system');
@@ -2346,6 +2362,7 @@ async function sendAlfred() {
     const decoder = new TextDecoder();
     let full = '';
     const el = appendAlfredMsg('ai', '');
+    el.classList.add('streaming');
     let buf = '';
     while (true) {
       const {done, value} = await reader.read();
@@ -2368,10 +2385,12 @@ async function sendAlfred() {
         } catch{}
       }
     }
+    el.classList.remove('streaming');
     alfredHistory.push({role:'assistant',content:full});
     VAULT_NOTES.forEach(n => { if (full.includes(n.name)) highlightBrainNode(n.name); });
   } catch(e) { appendAlfredMsg('ai','Couldn\'t connect — ' + e.message.substring(0,100)); }
   brainPulse = false;
+  document.getElementById('alfredSidebar').classList.remove('thinking');
   scrollAlfredMessages();
 }
 
