@@ -131,13 +131,9 @@
   <span class="material-symbols-outlined text-white/40 text-lg" style="font-variation-settings:'FILL' 1">psychology</span>
 </div>
 <aside id="alfredSidebar">
-  <div class="px-3 py-2 border-b border-white/5 flex items-center justify-between" style="background:#08080c">
-    <div class="flex items-center gap-2">
-      <span class="material-symbols-outlined text-green-400 text-sm" style="font-variation-settings:'FILL' 1">psychology</span>
-      <span class="text-xs font-bold text-white/70">ALFRED</span>
-      <span class="text-[8px] mono text-green-400/50">AI ASSISTANT</span>
-    </div>
-    <button onclick="toggleAlfred()" class="text-white/20 hover:text-white/50 transition-colors"><span class="material-symbols-outlined text-sm">close</span></button>
+  <div class="px-3 py-1.5 border-b border-white/[0.04] flex items-center justify-between">
+    <span class="text-[10px] font-bold text-white/40 tracking-widest">ALFRED</span>
+    <button onclick="toggleAlfred()" class="text-white/15 hover:text-white/40 transition-colors"><span class="material-symbols-outlined text-sm">close</span></button>
   </div>
   <div style="height:180px;background:#040608;border-bottom:1px solid rgba(255,255,255,0.04);position:relative;overflow:hidden">
     <canvas id="brainCanvas"></canvas>
@@ -146,7 +142,7 @@
   </div>
   <div class="flex-1 flex flex-col overflow-hidden">
     <div id="alfredMessages" class="flex-1 overflow-y-auto p-3 space-y-2" style="scrollbar-width:thin">
-      <div class="alfred-msg ai">Hey! I'm Alfred, your pour day assistant. Ask me about the schedule, concrete quantities, or footing progress.</div>
+      <div class="alfred-msg ai">What's up — need anything on the pour schedule, quantities, or footings?</div>
     </div>
     <div class="px-3 py-2 border-t border-white/5 flex gap-2" style="background:#08080c">
       <input id="alfredInput" type="text" placeholder="Ask Alfred..." class="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/80 placeholder:text-white/20 focus:outline-none focus:border-green-500/30" onkeydown="if(event.key==='Enter')sendAlfred()">
@@ -2104,7 +2100,7 @@ function initBrain() {
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
 
   const cx = w, cy = h; // center in 2x space
-  const spread = Math.min(w, h) * 0.7;
+  const spread = Math.min(w, h) * 1.1;
 
   // Build nodes
   const nameIndex = {};
@@ -2130,7 +2126,7 @@ function initBrain() {
       const parent = brainNodes[parentIdx];
       const siblingIdx = VAULT_NOTES.filter((v,j) => j < i && v.size === 'small' && v.folder === n.folder).length;
       angle = parent ? Math.atan2(parent._oy || 0, parent._ox || 0) + (siblingIdx - 1) * 0.6 : Math.random() * Math.PI * 2;
-      dist = spread * (0.25 + Math.random() * 0.2);
+      dist = spread * (0.35 + Math.random() * 0.25);
     }
     const ox = Math.cos(angle) * dist;
     const oy = Math.sin(angle) * dist;
@@ -2277,18 +2273,17 @@ function highlightBrainNode(name) {
 }
 
 // ── ALFRED CHAT ─────────────────────────────────────────────────────────────
-const ALFRED_PROMPT = `You are Alfred, an AI construction assistant for the CUP concrete pour project at LACC South Hall (Webcor Concrete, Job# 11088.70).
+const ALFRED_PROMPT = `You're Alfred — the go-to guy for the CUP concrete pours at LACC South Hall (Webcor Concrete, Job# 11088.70). You talk like a sharp construction engineer, not a chatbot. Keep it casual but precise. No fluff, no "I'd be happy to help" BS. Just answer the question like a teammate would.
 
-You help with:
-- Pour schedule questions (which pours are when, volumes, mix designs)
-- Truck delivery status (how many trucks, cumulative CY, remaining)
-- Footing progress (which are done, in progress, remaining)
-- Mix codes: 8000 PSI = O80D739K1, 5000 PSI = O60C649J1, Slurry = S80S662L2
+You know the pour schedule, truck counts, footing progress, and mix designs cold:
+- 8000 PSI = O80D739K1 (pile caps)
+- 5000 PSI = O60C649J1 (footings)
+- Slurry = S80S662L2 8sk
 
-Keep answers concise and construction-focused. Use CY for cubic yards. Reference specific pour IDs (A-4, B-2, etc.) when relevant.`;
+Use CY for cubic yards. Reference pour IDs (A-4, B-2, etc.) when relevant. If you don't know something, say so — don't make it up.`;
 
 // MiniMax API (Anthropic-compatible endpoint)
-const ALFRED_API_URL = 'https://api.minimax.io/anthropic/v1/chat/completions';
+const ALFRED_API_URL = 'https://api.minimax.io/anthropic/v1/messages';
 const ALFRED_MODEL = 'MiniMax-M2.7';
 
 async function getAlfredKey() {
@@ -2328,17 +2323,26 @@ async function sendAlfred() {
   alfredHistory.push({role:'user',content:msg});
   brainPulse = true;
 
-  const messages = [
-    {role:'system',content:ALFRED_PROMPT+'\n\n'+buildAlfredContext()},
-    ...alfredHistory.slice(-10)
-  ];
+  // Anthropic format: system is separate, messages are user/assistant only
+  const messages = alfredHistory.slice(-10).filter(m => m.role !== 'system');
 
   try {
     const res = await fetch(ALFRED_API_URL, {
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-      body:JSON.stringify({model:ALFRED_MODEL,messages,stream:true,max_tokens:600}),
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+      },
+      body:JSON.stringify({
+        model: ALFRED_MODEL,
+        system: ALFRED_PROMPT + '\n\n' + buildAlfredContext(),
+        messages,
+        stream: true,
+        max_tokens: 800,
+      }),
     });
+    if (!res.ok) { const err = await res.text(); throw new Error(err); }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let full = '';
@@ -2349,13 +2353,21 @@ async function sendAlfred() {
       for (const line of decoder.decode(value).split('\n')) {
         if (!line.startsWith('data:')) continue;
         const d = line.slice(5).trim();
-        if (d === '[DONE]') break;
-        try { const delta = JSON.parse(d).choices?.[0]?.delta?.content; if (delta) { full += delta; el.textContent = full; } } catch{}
+        if (!d || d === '[DONE]') continue;
+        try {
+          const evt = JSON.parse(d);
+          // Anthropic streaming: content_block_delta with text delta
+          if (evt.type === 'content_block_delta' && evt.delta?.text) {
+            full += evt.delta.text;
+            el.textContent = full;
+            scrollAlfredMessages();
+          }
+        } catch{}
       }
     }
     alfredHistory.push({role:'assistant',content:full});
     VAULT_NOTES.forEach(n => { if (full.includes(n.name)) highlightBrainNode(n.name); });
-  } catch(e) { appendAlfredMsg('ai','Error: '+e.message); }
+  } catch(e) { appendAlfredMsg('ai','Couldn\'t connect — ' + e.message.substring(0,100)); }
   brainPulse = false;
   scrollAlfredMessages();
 }
