@@ -128,7 +128,7 @@
 
 <!-- ALFRED SIDEBAR -->
 <div id="alfredToggle" onclick="toggleAlfred()">
-  <span class="material-symbols-outlined text-white/40 text-lg" style="font-variation-settings:'FILL' 1">psychology</span>
+  <span class="text-[9px] font-bold text-white/25" style="writing-mode:vertical-lr;letter-spacing:2px">AI</span>
 </div>
 <aside id="alfredSidebar">
   <div class="px-3 py-1.5 border-b border-white/[0.04] flex items-center justify-between">
@@ -2332,7 +2332,6 @@ async function sendAlfred() {
       headers:{
         'Content-Type':'application/json',
         'Authorization': 'Bearer ' + key,
-        'anthropic-version': '2023-06-01',
       },
       body:JSON.stringify({
         model: ALFRED_MODEL,
