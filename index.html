@@ -53,7 +53,7 @@
     .alfred-msg.user { background:rgba(50,80,130,0.08); color:rgba(255,255,255,0.6); max-width:70%; margin-left:auto; display:inline-block; float:right; clear:both; }
     .alfred-msg.ai { color:rgba(180,200,225,0.55); clear:both; }
     .alfred-msg.ai.streaming { border-left:2px solid rgba(60,120,200,0.25); padding-left:8px; }
-    @keyframes alfredPulse { 0%,100%{box-shadow:0 0 0 rgba(50,80,140,0)} 50%{box-shadow:0 0 16px rgba(50,80,140,0.12)} }
+    @keyframes alfredPulse { 0%,100%{box-shadow:0 0 0 rgba(50,80,140,0)} 50%{box-shadow:0 0 16px rgba(50,80,140,0.04)} }
     #alfredSidebar.thinking { animation:alfredPulse 1.5s ease-in-out infinite; }
   </style>
 </head>
@@ -62,28 +62,14 @@
 <!-- HEADER -->
 <header class="sticky top-0 z-50 border-b border-white/5" style="background:rgba(6,6,10,0.95);backdrop-filter:blur(20px)">
   <div class="max-w-7xl mx-auto px-4 h-14 flex items-center gap-4">
-    <span class="font-black text-sm tracking-widest text-white/90 shrink-0">CUP POUR DASHBOARD</span>
-    <div class="flex-1 flex justify-center gap-3 overflow-x-auto no-scroll">
-      <div class="flex items-center gap-1.5 bg-white/5 rounded-full px-3 py-1 text-xs shrink-0">
-        <span class="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
-        <span class="mono text-white/70">O80D739K1</span>
-        <span class="text-white/40">·</span>
-        <span class="text-white/60">8000 PSI</span>
-      </div>
-      <div class="flex items-center gap-1.5 bg-white/5 rounded-full px-3 py-1 text-xs shrink-0">
-        <span class="w-2 h-2 rounded-full bg-sa shrink-0"></span>
-        <span class="mono text-white/70">O60C649J1</span>
-        <span class="text-white/40">·</span>
-        <span class="text-white/60">5000 PSI</span>
-      </div>
-    </div>
+    <span style="font-family:'Inter',sans-serif;font-weight:800;font-size:13px;letter-spacing:0.15em;color:rgba(255,255,255,0.4)" class="shrink-0">openyap</span>
+    <div class="flex-1"></div>
     <div class="flex items-center gap-3 shrink-0">
       <div class="flex items-center gap-1.5">
         <span class="w-2 h-2 rounded-full bg-green-400 pulse"></span>
         <span class="text-xs text-white/50 font-medium">LIVE</span>
       </div>
       <button onclick="openSheet()" class="text-xs font-bold text-green-400 hover:text-green-300 transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-sm">edit_note</span>Edit Sheet</button>
-      <button onclick="promptFirebaseUrl()" class="text-white/20 hover:text-white/40 transition-colors" title="Firebase Config"><span class="material-symbols-outlined text-sm">database</span></button>
       <a id="sheetLink" href="#" target="_blank" class="text-xs text-sa hover:text-white transition-colors">Open Sheet ↗</a>
     </div>
   </div>
@@ -97,18 +83,15 @@
       <button onclick="switchTab('pourday')" id="tabPour" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Pour Day</button>
       <button onclick="switchTab('checklist')" id="tabCheck" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Checklist</button>
     </div>
-    <div class="w-px h-4 bg-white/10 shrink-0"></div>
     <div id="sectionFilters" class="flex gap-1.5 shrink-0">
       <button onclick="setSectionFilter('ALL')" data-sec="ALL" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all active-pill">ALL</button>
-      <button onclick="setSectionFilter('A')" data-sec="A" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all" style="--sc:#4A8EFF">A</button>
-      <button onclick="setSectionFilter('B')" data-sec="B" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all" style="--sc:#41A447">B</button>
-      <button onclick="setSectionFilter('C')" data-sec="C" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all" style="--sc:#FFBF00">C</button>
-      <button onclick="setSectionFilter('D')" data-sec="D" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all" style="--sc:#8B5CF6">D</button>
+      <button onclick="setSectionFilter('A')" data-sec="A" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all" style="--sc:#3D9E6B">A</button>
+      <button onclick="setSectionFilter('B')" data-sec="B" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all" style="--sc:#D4842A">B</button>
+      <button onclick="setSectionFilter('C')" data-sec="C" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all" style="--sc:#5BA8D9">C</button>
+      <button onclick="setSectionFilter('D')" data-sec="D" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all" style="--sc:#7B6FC7">D</button>
     </div>
-    <div class="w-px h-4 bg-white/10 shrink-0"></div>
-    <div id="dateFilters" class="flex gap-1.5 overflow-x-auto no-scroll"></div>
-    <div class="w-px h-4 bg-white/10 shrink-0"></div>
-    <button onclick="toggleSortByDate()" id="sortDateBtn" class="text-[10px] font-bold text-white/30 hover:text-white/50 px-2 py-1 rounded transition-all shrink-0 flex items-center gap-1"><span class="material-symbols-outlined text-xs">sort</span>By Date</button>
+    <div id="dateFilters" class="hidden"></div>
+    <button id="sortDateBtn" class="hidden"></button>
   </div>
 </div>
 
@@ -131,17 +114,17 @@
 
 <!-- ALFRED SIDEBAR -->
 <div id="alfredToggle" onclick="toggleAlfred()">
-  <span class="text-[9px] font-bold text-white/25" style="writing-mode:vertical-lr;letter-spacing:2px">AI</span>
+  <span class="text-[9px] font-bold text-white/25" style="writing-mode:vertical-lr;letter-spacing:2px">›</span>
 </div>
 <aside id="alfredSidebar">
   <div class="px-3 py-1.5 border-b flex items-center justify-between" style="border-color:rgba(50,80,130,0.06)">
     <span class="text-[10px] font-bold tracking-widest" style="color:rgba(140,170,210,0.3)">ALFRED</span>
     <button onclick="toggleAlfred()" class="text-white/15 hover:text-white/40 transition-colors"><span class="material-symbols-outlined text-sm">close</span></button>
   </div>
-  <div style="height:180px;background:#04060c;border-bottom:1px solid rgba(50,80,130,0.06);position:relative;overflow:hidden">
+  <div style="height:240px;background:#04060c;border-bottom:1px solid rgba(50,80,130,0.06);position:relative;overflow:hidden">
     <canvas id="brainCanvas"></canvas>
     <div id="brainTip" class="hidden absolute px-2 py-1 rounded text-[9px] mono pointer-events-none z-10" style="background:rgba(0,0,0,0.9);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.7)"></div>
-    <div id="brainBootText" class="absolute inset-0 flex items-center justify-center pointer-events-none"><span class="text-sm font-black tracking-widest text-white/20">OpenYap</span></div>
+    <div id="brainBootText" class="absolute inset-0 flex items-center justify-center pointer-events-none"><span class="text-sm font-light tracking-[0.3em] text-white/15">OpenYap</span></div>
   </div>
   <div class="flex-1 flex flex-col overflow-hidden">
     <div id="alfredMessages" class="flex-1 overflow-y-auto p-3 space-y-2" style="scrollbar-width:thin">
@@ -164,17 +147,17 @@
   </div>
 
   <!-- ZONE MAP -->
-  <div id="zoneMap" class="hidden rounded-xl overflow-hidden border border-white/5 dot-grid" style="height:280px">
+  <div id="zoneMap" class="hidden rounded-xl overflow-hidden dot-grid" style="height:280px">
     <svg id="zoneSvg" viewBox="0 0 1000 280" preserveAspectRatio="none" class="w-full h-full" style="display:block"></svg>
   </div>
 
   <!-- TIMELINE -->
   <div id="timelineWrap" class="hidden">
-    <button onclick="document.getElementById('timelineBody').classList.toggle('hidden');this.querySelector('span.arrow').textContent=document.getElementById('timelineBody').classList.contains('hidden')?'expand_more':'expand_less'" class="w-full flex items-center justify-between px-4 py-2.5 rounded-t-xl border border-white/5 text-[11px] font-black tracking-widest text-white/50 uppercase hover:text-white/70 transition-colors" style="background:#0B0B0F">
+    <button onclick="document.getElementById('timelineBody').classList.toggle('hidden');this.querySelector('span.arrow').textContent=document.getElementById('timelineBody').classList.contains('hidden')?'expand_more':'expand_less'" class="w-full flex items-center justify-between px-4 py-2.5 rounded-t-xl text-[11px] font-black tracking-widest text-white/50 uppercase hover:text-white/70 transition-colors" style="background:#0B0B0F">
       <span>Pour Timeline</span>
       <span class="arrow material-symbols-outlined text-sm">expand_less</span>
     </button>
-    <div id="timelineBody" class="rounded-b-xl border border-t-0 border-white/5 p-4 overflow-x-auto" style="background:#0B0B0F">
+    <div id="timelineBody" class="rounded-b-xl p-4 overflow-x-auto" style="background:#0B0B0F">
       <div id="timelineContent" class="relative" style="min-width:700px"></div>
     </div>
   </div>
@@ -193,34 +176,19 @@
 <!-- GRAND TOTAL FOOTER -->
 <div id="footer" class="hidden fixed bottom-0 left-0 right-0 z-50 border-t border-yellow-400/20" style="background:rgba(6,6,10,0.97);backdrop-filter:blur(20px)">
   <div class="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between gap-4">
-    <div class="flex items-center gap-6 overflow-x-auto no-scroll">
+    <div class="flex items-center gap-4 overflow-x-auto no-scroll">
       <div class="flex items-center gap-2 shrink-0">
-        <span class="w-2 h-2 rounded-full bg-red-400"></span>
-        <span class="text-xs text-white/50">8000 Total</span>
-        <span id="ftCy8000" class="mono text-sm font-bold text-red-300">—</span>
-        <span class="text-xs text-white/30">CY</span>
-      </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <span class="w-2 h-2 rounded-full bg-sa"></span>
-        <span class="text-xs text-white/50">5000 Total</span>
-        <span id="ftCy5000" class="mono text-sm font-bold text-blue-300">—</span>
-        <span class="text-xs text-white/30">CY</span>
-      </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
-        <span class="text-xs text-white/50">Slurry</span>
-        <span id="ftSlurry" class="mono text-sm font-bold text-gray-300">—</span>
-        <span class="text-xs text-white/30">CY</span>
-      </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <span class="text-xs text-white/50">Trucks</span>
-        <span id="ftTrucks" class="mono text-sm font-bold text-white/80">—</span>
-      </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <span class="text-xs text-white/50">Grand Total</span>
         <span id="ftTotal" class="mono text-base font-bold text-yellow-300">—</span>
         <span class="text-xs text-white/30">CY</span>
       </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <span id="ftTrucks" class="mono text-sm font-bold text-white/60">—</span>
+        <span class="text-xs text-white/30">trucks</span>
+      </div>
+      <!-- hidden elements kept for JS compatibility -->
+      <span id="ftCy8000" class="hidden">—</span>
+      <span id="ftCy5000" class="hidden">—</span>
+      <span id="ftSlurry" class="hidden">—</span>
     </div>
     <a id="footerSheetLink" href="#" target="_blank" class="text-xs text-sa hover:text-white transition-colors shrink-0">Open Sheet ↗</a>
   </div>
@@ -310,8 +278,8 @@ const GViz_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq
 document.getElementById('sheetLink').href       = SHEET_URL;
 document.getElementById('footerSheetLink').href = SHEET_URL;
 
-const SEC_COLORS = { A:'#41A447', B:'#FF8C00', C:'#4AB8FF', D:'#8B5CF6' };
-const SEC_DIM    = { A:'#162a18', B:'#3a2200', C:'#1a2d4d', D:'#2a1a4d' };
+const SEC_COLORS = { A:'#3D9E6B', B:'#D4842A', C:'#5BA8D9', D:'#7B6FC7' };
+const SEC_DIM    = { A:'#142218', B:'#2a1c0e', C:'#14222e', D:'#1e1a2e' };
 
 // Editable pour labels (persisted in localStorage)
 function getPourLabel(id) { return localStorage.getItem('cup_label_'+id) || ''; }
@@ -507,7 +475,7 @@ function renderZoneMap(pours) {
   // Slurry hatching pattern
   let html = `<defs>
     <pattern id="slurryHatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+      <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
     </pattern>
   </defs>`;
 
@@ -534,7 +502,7 @@ function renderZoneMap(pours) {
       html += `<rect x="${z.x+3}" y="${z.y+z.h-sh-2}" width="${z.w-6}" height="${sh}" rx="3" fill="url(#slurryHatch)" opacity="${active?0.8:0.3}"/>
         <text x="${z.x+z.w-10}" y="${z.y+z.h-sh+11}" text-anchor="end" font-family="JetBrains Mono,monospace" font-size="8" fill="${color}" opacity="0.5">SLURRY ${ref.slurryVol} CY</text>`;
     }
-    html += `<text x="${cx}" y="${cy-24}" text-anchor="middle" font-family="Inter,sans-serif" font-weight="900" font-size="${z.h>150?48:36}" fill="${color}" opacity="0.15">${sec}</text>
+    html += `<text x="${cx}" y="${cy-24}" text-anchor="middle" font-family="Inter,sans-serif" font-weight="900" font-size="${z.h>150?48:36}" fill="${color}" opacity="0.06">${sec}</text>
       <text x="${cx}" y="${cy}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-weight="700" font-size="${z.h>150?18:15}" fill="${color}">${ref.secTotal||'—'} CY</text>
       <text x="${cx}" y="${cy+16}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="rgba(255,255,255,0.5)">8000: ${ref.cy8000||0} · 5000: ${ref.cy5000||0}</text>`;
     // Pour dates
@@ -634,15 +602,15 @@ function renderSectionCards(pours, refs) {
   grid.innerHTML = secs.map(s => {
     const r = refs[s] || {};
     const c = SEC_COLORS[s];
-    return `<div class="rounded-xl p-4 border border-white/5" style="background:#0B0B0F;border-left:3px solid ${c}">
+    return `<div class="rounded-xl p-3" style="background:#0B0B0F;border-left:3px solid ${c}">
       <div class="flex items-center gap-2 mb-3">
         <span class="text-xs font-bold px-2 py-0.5 rounded" style="background:${c}22;color:${c}">SECTION ${s}</span>
       </div>
       <div class="mono text-2xl font-bold mb-3" style="color:${c}">${r.secTotal||'—'} <span class="text-sm text-white/40 font-normal">CY</span></div>
       <div class="space-y-1 text-xs">
-        <div class="flex justify-between"><span class="text-white/50">8000 PSI</span><span class="mono font-semibold text-red-300">${r.cy8000||0} CY</span></div>
-        <div class="flex justify-between"><span class="text-white/50">5000 PSI</span><span class="mono font-semibold text-blue-300">${r.cy5000||0} CY</span></div>
-        ${r.slurryVol ? `<div class="flex justify-between"><span class="text-white/50">Slurry</span><span class="mono font-semibold text-white/60">${r.slurryVol} CY</span></div>` : ''}
+        <div class="flex justify-between"><span class="text-white/40">8000 PSI</span><span class="mono font-semibold text-red-300">${r.cy8000||0} CY</span></div>
+        <div class="flex justify-between"><span class="text-white/40">5000 PSI</span><span class="mono font-semibold text-blue-300">${r.cy5000||0} CY</span></div>
+        ${r.slurryVol ? `<div class="flex justify-between"><span class="text-white/40">Slurry</span><span class="mono font-semibold text-white/60">${r.slurryVol} CY</span></div>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -661,7 +629,7 @@ function renderPourCards(pours) {
     const pct8  = Math.round((p.cy8000 / maxCy8000) * 100);
     const pct5  = Math.round((p.cy5000 / maxCy5000) * 100);
     const isOrdered = p.status?.toLowerCase().includes('yes') || getOrdered(p.id);
-    return `<div class="rounded-xl p-4 border ${isOrdered ? 'border-green-500/30' : 'border-white/5'}" style="background:#0B0B0F">
+    return `<div class="rounded-xl p-3 ${isOrdered ? 'border border-green-500/30' : ''}" style="background:#0B0B0F">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
           <span class="text-xs font-bold px-2 py-0.5 rounded" style="background:${c}22;color:${c}">${p.section}</span>
@@ -675,16 +643,16 @@ function renderPourCards(pours) {
         </div>
       </div>
       ${p.cy8000 > 0 || p.type==='Structural' ? `<div class="mb-2">
-        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">8000 PSI</span><span class="mono text-red-300 font-semibold cursor-pointer" onclick="let v=prompt('8000 CY:','${p.cy8000}');if(v!==null)updatePourField('${p.id}','cy8000',+v)">${p.cy8000} CY</span></div>
-        <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400 bar-animate" style="width:${pct8}%"></div></div>
+        <div class="flex justify-between text-xs mb-1"><span class="text-white/40">8000 PSI</span><span class="mono text-red-300 font-semibold cursor-pointer" onclick="let v=prompt('8000 CY:','${p.cy8000}');if(v!==null)updatePourField('${p.id}','cy8000',+v)">${p.cy8000} CY</span></div>
+        <div class="h-1 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400 bar-animate" style="width:${pct8}%"></div></div>
       </div>` : ''}
       ${p.cy5000 > 0 || p.type==='Structural' ? `<div class="mb-2">
-        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">5000 PSI</span><span class="mono text-blue-300 font-semibold cursor-pointer" onclick="let v=prompt('5000 CY:','${p.cy5000}');if(v!==null)updatePourField('${p.id}','cy5000',+v)">${p.cy5000} CY</span></div>
-        <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 bar-animate" style="width:${pct5}%"></div></div>
+        <div class="flex justify-between text-xs mb-1"><span class="text-white/40">5000 PSI</span><span class="mono text-blue-300 font-semibold cursor-pointer" onclick="let v=prompt('5000 CY:','${p.cy5000}');if(v!==null)updatePourField('${p.id}','cy5000',+v)">${p.cy5000} CY</span></div>
+        <div class="h-1 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 bar-animate" style="width:${pct5}%"></div></div>
       </div>` : ''}
       ${p.slurry > 0 || p.type==='Slurry' ? `<div class="mb-3">
-        <div class="flex justify-between text-xs mb-1"><span class="text-white/50">Slurry</span><span class="mono text-gray-300 font-semibold cursor-pointer" onclick="let v=prompt('Slurry CY:','${p.slurry}');if(v!==null)updatePourField('${p.id}','slurry',+v)">${p.slurry} CY</span></div>
-        <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-gray-500 to-gray-400 bar-animate" style="width:${Math.round((p.slurry/Math.max(...pours.map(x=>x.slurry),1))*100)}%"></div></div>
+        <div class="flex justify-between text-xs mb-1"><span class="text-white/40">Slurry</span><span class="mono text-gray-300 font-semibold cursor-pointer" onclick="let v=prompt('Slurry CY:','${p.slurry}');if(v!==null)updatePourField('${p.id}','slurry',+v)">${p.slurry} CY</span></div>
+        <div class="h-1 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-gray-500 to-gray-400 bar-animate" style="width:${Math.round((p.slurry/Math.max(...pours.map(x=>x.slurry),1))*100)}%"></div></div>
       </div>` : ''}
       <div class="flex items-center justify-between pt-2 border-t border-white/5">
         <span class="mono text-yellow-300 font-bold text-sm">${p.total} <span class="text-white/40 font-normal text-xs">CY</span></span>
@@ -2030,7 +1998,7 @@ function renderPourDay() {
   // Truck log
   const reverseTrucks = [...pourTrucks].reverse();
   if (reverseTrucks.length) {
-    h += `<div class="rounded-xl border border-white/5 overflow-hidden" style="background:#0B0B0F">
+    h += `<div class="rounded-xl overflow-hidden" style="background:#0B0B0F">
       <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between">
         <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Truck Log</span>
         <div class="flex items-center gap-3">
@@ -2061,7 +2029,7 @@ function renderPourDay() {
   }
 
   // Live activity feed
-  h += `<div id="liveFeedContainer" class="rounded-xl border border-white/5 overflow-hidden mt-4" style="background:#0B0B0F">
+  h += `<div id="liveFeedContainer" class="rounded-xl overflow-hidden mt-4" style="background:#0B0B0F">
     <div class="px-4 py-2 border-b border-white/5 flex items-center gap-2">
       <span class="w-2 h-2 rounded-full bg-green-400 pulse"></span>
       <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Live Feed</span>
@@ -2087,30 +2055,30 @@ function renderPourDay() {
 // Vault data (lacc-brain — 25 notes)
 const VAULT_NOTES = [
   {name:'LACC South Hall',folder:'',color:'#ffffff',size:'large',preview:'Job# 11088.70 | Webcor Concrete',links:['Submittals','RFIs','Drawings','Specs','Schedule','Concrete','Equipment','Team','Issues']},
-  {name:'Concrete',folder:'Concrete',color:'#52e28a',size:'large',preview:'Pour planning, mix designs, testing',links:['Pour Log','Mix Designs','Testing','Schedule','Submittals','Drawings','Equipment']},
-  {name:'Pour Log',folder:'Concrete',color:'#52e28a',size:'small',preview:'Daily pour records',links:['Concrete']},
-  {name:'Mix Designs',folder:'Concrete',color:'#52e28a',size:'small',preview:'O80D739K1, O60C649J1, S80S662L2',links:['Concrete']},
-  {name:'Testing',folder:'Concrete',color:'#52e28a',size:'small',preview:'Break data, QC',links:['Concrete','Pour Log']},
-  {name:'Schedule',folder:'Schedule',color:'#fbbf24',size:'large',preview:'CUP pour sequence timeline',links:['Area A','Area B','Area C','Concrete','Equipment','Issues']},
-  {name:'Area A',folder:'Schedule',color:'#41A447',size:'small',preview:'Section A pours — 4/16 main structural',links:['Schedule']},
-  {name:'Area B',folder:'Schedule',color:'#FF8C00',size:'small',preview:'Section B — 4/23 massive pile caps',links:['Schedule']},
-  {name:'Area C',folder:'Schedule',color:'#4AB8FF',size:'small',preview:'Section C — 4/28 structural',links:['Schedule']},
-  {name:'Drawings',folder:'Drawings',color:'#3b82f6',size:'large',preview:'Structural, architectural, MEP',links:['Structural','Architectural','MEP','Specs','RFIs','Submittals']},
-  {name:'Structural',folder:'Drawings',color:'#3b82f6',size:'small',preview:'Foundation & steel drawings',links:['Drawings','Concrete','RFIs']},
-  {name:'Architectural',folder:'Drawings',color:'#3b82f6',size:'small',preview:'Architectural set',links:['Drawings','Specs']},
-  {name:'MEP',folder:'Drawings',color:'#3b82f6',size:'small',preview:'Mechanical, electrical, plumbing',links:['Drawings','RFIs']},
-  {name:'Specs',folder:'Specs',color:'#a78bfa',size:'large',preview:'Technical specifications',links:['Division 03 - Concrete','Division 05 - Metals','Division 31 - Earthwork','Submittals','Drawings','RFIs']},
-  {name:'Division 03 - Concrete',folder:'Specs',color:'#a78bfa',size:'small',preview:'Cast-in-place concrete specs',links:['Specs']},
-  {name:'Division 05 - Metals',folder:'Specs',color:'#a78bfa',size:'small',preview:'Structural steel specs',links:['Specs']},
-  {name:'Division 31 - Earthwork',folder:'Specs',color:'#a78bfa',size:'small',preview:'Excavation, backfill specs',links:['Specs']},
-  {name:'Submittals',folder:'Submittals',color:'#e2a052',size:'large',preview:'Submittal log & packages',links:['03 30 00 - Cast-in-Place Concrete','03 20 00 - Concrete Reinforcing','05 12 00 - Structural Steel','RFIs','Schedule','Concrete','Specs','Drawings']},
-  {name:'03 30 00 - Cast-in-Place Concrete',folder:'Submittals',color:'#e2a052',size:'small',preview:'Concrete submittal',links:['Submittals']},
-  {name:'03 20 00 - Concrete Reinforcing',folder:'Submittals',color:'#e2a052',size:'small',preview:'Rebar submittal',links:['Submittals']},
-  {name:'05 12 00 - Structural Steel',folder:'Submittals',color:'#e2a052',size:'small',preview:'Steel submittal',links:['Submittals']},
-  {name:'RFIs',folder:'RFIs',color:'#f472b6',size:'large',preview:'Requests for information',links:['Drawings','Specs','Issues','Schedule','Concrete','Submittals']},
-  {name:'Equipment',folder:'Equipment',color:'#00d4ff',size:'large',preview:'Tools, pumps, vibrators',links:['Schedule','Issues']},
-  {name:'Team',folder:'Team',color:'#6eccc3',size:'large',preview:'Project team roster',links:['Schedule','Issues']},
-  {name:'Issues',folder:'Issues',color:'#e25252',size:'large',preview:'Open issues & flags',links:['Drawings','Specs','RFIs','Schedule','Team']},
+  {name:'Concrete',folder:'Concrete',color:'#3D9E6B',size:'large',preview:'Pour planning, mix designs, testing',links:['Pour Log','Mix Designs','Testing','Schedule','Submittals','Drawings','Equipment']},
+  {name:'Pour Log',folder:'Concrete',color:'#3D9E6B',size:'small',preview:'Daily pour records',links:['Concrete']},
+  {name:'Mix Designs',folder:'Concrete',color:'#3D9E6B',size:'small',preview:'O80D739K1, O60C649J1, S80S662L2',links:['Concrete']},
+  {name:'Testing',folder:'Concrete',color:'#3D9E6B',size:'small',preview:'Break data, QC',links:['Concrete','Pour Log']},
+  {name:'Schedule',folder:'Schedule',color:'#D4A42A',size:'large',preview:'CUP pour sequence timeline',links:['Area A','Area B','Area C','Concrete','Equipment','Issues']},
+  {name:'Area A',folder:'Schedule',color:'#3D9E6B',size:'small',preview:'Section A pours — 4/16 main structural',links:['Schedule']},
+  {name:'Area B',folder:'Schedule',color:'#D4842A',size:'small',preview:'Section B — 4/23 massive pile caps',links:['Schedule']},
+  {name:'Area C',folder:'Schedule',color:'#5BA8D9',size:'small',preview:'Section C — 4/28 structural',links:['Schedule']},
+  {name:'Drawings',folder:'Drawings',color:'#5BA8D9',size:'large',preview:'Structural, architectural, MEP',links:['Structural','Architectural','MEP','Specs','RFIs','Submittals']},
+  {name:'Structural',folder:'Drawings',color:'#5BA8D9',size:'small',preview:'Foundation & steel drawings',links:['Drawings','Concrete','RFIs']},
+  {name:'Architectural',folder:'Drawings',color:'#5BA8D9',size:'small',preview:'Architectural set',links:['Drawings','Specs']},
+  {name:'MEP',folder:'Drawings',color:'#5BA8D9',size:'small',preview:'Mechanical, electrical, plumbing',links:['Drawings','RFIs']},
+  {name:'Specs',folder:'Specs',color:'#7B6FC7',size:'large',preview:'Technical specifications',links:['Division 03 - Concrete','Division 05 - Metals','Division 31 - Earthwork','Submittals','Drawings','RFIs']},
+  {name:'Division 03 - Concrete',folder:'Specs',color:'#7B6FC7',size:'small',preview:'Cast-in-place concrete specs',links:['Specs']},
+  {name:'Division 05 - Metals',folder:'Specs',color:'#7B6FC7',size:'small',preview:'Structural steel specs',links:['Specs']},
+  {name:'Division 31 - Earthwork',folder:'Specs',color:'#7B6FC7',size:'small',preview:'Excavation, backfill specs',links:['Specs']},
+  {name:'Submittals',folder:'Submittals',color:'#D4842A',size:'large',preview:'Submittal log & packages',links:['03 30 00 - Cast-in-Place Concrete','03 20 00 - Concrete Reinforcing','05 12 00 - Structural Steel','RFIs','Schedule','Concrete','Specs','Drawings']},
+  {name:'03 30 00 - Cast-in-Place Concrete',folder:'Submittals',color:'#D4842A',size:'small',preview:'Concrete submittal',links:['Submittals']},
+  {name:'03 20 00 - Concrete Reinforcing',folder:'Submittals',color:'#D4842A',size:'small',preview:'Rebar submittal',links:['Submittals']},
+  {name:'05 12 00 - Structural Steel',folder:'Submittals',color:'#D4842A',size:'small',preview:'Steel submittal',links:['Submittals']},
+  {name:'RFIs',folder:'RFIs',color:'#C76B8A',size:'large',preview:'Requests for information',links:['Drawings','Specs','Issues','Schedule','Concrete','Submittals']},
+  {name:'Equipment',folder:'Equipment',color:'#5BB8C7',size:'large',preview:'Tools, pumps, vibrators',links:['Schedule','Issues']},
+  {name:'Team',folder:'Team',color:'#5BA89E',size:'large',preview:'Project team roster',links:['Schedule','Issues']},
+  {name:'Issues',folder:'Issues',color:'#C75B5B',size:'large',preview:'Open issues & flags',links:['Drawings','Specs','RFIs','Schedule','Team']},
 ];
 
 let alfredOpen = false;
@@ -2213,9 +2181,9 @@ function initBrain() {
 
   // Particles
   brainParticles = [];
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 25; i++) {
     const conn = brainConns[Math.floor(Math.random() * brainConns.length)];
-    if (conn) brainParticles.push({ conn, t: Math.random(), speed: 0.002 + Math.random() * 0.004 });
+    if (conn) brainParticles.push({ conn, t: Math.random(), speed: 0.001 + Math.random() * 0.002 });
   }
 
   // Drag rotation
@@ -2272,8 +2240,8 @@ function drawBrain() {
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(a.x + (b.x-a.x)*connBoot, a.y + (b.y-a.y)*connBoot);
-    ctx.strokeStyle = 'rgba(100,170,240,0.06)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(120,160,200,0.04)';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
   });
 
@@ -2286,7 +2254,7 @@ function drawBrain() {
     if (!a || !b) return;
     const x = a.x + (b.x-a.x)*p.t, y = a.y + (b.y-a.y)*p.t;
     ctx.beginPath();
-    ctx.arc(x, y, brainPulse ? 2.5 : 1.5, 0, Math.PI*2);
+    ctx.arc(x, y, brainPulse ? 3 : 2, 0, Math.PI*2);
     ctx.fillStyle = brainPulse ? 'rgba(80,140,220,0.5)' : 'rgba(60,100,170,0.1)';
     ctx.fill();
   });
@@ -2319,8 +2287,8 @@ function drawBrain() {
   // Boot text
   if (boot < 1) {
     ctx.globalAlpha = 1 - boot;
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.font = 'bold 20px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(180,200,220,0.1)';
+    ctx.font = '300 18px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('OpenYap', cx, cy + 6);
     ctx.globalAlpha = 1;
