@@ -236,6 +236,11 @@ function attachFirebaseListeners() {
   fbListen('checklist', (val) => {
     if (val) { localStorage.setItem('cup_checklist', JSON.stringify(val)); }
   });
+  fbListen('feed', (val) => {
+    if (!val) { pourDay.feed = []; return; }
+    pourDay.feed = Object.values(val).sort((a,b) => b.ts?.localeCompare(a.ts)).slice(0, 30);
+    renderLiveFeed();
+  });
 }
 
 // ── CONFIG ──────────────────────────────────────────────────────────────────
@@ -1194,9 +1199,10 @@ const DEFAULT_FOOTING_MAPS = {
 let pourDay = {
   activePourId: null,
   trucks: [],
-  footingStatus: {},  // { footingId: 'DONE' }
+  footingStatus: {},
   defaultCY: 9,
   mapCache: {},
+  feed: [],  // live activity feed
 };
 
 // Footing status: cycles through '' → '25' → '50' → '75' → 'DONE' → ''
@@ -1210,6 +1216,7 @@ function toggleFooting(id) {
   pourDay.footingStatus[id] = newStatus;
   localStorage.setItem('cup_ftg_'+id, newStatus);
   fbSet(`footings/${id.replace(/[.$\[\]#]/g, '_')}`, newStatus);
+  if (newStatus) fbPush('feed', { ts:new Date().toISOString(), type:'footing', msg:`${id} → ${newStatus === 'DONE' ? '100%' : newStatus+'%'}`, pourId: getActivePour()?.id || '' });
   renderPourDay();
 }
 
@@ -1420,6 +1427,8 @@ async function logTruck() {
   fbPush(`trucks/${pour.id}`, {
     timestamp: ts, pourId: pour.id, truckNum, ticket, mix, cy, cumulative: prevCum + cy
   });
+  // Live feed
+  fbPush('feed', { ts, type:'truck', pourId:pour.id, msg:`Truck #${truckNum} arrived — ${cy} CY ${mix}`, detail:`Cumulative: ${prevCum+cy} CY` });
 }
 
 function setPourDayCY(cy) {
@@ -1536,6 +1545,28 @@ function exportPourReport() {
   const w = window.open('', '_blank');
   w.document.write(html);
   w.document.close();
+}
+
+function renderLiveFeed() {
+  const el = document.getElementById('liveFeedContent');
+  if (!el) return;
+  if (!pourDay.feed.length) {
+    el.innerHTML = '<div class="px-4 py-4 text-center text-white/15 text-xs">No activity yet</div>';
+    return;
+  }
+  el.innerHTML = pourDay.feed.map(f => {
+    const time = f.ts ? new Date(f.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit'}) : '';
+    const icon = f.type === 'truck' ? 'local_shipping' : 'check_circle';
+    const color = f.type === 'truck' ? '#41A447' : '#4AB8FF';
+    return `<div class="px-4 py-2 flex items-center gap-3 border-b border-white/[0.03] text-xs">
+      <span class="material-symbols-outlined text-sm" style="color:${color}">${icon}</span>
+      <div class="flex-1 min-w-0">
+        <span class="text-white/80 font-semibold">${f.msg}</span>
+        ${f.detail ? `<span class="text-white/30 ml-2">${f.detail}</span>` : ''}
+      </div>
+      <span class="mono text-white/20 text-[10px] shrink-0">${time}</span>
+    </div>`;
+  }).join('');
 }
 
 async function resetPourDay() {
@@ -1657,7 +1688,7 @@ function renderPourDay() {
     </div>`;
   }
   if (mapData) {
-    const ftgs = mapData.footings;
+    const ftgs = mapData.footings || [];
     const doneCount = ftgs.filter(f => getFootingStatus(f.id) === 'DONE').length;
     const completedCY = ftgs.reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
     const totalCY = ftgs.reduce((s,f) => s+f.cy, 0);
@@ -1848,11 +1879,21 @@ function renderPourDay() {
     h += `<div class="text-center py-8 text-white/20 text-sm rounded-xl border border-white/5" style="background:#0B0B0F">No trucks logged yet — tap the button when a truck arrives</div>`;
   }
 
+  // Live activity feed
+  h += `<div id="liveFeedContainer" class="rounded-xl border border-white/5 overflow-hidden mt-4" style="background:#0B0B0F">
+    <div class="px-4 py-2 border-b border-white/5 flex items-center gap-2">
+      <span class="w-2 h-2 rounded-full bg-green-400 pulse"></span>
+      <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Live Feed</span>
+    </div>
+    <div id="liveFeedContent" class="max-h-48 overflow-y-auto"></div>
+  </div>`;
+
   if (!isManagerView) {
     h += `<button onclick="resetPourDay()" class="w-full mt-4 py-2 rounded-lg text-xs font-bold text-red-400/40 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all">Reset Pour Day</button>`;
   }
 
   el.innerHTML = h;
+  renderLiveFeed();
   if (mapEditMode) requestAnimationFrame(initMapDrag);
   } catch(err) {
     el.innerHTML = `<div class="p-4 text-red-400 text-sm"><p class="font-bold mb-1">Pour Day render error:</p><pre class="text-xs text-red-300/60 overflow-auto">${err.message}\n${err.stack}</pre></div>`;
