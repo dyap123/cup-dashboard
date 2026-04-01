@@ -32,7 +32,7 @@
     };
   </script>
   <style>
-    body { background:#06060A; color:#e4e1e8; font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; }
+    body { background:#06060A; color:#e4e1e8; font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; transition:margin-right 0.3s cubic-bezier(.4,0,.2,1); }
     .mono { font-family:'JetBrains Mono',monospace; }
     .no-scroll::-webkit-scrollbar { display:none; }
     .no-scroll { -ms-overflow-style:none; scrollbar-width:none; }
@@ -2131,6 +2131,14 @@ function toggleAlfred() {
   alfredOpen = !alfredOpen;
   document.getElementById('alfredSidebar').classList.toggle('open', alfredOpen);
   document.getElementById('alfredToggle').style.display = alfredOpen ? 'none' : '';
+  // Resize content to make room (desktop only)
+  const pad = (alfredOpen && window.innerWidth > 640) ? '300px' : '0';
+  document.body.style.marginRight = pad;
+  // Also shift fixed elements (header, footer, filter bar)
+  document.querySelectorAll('header, #footer, .sticky').forEach(el => {
+    el.style.transition = 'right 0.3s cubic-bezier(.4,0,.2,1)';
+    el.style.right = pad;
+  });
   if (alfredOpen && !brainInit) initBrain();
 }
 
