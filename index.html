@@ -1239,23 +1239,21 @@ async function logTruck() {
   const pour = getActivePour();
   if (!pour) return;
   const ticket = document.getElementById('pdTicketInput')?.value || '';
-  const mixerId = document.getElementById('pdMixerInput')?.value || '';
+  const mix = document.getElementById('pdMixSelect')?.value || '8000';
   const cy = pourDay.defaultCY;
   const prevCum = pourDay.trucks.filter(t => t.pourId === pour.id).reduce((s,t) => Math.max(s, t.cumulative), 0);
   const truckNum = pourDay.trucks.filter(t => t.pourId === pour.id).length + 1;
   const ts = new Date().toISOString();
 
   pourDay.trucks.push({
-    timestamp: ts, pourId: pour.id, truckNum, ticket, mixerId, cy, cumulative: prevCum + cy
+    timestamp: ts, pourId: pour.id, truckNum, ticket, mix, cy, cumulative: prevCum + cy
   });
   renderPourDay();
 
-  // Clear inputs
   const inp = document.getElementById('pdTicketInput'); if (inp) inp.value = '';
-  const mix = document.getElementById('pdMixerInput'); if (mix) mix.value = '';
 
   fbPush(`trucks/${pour.id}`, {
-    timestamp: ts, pourId: pour.id, truckNum, ticket, mixerId, cy, cumulative: prevCum + cy
+    timestamp: ts, pourId: pour.id, truckNum, ticket, mix, cy, cumulative: prevCum + cy
   });
 }
 
@@ -1339,11 +1337,20 @@ function exportPourReport() {
   <tr><td>Actual Trucks</td><td>${pourTrucks.length} <span class="${pourTrucks.length >= (pour.trucks||Math.ceil(ordered/9)) ? 'ok' : 'warn'}">(${pourTrucks.length >= (pour.trucks||Math.ceil(ordered/9)) ? 'met' : 'under'})</span></td></tr>
   </table>
 
+  <h2>Delivery Summary by Mix</h2>
+  <table><tr><th>Mix</th><th>Code</th><th>Trucks</th><th>CY Delivered</th></tr>
+  <tr><td style="color:#c53030">8000 PSI</td><td>O80D739K1</td><td><strong>${pourTrucks.filter(t=>t.mix==='8000').length}</strong></td><td>${pourTrucks.filter(t=>t.mix==='8000').reduce((s,t)=>s+t.cy,0)} CY</td></tr>
+  <tr><td style="color:#2b6cb0">5000 PSI</td><td>O60C649J1</td><td><strong>${pourTrucks.filter(t=>t.mix==='5000').length}</strong></td><td>${pourTrucks.filter(t=>t.mix==='5000').reduce((s,t)=>s+t.cy,0)} CY</td></tr>
+  <tr><td style="color:#666">Slurry</td><td>S80S662L2</td><td><strong>${pourTrucks.filter(t=>t.mix==='slurry').length}</strong></td><td>${pourTrucks.filter(t=>t.mix==='slurry').reduce((s,t)=>s+t.cy,0)} CY</td></tr>
+  <tr style="font-weight:700;border-top:2pt solid #1C2E54"><td colspan="2">TOTAL</td><td>${pourTrucks.length}</td><td>${delivered} CY</td></tr>
+  </table>
+
   <h2>Truck Log (${pourTrucks.length} arrivals)</h2>
-  <table><tr><th>#</th><th>Time</th><th>CY</th><th>Cumulative</th><th>Ticket #</th><th>Mixer ID</th></tr>
+  <table><tr><th>#</th><th>Time</th><th>Mix</th><th>CY</th><th>Cumulative</th><th>Ticket #</th></tr>
   ${pourTrucks.map(t => {
     const time = typeof t.timestamp==='string'&&t.timestamp.includes('T') ? new Date(t.timestamp).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : t.timestamp;
-    return `<tr><td>${t.truckNum}</td><td>${time}</td><td>${t.cy} CY</td><td><strong>${t.cumulative} CY</strong></td><td>${t.ticket||'—'}</td><td>${t.mixerId||'—'}</td></tr>`;
+    const mixLabel = t.mix==='slurry'?'Slurry':t.mix==='5000'?'5000 PSI':'8000 PSI';
+    return `<tr><td>${t.truckNum}</td><td>${time}</td><td>${mixLabel}</td><td>${t.cy} CY</td><td><strong>${t.cumulative} CY</strong></td><td>${t.ticket||'—'}</td></tr>`;
   }).join('')}
   </table>
 
@@ -1424,7 +1431,14 @@ function renderPourDay() {
 
   // Metrics strip
   const pctColor = pct >= 100 ? '#41A447' : pct > 75 ? '#FFBF00' : '#4AB8FF';
-  h += `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+  const trucks8k = pourTrucks.filter(t => t.mix === '8000');
+  const trucks5k = pourTrucks.filter(t => t.mix === '5000');
+  const trucksSl = pourTrucks.filter(t => t.mix === 'slurry');
+  const cy8kDel = trucks8k.reduce((s,t) => s+t.cy, 0);
+  const cy5kDel = trucks5k.reduce((s,t) => s+t.cy, 0);
+  const cySlDel = trucksSl.reduce((s,t) => s+t.cy, 0);
+
+  h += `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
     <div class="p-3 rounded-xl border border-white/5" style="background:#0B0B0F">
       <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Ordered</div>
       <div class="mono text-xl font-bold text-white">${ordered} <span class="text-xs text-white/30">CY</span></div>
@@ -1438,8 +1452,22 @@ function renderPourDay() {
       <div class="mono text-xl font-bold ${remaining<=0?'text-green-400':'text-white'}">${remaining} <span class="text-xs text-white/30">CY</span></div>
     </div>
     <div class="p-3 rounded-xl border border-white/5" style="background:#0B0B0F">
-      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Trucks</div>
+      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Total Trucks</div>
       <div class="mono text-xl font-bold text-white">${pourTrucks.length} <span class="text-xs text-white/30">of ${expectedTrucks}</span></div>
+    </div>
+  </div>
+  <div class="grid grid-cols-3 gap-3 mb-4">
+    <div class="p-2.5 rounded-lg border border-red-500/15 flex items-center justify-between" style="background:#0B0B0F">
+      <div><div class="text-[8px] font-bold text-red-300/60 uppercase tracking-wider">8000 PSI</div><div class="mono text-xs text-red-300 font-bold">${cy8kDel} CY</div></div>
+      <div class="mono text-lg font-bold text-red-400">${trucks8k.length}<span class="text-[9px] text-red-300/40 ml-0.5">trk</span></div>
+    </div>
+    <div class="p-2.5 rounded-lg border border-blue-500/15 flex items-center justify-between" style="background:#0B0B0F">
+      <div><div class="text-[8px] font-bold text-blue-300/60 uppercase tracking-wider">5000 PSI</div><div class="mono text-xs text-blue-300 font-bold">${cy5kDel} CY</div></div>
+      <div class="mono text-lg font-bold text-blue-400">${trucks5k.length}<span class="text-[9px] text-blue-300/40 ml-0.5">trk</span></div>
+    </div>
+    <div class="p-2.5 rounded-lg border border-gray-500/15 flex items-center justify-between" style="background:#0B0B0F">
+      <div><div class="text-[8px] font-bold text-gray-300/60 uppercase tracking-wider">Slurry</div><div class="mono text-xs text-gray-300 font-bold">${cySlDel} CY</div></div>
+      <div class="mono text-lg font-bold text-gray-400">${trucksSl.length}<span class="text-[9px] text-gray-300/40 ml-0.5">trk</span></div>
     </div>
   </div>`;
 
@@ -1613,7 +1641,11 @@ function renderPourDay() {
           ).join('')}
         </div>
         <input id="pdTicketInput" type="text" placeholder="Ticket #" class="w-24 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs mono text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/30">
-        <input id="pdMixerInput" type="text" placeholder="Mixer ID" class="w-24 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs mono text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/30">
+        <select id="pdMixSelect" class="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs mono text-white/70 focus:outline-none focus:border-white/30 cursor-pointer">
+          <option value="8000" style="background:#1a1a1a">8000 PSI</option>
+          <option value="5000" style="background:#1a1a1a">5000 PSI</option>
+          <option value="slurry" style="background:#1a1a1a">Slurry</option>
+        </select>
       </div>
     </div>`;
   }
@@ -1636,7 +1668,7 @@ function renderPourDay() {
             <div class="flex items-center gap-3">
               <span class="mono font-bold text-white/80 text-sm">#${t.truckNum}</span>
               <span class="mono font-bold text-white text-sm">${t.cy} CY</span>
-              ${t.mixerId ? `<span class="mono text-white/40 text-[10px]">Mixer: ${t.mixerId}</span>` : ''}
+              <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${t.mix==='8000'?'bg-red-500/15 text-red-300':t.mix==='5000'?'bg-blue-500/15 text-blue-300':'bg-gray-500/15 text-gray-300'}">${t.mix==='slurry'?'SLR':t.mix||'8000'}</span>
               ${t.ticket ? `<span class="mono text-white/30 text-[10px]">Tkt: ${t.ticket}</span>` : ''}
             </div>
             <div class="flex items-center gap-3">
