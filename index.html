@@ -1852,11 +1852,15 @@ async function resetPourDay() {
   // Clear trucks for this pour
   if (db) await db.ref(`trucks/${pour.id}`).remove();
   pourDay.trucks = pourDay.trucks.filter(t => t.pourId !== pour.id);
-  // Clear footing status
-  if (db) await db.ref('footings').remove();
-  pourDay.footingStatus = {};
-  // Clear localStorage footing status
-  Object.keys(localStorage).forEach(k => { if (k.startsWith('cup_ftg_')) localStorage.removeItem(k); });
+  // Clear footing status — scoped to this pour only
+  const pourMap = loadFootingMap(pour.id);
+  const pourFtgIds = pourMap?.footings?.map(f => f.id) || [];
+  for (const fid of pourFtgIds) {
+    const safeId = fid.replace(/[.$\[\]#]/g, '_');
+    if (db) await db.ref(`footings/${safeId}`).remove();
+    delete pourDay.footingStatus[fid];
+    localStorage.removeItem('cup_ftg_'+fid);
+  }
   renderPourDay();
 }
 
@@ -2281,16 +2285,59 @@ function renderLive() {
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference * (1 - pct / 100);
 
+  // Pace stats
+  const cyPerHr = elapsed > 0 ? Math.round(delivered / (elapsed / 60) * 10) / 10 : 0;
+  const etaMin = cyPerHr > 0 && remaining > 0 ? Math.round(remaining / cyPerHr * 60) : 0;
+  const etaStr = etaMin >= 60 ? `${Math.floor(etaMin/60)}h ${etaMin%60}m` : etaMin > 0 ? `${etaMin}m` : '—';
+
+  // Milestone markers for donut
+  const milestones = [25, 50, 75].map(m => {
+    const angle = (m / 100) * 360 - 90;
+    const rad = angle * Math.PI / 180;
+    const mx = 110 + (radius + 12) * Math.cos(rad);
+    const my = 110 + (radius + 12) * Math.sin(rad);
+    const hit = pct >= m;
+    return `<text x="${mx}" y="${my}" text-anchor="middle" dominant-baseline="central" font-family="JetBrains Mono,monospace" font-size="8" font-weight="700" fill="${hit ? pctColor : 'rgba(255,255,255,0.12)'}">${m}</text>`;
+  }).join('');
+
+  // Sparkline — truck delivery cadence (CY over time)
+  let sparkSvg = '';
+  if (pourTrucks.length >= 2) {
+    const pts = pourTrucks.map(t => ({ cy: t.cumulative, ts: new Date(t.timestamp).getTime() })).filter(t => !isNaN(t.ts));
+    if (pts.length >= 2) {
+      const t0 = pts[0].ts, t1 = pts[pts.length-1].ts, tRange = Math.max(1, t1 - t0);
+      const maxCy = ordered || pts[pts.length-1].cy;
+      const path = pts.map((p, i) => `${i===0?'M':'L'}${((p.ts-t0)/tRange*280).toFixed(1)},${(40-(p.cy/maxCy*36)).toFixed(1)}`).join(' ');
+      sparkSvg = `<svg width="100%" height="44" viewBox="0 0 280 44" preserveAspectRatio="none" class="mt-2">
+        <line x1="0" y1="40" x2="280" y2="40" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
+        <path d="${path}" fill="none" stroke="${pctColor}" stroke-width="1.5" stroke-linecap="round"/>
+        ${pts.map((p,i) => `<circle cx="${((p.ts-t0)/tRange*280).toFixed(1)}" cy="${(40-(p.cy/maxCy*36)).toFixed(1)}" r="2" fill="${pctColor}" opacity="${i===pts.length-1?1:0.4}"/>`).join('')}
+      </svg>`;
+    }
+  }
+
   let h = '';
 
   // Header bar
   h += `<div class="flex items-center justify-between mb-6">
     <div class="flex items-center gap-3">
-      <div class="w-3 h-3 rounded-full pulse" style="background:${pct >= 100 ? '#41A447' : '#41A447'}"></div>
+      <div class="w-3 h-3 rounded-full pulse" style="background:#41A447;box-shadow:0 0 8px rgba(65,164,71,0.4)"></div>
       <span class="text-sm font-black uppercase tracking-widest" style="color:${c}">LIVE — ${pour.id}</span>
       <span class="text-xs text-white/30 mono">${elapsedStr} elapsed</span>
     </div>
     <button onclick="endLivePour()" class="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400/60 hover:text-red-400 hover:bg-red-500/20 border border-red-500/15 transition-all">END POUR</button>
+  </div>`;
+
+  // Full-width progress bar
+  h += `<div class="mb-6 rounded-xl p-3" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-[9px] font-bold text-white/25 uppercase tracking-wider">Overall Progress</span>
+      <span class="mono text-xs font-bold" style="color:${pctColor}">${delivered} / ${ordered} CY</span>
+    </div>
+    <div class="h-3 rounded-full bg-white/5 overflow-hidden relative">
+      <div class="h-full rounded-full bar-animate" style="width:${pct}%;background:linear-gradient(90deg,${c},${pctColor});box-shadow:0 0 10px ${pctColor}44;transition:width 0.8s ease"></div>
+      ${[25,50,75].map(m => `<div class="absolute top-0 bottom-0 w-px bg-white/10" style="left:${m}%"></div>`).join('')}
+    </div>
   </div>`;
 
   // Big donut + stats
@@ -2300,14 +2347,15 @@ function renderLive() {
         <circle cx="110" cy="110" r="${radius}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="${stroke}"/>
         <circle cx="110" cy="110" r="${radius}" fill="none" stroke="${pctColor}" stroke-width="${stroke}"
           stroke-linecap="round" stroke-dasharray="${circumference}" stroke-dashoffset="${dashOffset}"
-          transform="rotate(-90 110 110)" style="transition:stroke-dashoffset 0.8s ease"/>
+          transform="rotate(-90 110 110)" style="transition:stroke-dashoffset 0.8s ease;filter:drop-shadow(0 0 6px ${pctColor}44)"/>
+        ${milestones}
       </svg>
       <div class="absolute inset-0 flex flex-col items-center justify-center">
         <span class="mono text-4xl font-black" style="color:${pctColor}">${pct}%</span>
         <span class="text-[10px] text-white/30 font-bold uppercase tracking-wider mt-1">${pct >= 100 ? 'COMPLETE' : 'PROGRESS'}</span>
       </div>
     </div>
-    <div class="flex-1 w-full space-y-4">
+    <div class="flex-1 w-full space-y-3">
       <div class="grid grid-cols-2 gap-3">
         <div class="p-4 rounded-xl" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
           <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Delivered</div>
@@ -2320,10 +2368,24 @@ function renderLive() {
           <div class="text-xs text-white/30 mono">${remaining > 0 ? `~${Math.ceil(remaining/9)} more` : 'done'}</div>
         </div>
       </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="p-3 rounded-xl flex items-center justify-between" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+          <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider">Pace</div>
+          <div class="mono text-sm font-bold text-white">${cyPerHr} <span class="text-[10px] text-white/30">CY/hr</span></div>
+        </div>
+        <div class="p-3 rounded-xl flex items-center justify-between" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+          <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider">ETA</div>
+          <div class="mono text-sm font-bold ${remaining <= 0 ? 'text-green-400' : 'text-yellow-300'}">${remaining <= 0 ? 'DONE' : etaStr}</div>
+        </div>
+      </div>
       <div class="p-3 rounded-xl flex items-center justify-between" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
         <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider">Remaining</div>
         <div class="mono text-xl font-bold ${remaining <= 0 ? 'text-green-400' : 'text-white'}">${remaining} <span class="text-xs text-white/30">CY</span></div>
       </div>
+      ${sparkSvg ? `<div class="rounded-xl p-3" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+        <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Delivery Cadence</div>
+        ${sparkSvg}
+      </div>` : ''}
     </div>
   </div>`;
 
@@ -2349,12 +2411,16 @@ function renderLive() {
   // Last truck indicator
   if (lastTruckAgo !== null) {
     const urgency = lastTruckAgo > 20 ? 'text-red-400' : lastTruckAgo > 10 ? 'text-yellow-400' : 'text-green-400';
-    h += `<div class="p-3 rounded-xl mb-6 flex items-center gap-3" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
-      <span class="material-symbols-outlined text-lg ${urgency}">local_shipping</span>
+    const urgBg = lastTruckAgo > 20 ? 'rgba(239,68,68,0.06)' : lastTruckAgo > 10 ? 'rgba(250,204,21,0.06)' : 'rgba(65,164,71,0.06)';
+    const urgBorder = lastTruckAgo > 20 ? 'rgba(239,68,68,0.15)' : lastTruckAgo > 10 ? 'rgba(250,204,21,0.15)' : 'rgba(65,164,71,0.15)';
+    h += `<div class="p-4 rounded-xl mb-6 flex items-center gap-4" style="background:${urgBg};border:1px solid ${urgBorder}">
+      <span class="material-symbols-outlined text-2xl ${urgency} ${lastTruckAgo <= 5 ? 'pulse' : ''}">local_shipping</span>
       <div class="flex-1">
-        <span class="text-xs text-white/60">Last truck arrived <span class="font-bold ${urgency}">${lastTruckAgo} min ago</span></span>
+        <div class="text-xs text-white/60">Last truck arrived</div>
+        <div class="mono text-lg font-bold ${urgency}">${lastTruckAgo} min ago</div>
       </div>
-      <span class="mono text-[10px] text-white/20">${lastTruckTime.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</span>
+      <span class="mono text-xs text-white/25">${lastTruckTime.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</span>
+      ${lastTruckAgo > 15 ? `<span class="text-[9px] font-bold px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-400/70 border border-yellow-500/20">WAITING</span>` : ''}
     </div>`;
   }
 
@@ -2367,10 +2433,10 @@ function renderLive() {
         <span class="text-[10px] font-bold text-white/30 uppercase tracking-wider">Recent Trucks</span>
         <span class="text-[10px] mono text-white/15 ml-auto">${pourTrucks.length} total</span>
       </div>
-      ${recentTrucks.map(t => {
+      ${recentTrucks.map((t, ti) => {
         const time = typeof t.timestamp === 'string' && t.timestamp.includes('T') ? new Date(t.timestamp).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : t.timestamp;
         const mixCls = t.mix==='8000' ? 'bg-red-500/15 text-red-300' : t.mix==='5000' ? 'bg-blue-500/15 text-blue-300' : 'bg-gray-500/15 text-gray-300';
-        return `<div class="px-4 py-2.5 flex items-center justify-between border-b border-white/[0.03] text-xs">
+        return `<div class="pour-card px-4 py-2.5 flex items-center justify-between border-b border-white/[0.03] text-xs" style="animation-delay:${ti*40}ms">
           <div class="flex items-center gap-3">
             <span class="mono font-bold text-white/70">#${t.truckNum}</span>
             <span class="mono font-bold text-white">${t.cy} CY</span>
