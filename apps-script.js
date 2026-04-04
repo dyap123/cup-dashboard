@@ -5,7 +5,7 @@
 function doPost(e) {
   var data = JSON.parse(e.postData.contents);
   var ss = SpreadsheetApp.openById('1fTL_w-kLz0Jzwni9r3kSuGqSvlsFhNm0RsfRurQH750');
-  var sheet = ss.getSheetByName('CUP Pours'); // adjust if your tab name is different
+  var sheet = ss.getSheetByName('Pour Takeoff'); // adjust if your tab name is different
 
   // Handle ordered status (existing)
   if (data.ordered !== undefined) {
