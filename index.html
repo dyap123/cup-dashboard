@@ -81,6 +81,7 @@
     <div class="flex gap-1 shrink-0 mr-2">
       <button onclick="switchTab('dashboard')" id="tabDash" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white">Dashboard</button>
       <button onclick="switchTab('pourday')" id="tabPour" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Pour Day</button>
+      <button onclick="switchTab('live')" id="tabLive" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Live Pour</button>
       <button onclick="switchTab('checklist')" id="tabCheck" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Checklist</button>
     </div>
     <div id="sectionFilters" class="flex gap-1.5 shrink-0">
@@ -99,6 +100,11 @@
 <!-- POUR DAY COMMAND CENTER -->
 <div id="pourdayView" class="hidden max-w-4xl mx-auto px-4 py-5 space-y-4 pb-20">
   <div id="pourdayContent"></div>
+</div>
+
+<!-- LIVE POUR VIEW -->
+<div id="liveView" class="hidden max-w-3xl mx-auto px-4 py-6 pb-20">
+  <div id="liveContent"></div>
 </div>
 
 <div id="checklistView" class="hidden max-w-4xl mx-auto px-4 py-6">
@@ -236,9 +242,10 @@ function attachFirebaseListeners() {
     });
     pourDay.trucks.sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
     renderPourDay();
+    renderLive();
   });
   fbListen('footings', (val) => {
-    if (val) { pourDay.footingStatus = val; renderPourDay(); }
+    if (val) { pourDay.footingStatus = val; renderPourDay(); renderLive(); }
   });
   fbListen('checklist', (val) => {
     if (val) { localStorage.setItem('cup_checklist', JSON.stringify(val)); }
@@ -247,24 +254,16 @@ function attachFirebaseListeners() {
     if (!val) { pourDay.feed = []; return; }
     pourDay.feed = Object.values(val).sort((a,b) => b.ts?.localeCompare(a.ts)).slice(0, 30);
     renderLiveFeed();
+    renderLive();
+  });
+  fbListen('active-pour', (val) => {
+    livePour.active = val || null;
+    renderLive();
   });
   // Pour overrides — apply Firebase overrides to sheet data
   fbListen('pour-overrides', (val) => {
-    if (!val || !state.pours.length) return;
-    Object.entries(val).forEach(([pourId, fields]) => {
-      const pour = state.pours.find(p => p.id === pourId);
-      if (!pour) return;
-      Object.entries(fields).forEach(([k,v]) => { pour[k] = v; });
-      pour.total = (pour.cy8000||0) + (pour.cy5000||0) + (pour.slurry||0);
-      pour.trucks = Math.ceil(pour.total / 9);
-    });
-    state.grand = {
-      cy8000: state.pours.reduce((s,p)=>s+p.cy8000,0),
-      cy5000: state.pours.reduce((s,p)=>s+p.cy5000,0),
-      slurry: state.pours.reduce((s,p)=>s+p.slurry,0),
-      total: state.pours.reduce((s,p)=>s+p.total,0),
-      trucks: state.pours.reduce((s,p)=>s+p.trucks,0),
-    };
+    cachedOverrides = val || {};
+    applyOverrides();
     render();
   });
 }
@@ -390,9 +389,49 @@ async function fetchData() {
 
 function openSheet() { window.open(SHEET_URL, '_blank'); }
 
-// Update pour data in Firebase (overrides sheet values)
+// Cached Firebase overrides — re-applied after each sheet poll
+let cachedOverrides = {};
+function applyOverrides() {
+  if (!Object.keys(cachedOverrides).length || !state.pours.length) return;
+  Object.entries(cachedOverrides).forEach(([pourId, fields]) => {
+    const pour = state.pours.find(p => p.id === pourId);
+    if (!pour) return;
+    Object.entries(fields).forEach(([k,v]) => { pour[k] = v; });
+    pour.total = (pour.cy8000||0) + (pour.cy5000||0) + (pour.slurry||0);
+    pour.trucks = Math.ceil(pour.total / 9);
+  });
+  recalcTotals();
+}
+
+// Recalculate section refs + grand totals from pour data
+function recalcTotals() {
+  for (const sec of ['A','B','C','D']) {
+    const secPours = state.pours.filter(p => p.section === sec);
+    const ref = state.refs[sec] || {};
+    ref.cy8000 = secPours.reduce((s,p) => s + (p.cy8000||0), 0);
+    ref.cy5000 = secPours.reduce((s,p) => s + (p.cy5000||0), 0);
+    ref.slurryVol = secPours.reduce((s,p) => s + (p.slurry||0), 0);
+    ref.secTotal = ref.cy8000 + ref.cy5000 + ref.slurryVol + (ref.plinthVol||0);
+    state.refs[sec] = ref;
+  }
+  state.grand = {
+    cy8000: state.pours.reduce((s,p)=>s+p.cy8000,0),
+    cy5000: state.pours.reduce((s,p)=>s+p.cy5000,0),
+    slurry: state.pours.reduce((s,p)=>s+p.slurry,0),
+    total: state.pours.reduce((s,p)=>s+p.total,0),
+    trucks: state.pours.reduce((s,p)=>s+p.trucks,0),
+  };
+}
+
+// Update pour data — writes to Firebase (instant sync) + Sheet (persistent)
 function updatePourField(pourId, field, value) {
+  // Instant sync via Firebase
   fbSet(`pour-overrides/${pourId}/${field}`, value);
+  // Write back to sheet so it stays in sync
+  fetch(API_URL, {
+    method: 'POST', mode: 'no-cors',
+    body: JSON.stringify({ action:'updateField', pourId, field, value })
+  }).catch(() => {});
   // Update local state immediately
   const pour = state.pours.find(p => p.id === pourId);
   if (pour) {
@@ -401,14 +440,7 @@ function updatePourField(pourId, field, value) {
       pour.total = (pour.cy8000||0) + (pour.cy5000||0) + (pour.slurry||0);
       pour.trucks = Math.ceil(pour.total / 9);
     }
-    // Recalc grand totals
-    state.grand = {
-      cy8000: state.pours.reduce((s,p)=>s+p.cy8000,0),
-      cy5000: state.pours.reduce((s,p)=>s+p.cy5000,0),
-      slurry: state.pours.reduce((s,p)=>s+p.slurry,0),
-      total: state.pours.reduce((s,p)=>s+p.total,0),
-      trucks: state.pours.reduce((s,p)=>s+p.trucks,0),
-    };
+    recalcTotals();
   }
   render();
 }
@@ -638,7 +670,7 @@ function renderPourCards(pours) {
           ${!p.label && !getPourLabel(p.id) ? `<input type="text" class="bg-transparent border-b border-dashed border-white/15 text-xs text-white/50 w-20 px-1 py-0.5 focus:border-white/40 focus:outline-none placeholder:text-white/15 placeholder:italic" placeholder="+ label" onchange="setPourLabel('${p.id}',this.value);render()"/>` : ''}
         </div>
         <div class="flex items-center gap-2">
-          <input type="text" value="${p.date||''}" placeholder="date" class="w-12 bg-transparent border-b border-dashed border-white/10 text-xs mono text-white/40 text-center focus:outline-none focus:border-white/30 placeholder:text-white/15" onchange="updatePourField('${p.id}','date',this.value)">
+          <input type="text" value="${p.date||''}" placeholder="date" class="w-20 bg-transparent border-b border-dashed border-white/10 text-xs mono text-white/40 text-center focus:outline-none focus:border-white/30 placeholder:text-white/15" onchange="updatePourField('${p.id}','date',this.value)">
           <button onclick="toggleOrdered('${p.id}')" class="text-[10px] font-bold px-2.5 py-1 rounded-full transition-all ${isOrdered ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-white/5 text-white/30 border border-white/10 hover:text-white/50'}">${isOrdered ? 'ORDERED' : 'PENDING'}</button>
         </div>
       </div>
@@ -738,6 +770,7 @@ async function init() {
     state.refs  = refs;
     state.pours = pours;
     state.grand = grand;
+    applyOverrides(); // apply any Firebase overrides on top of sheet data
 
     document.getElementById('loading').classList.add('hidden');
     document.getElementById('zoneMap').classList.remove('hidden');
@@ -745,10 +778,10 @@ async function init() {
     document.getElementById('pourGrid').classList.remove('hidden');
     document.getElementById('footer').classList.remove('hidden');
 
-    // Manager view: auto-switch to Pour Day
-    if (new URLSearchParams(window.location.search).get('view') === 'manager') {
-      switchTab('pourday');
-    }
+    // Auto-switch views
+    const viewParam = new URLSearchParams(window.location.search).get('view');
+    if (viewParam === 'manager') switchTab('pourday');
+    if (viewParam === 'live') switchTab('live');
 
     render();
   } catch (err) {
@@ -955,8 +988,8 @@ function renderChecklist() {
 }
 
 function switchTab(tab) {
-  const views = { dashboard:'dashboardView', checklist:'checklistView', pourday:'pourdayView' };
-  const tabs = { dashboard:'tabDash', checklist:'tabCheck', pourday:'tabPour' };
+  const views = { dashboard:'dashboardView', checklist:'checklistView', pourday:'pourdayView', live:'liveView' };
+  const tabs = { dashboard:'tabDash', checklist:'tabCheck', pourday:'tabPour', live:'tabLive' };
   const active = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white';
   const inactive = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60';
 
@@ -976,6 +1009,7 @@ function switchTab(tab) {
 
   if (tab === 'checklist') renderChecklist();
   if (tab === 'pourday') renderPourDay();
+  if (tab === 'live') renderLive();
 }
 
 // ── POUR DAY COMMAND CENTER ─────────────────────────────────────────────────
@@ -1254,6 +1288,7 @@ let pourDay = {
   mapCache: {},
   feed: [],  // live activity feed
 };
+let livePour = { active: null }; // { pourId, startedAt, startedBy }
 
 // Footing status: cycles through '' → '25' → '50' → '75' → 'DONE' → ''
 const FTG_STAGES = ['', '25', '50', '75', 'DONE'];
@@ -1512,6 +1547,9 @@ function initMapDrag() {
 
 async function fetchPourDayData() {
   if (!db) return;
+  // Load active pour state
+  const activePour = await fbGet('active-pour');
+  if (activePour) livePour.active = activePour;
   // Load truck data from Firebase
   const allTrucks = await fbGet('trucks');
   if (allTrucks) {
@@ -1764,13 +1802,18 @@ function renderPourDay() {
 
   // Pour info
   const typeDesc = pour.type === 'Slurry' ? 'Slurry Backfill (S80S662L2)' : pour.type === 'Plinth' ? 'Concrete Plinth' : 'Structural Concrete';
+  const isLive = livePour.active && livePour.active.pourId === pour.id;
   h += `<div class="p-4 rounded-xl border mb-4" style="background:#0a0c14;border-color:${c}33">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-lg flex items-center justify-center text-xl font-black" style="background:${c}22;color:${c}">${pour.section}</div>
-      <div>
+      <div class="flex-1">
         <div class="text-base font-bold text-white">${pour.id} — ${typeDesc}</div>
         <div class="text-xs text-white/40 mono">${pour.date} · ${ordered} CY ordered · ${expectedTrucks} trucks expected</div>
       </div>
+      ${!isManagerView ? (isLive
+        ? `<button onclick="endLivePour()" class="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 border border-red-500/25 transition-all hover:bg-red-500/25"><span class="w-2 h-2 rounded-full bg-red-400 pulse"></span>LIVE — END</button>`
+        : `<button onclick="startLivePour('${pour.id}')" class="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400/60 hover:text-green-400 hover:bg-green-500/20 border border-green-500/15 transition-all"><span class="material-symbols-outlined text-sm">play_arrow</span>GO LIVE</button>`
+      ) : ''}
     </div>
   </div>`;
 
@@ -2048,6 +2091,247 @@ function renderPourDay() {
     el.innerHTML = `<div class="p-4 text-red-400 text-sm"><p class="font-bold mb-1">Pour Day render error:</p><pre class="text-xs text-red-300/60 overflow-auto">${err.message}\n${err.stack}</pre></div>`;
     console.error('renderPourDay error:', err);
   }
+}
+
+// ── LIVE POUR VIEW ─────────────────────────────────────────────────────────
+
+function startLivePour(pourId) {
+  if (!pourId) {
+    const pour = getActivePour();
+    if (!pour) return;
+    pourId = pour.id;
+  }
+  const data = { pourId, startedAt: new Date().toISOString(), startedBy: 'user' };
+  fbSet('active-pour', data);
+  livePour.active = data;
+  fbPush('feed', { ts: new Date().toISOString(), type:'start', pourId, msg:`Pour ${pourId} started`, detail:'Live tracking active' });
+  renderLive();
+}
+
+function endLivePour() {
+  if (!livePour.active) return;
+  if (!confirm('End live pour tracking?')) return;
+  const pourId = livePour.active.pourId;
+  fbPush('feed', { ts: new Date().toISOString(), type:'end', pourId, msg:`Pour ${pourId} ended`, detail:'Live tracking stopped' });
+  fbSet('active-pour', null);
+  livePour.active = null;
+  renderLive();
+}
+
+function renderLive() {
+  const el = document.getElementById('liveContent');
+  if (!el) return;
+
+  // No active pour — show start screen
+  if (!livePour.active) {
+    const upcoming = state.pours.filter(p => p.date).sort((a,b) => {
+      const [am,ad] = (a.date||'').split('/').map(Number);
+      const [bm,bd] = (b.date||'').split('/').map(Number);
+      return (am*100+ad) - (bm*100+bd);
+    });
+    const now = new Date(); now.setHours(0,0,0,0);
+    const nextPours = upcoming.filter(p => {
+      const [pm,pd] = p.date.split('/').map(Number);
+      return new Date(2026,pm-1,pd) >= now;
+    }).slice(0,6);
+
+    let h = `<div class="text-center py-16">
+      <div class="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6" style="background:rgba(65,164,71,0.08);border:2px solid rgba(65,164,71,0.15)">
+        <span class="material-symbols-outlined text-4xl text-green-400/40">play_arrow</span>
+      </div>
+      <h2 class="text-xl font-black text-white/80 mb-2">Start a Live Pour</h2>
+      <p class="text-sm text-white/30 mb-8 max-w-md mx-auto">Select a pour to begin live tracking. Your team can watch progress in real-time on any device.</p>`;
+    if (nextPours.length) {
+      h += `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-lg mx-auto">`;
+      for (const p of nextPours) {
+        const c = SEC_COLORS[p.section] || '#888';
+        h += `<button onclick="startLivePour('${p.id}')" class="p-4 rounded-xl text-left transition-all hover:scale-[1.02] active:scale-[0.98]" style="background:#0a0c14;border:1px solid ${c}33">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:${c}22;color:${c}">${p.section}</span>
+            <span class="mono font-bold text-sm text-white/90">${p.id}</span>
+          </div>
+          <div class="text-[10px] text-white/30 mono">${p.date} · ${p.total} CY</div>
+          <div class="mt-2 text-[10px] font-bold px-2 py-1 rounded text-center" style="background:${c}15;color:${c}">START POUR</div>
+        </button>`;
+      }
+      h += `</div>`;
+    } else {
+      h += `<p class="text-white/20 text-sm">No upcoming pours with dates assigned.</p>`;
+    }
+    h += `</div>`;
+    el.innerHTML = h;
+    return;
+  }
+
+  // Active pour — render live view
+  const pour = state.pours.find(p => p.id === livePour.active.pourId);
+  if (!pour) { el.innerHTML = '<p class="text-white/30 text-center py-16">Pour not found</p>'; return; }
+
+  const c = SEC_COLORS[pour.section] || '#888';
+  const pourTrucks = pourDay.trucks.filter(t => t.pourId === pour.id);
+  const delivered = pourTrucks.length ? pourTrucks[pourTrucks.length-1].cumulative : 0;
+  const ordered = pour.total || 0;
+  const remaining = Math.max(0, ordered - delivered);
+  const pct = ordered > 0 ? Math.min(100, Math.round(delivered / ordered * 100)) : 0;
+  const pctColor = pct >= 100 ? '#41A447' : pct > 75 ? '#FFBF00' : c;
+
+  // Timing
+  const startTime = livePour.active.startedAt ? new Date(livePour.active.startedAt) : null;
+  const elapsed = startTime ? Math.round((Date.now() - startTime.getTime()) / 60000) : 0;
+  const elapsedStr = elapsed >= 60 ? `${Math.floor(elapsed/60)}h ${elapsed%60}m` : `${elapsed}m`;
+  const timestamps = pourTrucks.map(t => new Date(t.timestamp)).filter(d => !isNaN(d));
+  const lastTruckTime = timestamps.length ? timestamps[timestamps.length-1] : null;
+  const lastTruckAgo = lastTruckTime ? Math.round((Date.now() - lastTruckTime.getTime()) / 60000) : null;
+
+  // Mix breakdown from trucks
+  const cy8kDel = pourTrucks.filter(t => t.mix === '8000').reduce((s,t) => s+t.cy, 0);
+  const cy5kDel = pourTrucks.filter(t => t.mix === '5000').reduce((s,t) => s+t.cy, 0);
+  const cySlDel = pourTrucks.filter(t => t.mix === 'slurry').reduce((s,t) => s+t.cy, 0);
+
+  // SVG donut
+  const radius = 90, stroke = 14;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference * (1 - pct / 100);
+
+  let h = '';
+
+  // Header bar
+  h += `<div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-3">
+      <div class="w-3 h-3 rounded-full pulse" style="background:${pct >= 100 ? '#41A447' : '#41A447'}"></div>
+      <span class="text-sm font-black uppercase tracking-widest" style="color:${c}">LIVE — ${pour.id}</span>
+      <span class="text-xs text-white/30 mono">${elapsedStr} elapsed</span>
+    </div>
+    <button onclick="endLivePour()" class="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400/60 hover:text-red-400 hover:bg-red-500/20 border border-red-500/15 transition-all">END POUR</button>
+  </div>`;
+
+  // Big donut + stats
+  h += `<div class="flex flex-col sm:flex-row items-center gap-8 mb-8">
+    <div class="relative shrink-0">
+      <svg width="220" height="220" viewBox="0 0 220 220">
+        <circle cx="110" cy="110" r="${radius}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="${stroke}"/>
+        <circle cx="110" cy="110" r="${radius}" fill="none" stroke="${pctColor}" stroke-width="${stroke}"
+          stroke-linecap="round" stroke-dasharray="${circumference}" stroke-dashoffset="${dashOffset}"
+          transform="rotate(-90 110 110)" style="transition:stroke-dashoffset 0.8s ease"/>
+      </svg>
+      <div class="absolute inset-0 flex flex-col items-center justify-center">
+        <span class="mono text-4xl font-black" style="color:${pctColor}">${pct}%</span>
+        <span class="text-[10px] text-white/30 font-bold uppercase tracking-wider mt-1">${pct >= 100 ? 'COMPLETE' : 'PROGRESS'}</span>
+      </div>
+    </div>
+    <div class="flex-1 w-full space-y-4">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="p-4 rounded-xl" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+          <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Delivered</div>
+          <div class="mono text-3xl font-black" style="color:${pctColor}">${delivered}</div>
+          <div class="text-xs text-white/30 mono">of ${ordered} CY</div>
+        </div>
+        <div class="p-4 rounded-xl" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+          <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Trucks</div>
+          <div class="mono text-3xl font-black text-white">${pourTrucks.length}</div>
+          <div class="text-xs text-white/30 mono">${remaining > 0 ? `~${Math.ceil(remaining/9)} more` : 'done'}</div>
+        </div>
+      </div>
+      <div class="p-3 rounded-xl flex items-center justify-between" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+        <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider">Remaining</div>
+        <div class="mono text-xl font-bold ${remaining <= 0 ? 'text-green-400' : 'text-white'}">${remaining} <span class="text-xs text-white/30">CY</span></div>
+      </div>
+    </div>
+  </div>`;
+
+  // Mix breakdown strip
+  h += `<div class="grid grid-cols-3 gap-3 mb-6">
+    <div class="p-3 rounded-xl text-center" style="background:#0a0c14;border:1px solid rgba(239,68,68,0.1)">
+      <div class="text-[8px] font-bold text-red-300/50 uppercase tracking-wider mb-1">8000 PSI</div>
+      <div class="mono text-lg font-bold text-red-300">${cy8kDel} <span class="text-[10px] text-red-300/40">CY</span></div>
+      <div class="text-[10px] text-white/20 mono">${pourTrucks.filter(t=>t.mix==='8000').length} trucks</div>
+    </div>
+    <div class="p-3 rounded-xl text-center" style="background:#0a0c14;border:1px solid rgba(59,130,246,0.1)">
+      <div class="text-[8px] font-bold text-blue-300/50 uppercase tracking-wider mb-1">5000 PSI</div>
+      <div class="mono text-lg font-bold text-blue-300">${cy5kDel} <span class="text-[10px] text-blue-300/40">CY</span></div>
+      <div class="text-[10px] text-white/20 mono">${pourTrucks.filter(t=>t.mix==='5000').length} trucks</div>
+    </div>
+    <div class="p-3 rounded-xl text-center" style="background:#0a0c14;border:1px solid rgba(107,114,128,0.1)">
+      <div class="text-[8px] font-bold text-gray-300/50 uppercase tracking-wider mb-1">Slurry</div>
+      <div class="mono text-lg font-bold text-gray-300">${cySlDel} <span class="text-[10px] text-gray-300/40">CY</span></div>
+      <div class="text-[10px] text-white/20 mono">${pourTrucks.filter(t=>t.mix==='slurry').length} trucks</div>
+    </div>
+  </div>`;
+
+  // Last truck indicator
+  if (lastTruckAgo !== null) {
+    const urgency = lastTruckAgo > 20 ? 'text-red-400' : lastTruckAgo > 10 ? 'text-yellow-400' : 'text-green-400';
+    h += `<div class="p-3 rounded-xl mb-6 flex items-center gap-3" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+      <span class="material-symbols-outlined text-lg ${urgency}">local_shipping</span>
+      <div class="flex-1">
+        <span class="text-xs text-white/60">Last truck arrived <span class="font-bold ${urgency}">${lastTruckAgo} min ago</span></span>
+      </div>
+      <span class="mono text-[10px] text-white/20">${lastTruckTime.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</span>
+    </div>`;
+  }
+
+  // Recent truck arrivals (last 8)
+  const recentTrucks = [...pourTrucks].reverse().slice(0,8);
+  if (recentTrucks.length) {
+    h += `<div class="rounded-xl overflow-hidden mb-6" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+      <div class="px-4 py-2 border-b border-white/5 flex items-center gap-2">
+        <span class="material-symbols-outlined text-sm text-white/20">local_shipping</span>
+        <span class="text-[10px] font-bold text-white/30 uppercase tracking-wider">Recent Trucks</span>
+        <span class="text-[10px] mono text-white/15 ml-auto">${pourTrucks.length} total</span>
+      </div>
+      ${recentTrucks.map(t => {
+        const time = typeof t.timestamp === 'string' && t.timestamp.includes('T') ? new Date(t.timestamp).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : t.timestamp;
+        const mixCls = t.mix==='8000' ? 'bg-red-500/15 text-red-300' : t.mix==='5000' ? 'bg-blue-500/15 text-blue-300' : 'bg-gray-500/15 text-gray-300';
+        return `<div class="px-4 py-2.5 flex items-center justify-between border-b border-white/[0.03] text-xs">
+          <div class="flex items-center gap-3">
+            <span class="mono font-bold text-white/70">#${t.truckNum}</span>
+            <span class="mono font-bold text-white">${t.cy} CY</span>
+            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${mixCls}">${t.mix==='slurry'?'SLR':t.mix||'8000'}</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="mono text-white/25">${time}</span>
+            <span class="mono font-bold text-sm" style="color:${c}">${t.cumulative} CY</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  // Live feed
+  h += `<div class="rounded-xl overflow-hidden" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+    <div class="px-4 py-2 border-b border-white/5 flex items-center gap-2">
+      <span class="w-2 h-2 rounded-full bg-green-400 pulse"></span>
+      <span class="text-[10px] font-bold text-white/30 uppercase tracking-wider">Activity Feed</span>
+    </div>
+    <div class="max-h-60 overflow-y-auto">`;
+  const feedItems = pourDay.feed.filter(f => !f.pourId || f.pourId === pour.id).slice(0,20);
+  if (feedItems.length) {
+    h += feedItems.map(f => {
+      const time = f.ts ? new Date(f.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit'}) : '';
+      const icon = f.type === 'truck' ? 'local_shipping' : f.type === 'start' ? 'play_circle' : f.type === 'end' ? 'stop_circle' : 'check_circle';
+      const color = f.type === 'truck' ? '#41A447' : f.type === 'start' ? '#FFBF00' : f.type === 'end' ? '#ef4444' : '#4AB8FF';
+      return `<div class="px-4 py-2 flex items-center gap-3 border-b border-white/[0.03] text-xs">
+        <span class="material-symbols-outlined text-sm" style="color:${color}">${icon}</span>
+        <div class="flex-1 min-w-0">
+          <span class="text-white/70 font-semibold">${f.msg}</span>
+          ${f.detail ? `<span class="text-white/25 ml-2">${f.detail}</span>` : ''}
+        </div>
+        <span class="mono text-white/15 text-[10px] shrink-0">${time}</span>
+      </div>`;
+    }).join('');
+  } else {
+    h += '<div class="px-4 py-6 text-center text-white/15 text-xs">No activity yet — log trucks in the Pour Day tab</div>';
+  }
+  h += `</div></div>`;
+
+  // Share link
+  const liveUrl = window.location.origin + window.location.pathname + '?view=live';
+  h += `<div class="mt-6 p-3 rounded-xl text-center" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+    <div class="text-[9px] text-white/25 uppercase tracking-wider font-bold mb-1">Share with your team</div>
+    <div class="mono text-xs text-white/40 select-all cursor-pointer hover:text-white/60 transition-colors" onclick="navigator.clipboard.writeText('${liveUrl}').then(()=>this.textContent='Copied!').catch(()=>{})">${liveUrl}</div>
+  </div>`;
+
+  el.innerHTML = h;
 }
 
 // ── ALFRED SIDEBAR + BRAIN ──────────────────────────────────────────────────
@@ -2464,9 +2748,14 @@ setInterval(async () => {
     state.refs  = refs;
     state.pours = pours;
     state.grand = grand;
+    applyOverrides(); // re-apply Firebase overrides on top of fresh sheet data
     render();
+    renderLive();
   } catch(e) { /* silent */ }
 }, 30000);
+
+// Update live view elapsed time every 30s
+setInterval(() => { if (livePour.active) renderLive(); }, 30000);
 </script>
 </body>
 </html>
