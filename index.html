@@ -55,12 +55,29 @@
     .alfred-msg.ai.streaming { border-left:2px solid rgba(60,120,200,0.25); padding-left:8px; }
     @keyframes alfredPulse { 0%,100%{box-shadow:0 0 0 rgba(50,80,140,0)} 50%{box-shadow:0 0 16px rgba(50,80,140,0.04)} }
     #alfredSidebar.thinking { animation:alfredPulse 1.5s ease-in-out infinite; }
+    /* Card entrance */
+    @keyframes cardIn { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:translateY(0) } }
+    .pour-card { animation:cardIn 0.35s cubic-bezier(.4,0,.2,1) both; }
+    .pour-card, .sec-card { transition:transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; }
+    .pour-card:hover, .sec-card:hover { transform:translateY(-2px); box-shadow:0 6px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.04); }
+    /* Progress bar glow */
+    .bar-glow { position:relative; }
+    .bar-glow::after { content:''; position:absolute; inset:0; border-radius:inherit; filter:blur(4px); opacity:0.4; background:inherit; }
+    /* Zone map hover */
+    #zoneSvg g:hover rect { filter:brightness(1.4); }
+    #zoneSvg g { transition:opacity 0.2s ease; }
+    /* Section pill micro-bounce */
+    .sec-pill { transition:all 0.2s cubic-bezier(.4,0,.2,1) !important; }
+    .sec-pill:active { transform:scale(0.95); }
+    /* Footer stat countup */
+    @keyframes countFade { from { opacity:0; transform:translateY(4px) } to { opacity:1; transform:translateY(0) } }
+    .count-in { animation:countFade 0.3s ease both; }
   </style>
 </head>
 <body class="min-h-screen">
 
 <!-- HEADER -->
-<header class="sticky top-0 z-50 border-b" style="border-color:rgba(50,80,130,0.06)" style="background:rgba(6,8,16,0.95);backdrop-filter:blur(20px)">
+<header class="sticky top-0 z-50 border-b" style="border-color:rgba(50,80,130,0.06);background:rgba(6,8,16,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)">
   <div class="max-w-7xl mx-auto px-4 h-14 flex items-center gap-4">
     <span style="font-family:'Inter',sans-serif;font-weight:300;font-size:12px;letter-spacing:0.25em;color:rgba(140,170,210,0.3)" class="shrink-0">openyap</span>
     <div class="flex-1"></div>
@@ -76,7 +93,7 @@
 </header>
 
 <!-- TAB BAR + FILTER BAR -->
-<div class="sticky top-14 z-40 border-b" style="border-color:rgba(50,80,130,0.06)" style="background:rgba(6,8,16,0.92);backdrop-filter:blur(16px)">
+<div class="sticky top-14 z-40 border-b" style="border-color:rgba(50,80,130,0.06);background:rgba(6,8,16,0.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)">
   <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 overflow-x-auto no-scroll">
     <div class="flex gap-1 shrink-0 mr-2">
       <button onclick="switchTab('dashboard')" id="tabDash" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white">Dashboard</button>
@@ -147,10 +164,73 @@
 <main id="dashboardView" class="max-w-7xl mx-auto px-4 py-5 space-y-5">
 
   <!-- LOADING -->
-  <div id="loading" class="flex flex-col items-center justify-center py-20 gap-3">
-    <div class="w-6 h-6 border-2 border-sa border-t-transparent rounded-full" style="animation:spin 1s linear infinite"></div>
-    <p class="text-white/40 text-sm">Loading pour data…</p>
+  <div id="loading" class="flex flex-col items-center justify-center py-12 gap-3" style="transition:opacity 0.5s ease">
+    <canvas id="loadCanvas" width="420" height="200" style="display:block;max-width:100%"></canvas>
+    <p style="font-weight:300;font-size:11px;letter-spacing:0.3em;color:rgba(140,170,210,0.2)" class="uppercase">openyap</p>
+    <p class="text-white/15 text-[10px] mono">Loading pour data…</p>
   </div>
+  <script>
+  (function(){
+    var c=document.getElementById('loadCanvas');if(!c)return;
+    var ctx=c.getContext('2d'),W=c.width,H=c.height;
+    // Zone layout matching dashboard sections
+    var zones=[
+      {s:'C',x:25,y:48,w:89,h:55,c:'#5BA8D9'},
+      {s:'B',x:118,y:48,w:127,h:55,c:'#D4842A'},
+      {s:'A',x:249,y:48,w:146,h:104,c:'#3D9E6B'},
+      {s:'D',x:25,y:107,w:220,h:45,c:'#7B6FC7'},
+    ];
+    var nodes=[];
+    var counts={C:4,B:5,A:10,D:7}; // 26 zone + 4 ambient = 30
+    zones.forEach(function(z){
+      for(var i=0;i<counts[z.s];i++){
+        var tx=z.x+Math.random()*z.w,ty=z.y+Math.random()*z.h;
+        nodes.push({x:W/2+(Math.random()-.5)*W,y:H/2+(Math.random()-.5)*H,tx:tx,ty:ty,c:z.c,s:z.s,r:1.5+Math.random()*1.5,ph:Math.random()*6.28});
+      }
+    });
+    for(var i=0;i<4;i++)nodes.push({x:Math.random()*W,y:Math.random()*H,tx:Math.random()*W,ty:Math.random()*H,c:'rgba(80,110,160,0.3)',s:null,r:0.8,ph:Math.random()*6.28});
+
+    var frame=0,raf;
+    function draw(){
+      ctx.clearRect(0,0,W,H);frame++;
+      var t=frame*0.016,lerp=Math.min(0.04,0.004+frame*0.0004);
+      // Move nodes
+      nodes.forEach(function(n){
+        n.x+=(n.tx-n.x)*lerp;n.y+=(n.ty-n.y)*lerp;
+        n.x+=Math.sin(t*0.7+n.ph)*0.2;n.y+=Math.cos(t*0.5+n.ph*1.3)*0.2;
+      });
+      // Connections
+      ctx.lineWidth=0.5;
+      for(var i=0;i<nodes.length;i++){
+        if(!nodes[i].s)continue;
+        for(var j=i+1;j<nodes.length;j++){
+          if(nodes[i].s!==nodes[j].s)continue;
+          var dx=nodes[i].x-nodes[j].x,dy=nodes[i].y-nodes[j].y,d=Math.sqrt(dx*dx+dy*dy);
+          if(d<55){
+            ctx.globalAlpha=(1-d/55)*0.15;ctx.strokeStyle=nodes[i].c;
+            ctx.beginPath();ctx.moveTo(nodes[i].x,nodes[i].y);ctx.lineTo(nodes[j].x,nodes[j].y);ctx.stroke();
+          }
+        }
+      }
+      // Nodes
+      nodes.forEach(function(n){
+        ctx.globalAlpha=(0.5+0.5*Math.sin(t*2+n.ph))*0.7;ctx.fillStyle=n.c;
+        ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,6.28);ctx.fill();
+      });
+      ctx.globalAlpha=1;
+      // Zone labels
+      var p=Math.min(1,frame/100);
+      if(p>0.5){
+        ctx.font='600 20px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        zones.forEach(function(z){ctx.globalAlpha=(p-0.5)*2*0.1;ctx.fillStyle=z.c;ctx.fillText(z.s,z.x+z.w/2,z.y+z.h/2);});
+        ctx.globalAlpha=1;
+      }
+      raf=requestAnimationFrame(draw);
+    }
+    draw();
+    window._stopLoadAnim=function(){cancelAnimationFrame(raf);};
+  })();
+  </script>
 
   <!-- ZONE MAP -->
   <div id="zoneMap" class="hidden rounded-xl overflow-hidden dot-grid" style="height:280px">
@@ -180,7 +260,7 @@
 </main>
 
 <!-- GRAND TOTAL FOOTER -->
-<div id="footer" class="hidden fixed bottom-0 left-0 right-0 z-50 border-t" style="border-color:rgba(50,80,130,0.08)" style="background:rgba(6,8,16,0.97);backdrop-filter:blur(20px)">
+<div id="footer" class="hidden fixed bottom-0 left-0 right-0 z-50 border-t" style="border-color:rgba(50,80,130,0.08);background:rgba(6,8,16,0.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)">
   <div class="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between gap-4">
     <div class="flex items-center gap-4 overflow-x-auto no-scroll">
       <div class="flex items-center gap-2 shrink-0">
@@ -526,8 +606,8 @@ function renderZoneMap(pours) {
     const cx = z.x + z.w/2;
     const cy = z.y + z.h/2;
 
-    html += `<g style="cursor:pointer;opacity:${opacity}" onclick="setSectionFilter('${activeSec===sec?'ALL':sec}')">
-      <rect x="${z.x+2}" y="${z.y+2}" width="${z.w-4}" height="${z.h-4}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="${active&&activeSec===sec?2.5:1}"/>`;
+    html += `<g style="cursor:pointer;opacity:${opacity};transition:opacity 0.2s ease" onclick="setSectionFilter('${activeSec===sec?'ALL':sec}')" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=${opacity}">
+      <rect x="${z.x+2}" y="${z.y+2}" width="${z.w-4}" height="${z.h-4}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="${active&&activeSec===sec?2.5:1}" style="transition:all 0.2s ease"/>`;
     // Slurry area indicator — hatched strip along bottom of zone
     if (ref.slurryVol) {
       const sh = Math.max(18, z.h * 0.2);
@@ -631,10 +711,10 @@ function renderTimeline(pours) {
 function renderSectionCards(pours, refs) {
   const grid = document.getElementById('sectionGrid');
   const secs = state.sectionFilter === 'ALL' ? ['A','B','C','D'] : [state.sectionFilter];
-  grid.innerHTML = secs.map(s => {
+  grid.innerHTML = secs.map((s, idx) => {
     const r = refs[s] || {};
     const c = SEC_COLORS[s];
-    return `<div class="rounded-xl p-3" style="background:#0a0c14;border-left:3px solid ${c}">
+    return `<div class="sec-card pour-card rounded-xl p-3" style="background:#0a0c14;border-left:3px solid ${c};animation-delay:${idx*60}ms">
       <div class="flex items-center gap-2 mb-3">
         <span class="text-xs font-bold px-2 py-0.5 rounded" style="background:${c}22;color:${c}">SECTION ${s}</span>
       </div>
@@ -656,12 +736,12 @@ function renderPourCards(pours) {
   const maxCy8000 = Math.max(...pours.map(p => p.cy8000), 1);
   const maxCy5000 = Math.max(...pours.map(p => p.cy5000), 1);
 
-  grid.innerHTML = pours.map(p => {
+  grid.innerHTML = pours.map((p, idx) => {
     const c     = SEC_COLORS[p.section] || '#888';
     const pct8  = Math.round((p.cy8000 / maxCy8000) * 100);
     const pct5  = Math.round((p.cy5000 / maxCy5000) * 100);
     const isOrdered = p.status?.toLowerCase().includes('yes') || getOrdered(p.id);
-    return `<div class="rounded-xl p-3 ${isOrdered ? 'border border-green-500/30' : ''}" style="background:#0a0c14">
+    return `<div class="pour-card rounded-xl p-3 ${isOrdered ? 'border border-green-500/30' : ''}" style="background:#0a0c14;animation-delay:${idx*50}ms">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
           <span class="text-xs font-bold px-2 py-0.5 rounded" style="background:${c}22;color:${c}">${p.section}</span>
@@ -676,11 +756,11 @@ function renderPourCards(pours) {
       </div>
       ${p.cy8000 > 0 || p.type==='Structural' ? `<div class="mb-2">
         <div class="flex justify-between text-xs mb-1"><span class="text-white/40">8000 PSI</span><span class="mono text-red-300 font-semibold cursor-pointer" onclick="let v=prompt('8000 CY:','${p.cy8000}');if(v!==null)updatePourField('${p.id}','cy8000',+v)">${p.cy8000} CY</span></div>
-        <div class="h-1 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400 bar-animate" style="width:${pct8}%"></div></div>
+        <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400 bar-animate" style="width:${pct8}%;box-shadow:0 0 6px rgba(239,68,68,0.3)"></div></div>
       </div>` : ''}
       ${p.cy5000 > 0 || p.type==='Structural' ? `<div class="mb-2">
         <div class="flex justify-between text-xs mb-1"><span class="text-white/40">5000 PSI</span><span class="mono text-blue-300 font-semibold cursor-pointer" onclick="let v=prompt('5000 CY:','${p.cy5000}');if(v!==null)updatePourField('${p.id}','cy5000',+v)">${p.cy5000} CY</span></div>
-        <div class="h-1 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 bar-animate" style="width:${pct5}%"></div></div>
+        <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 bar-animate" style="width:${pct5}%;box-shadow:0 0 6px rgba(59,130,246,0.3)"></div></div>
       </div>` : ''}
       ${p.slurry > 0 || p.type==='Slurry' ? `<div class="mb-3">
         <div class="flex justify-between text-xs mb-1"><span class="text-white/40">Slurry</span><span class="mono text-gray-300 font-semibold cursor-pointer" onclick="let v=prompt('Slurry CY:','${p.slurry}');if(v!==null)updatePourField('${p.id}','slurry',+v)">${p.slurry} CY</span></div>
@@ -697,6 +777,12 @@ function renderPourCards(pours) {
 // Footer
 function renderFooter() {
   const g = state.grand;
+  ['ftCy8000','ftCy5000','ftSlurry','ftTrucks','ftTotal'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove('count-in');
+    void el.offsetWidth; // reflow to restart animation
+    el.classList.add('count-in');
+  });
   document.getElementById('ftCy8000').textContent = g.cy8000  ?? '—';
   document.getElementById('ftCy5000').textContent = g.cy5000  ?? '—';
   document.getElementById('ftSlurry').textContent = g.slurry  ?? '—';
@@ -772,7 +858,9 @@ async function init() {
     state.grand = grand;
     applyOverrides(); // apply any Firebase overrides on top of sheet data
 
-    document.getElementById('loading').classList.add('hidden');
+    var loadEl = document.getElementById('loading');
+    loadEl.style.opacity = '0';
+    setTimeout(function(){ loadEl.classList.add('hidden'); if(window._stopLoadAnim) window._stopLoadAnim(); }, 500);
     document.getElementById('zoneMap').classList.remove('hidden');
     document.getElementById('sectionGrid').classList.remove('hidden');
     document.getElementById('pourGrid').classList.remove('hidden');
