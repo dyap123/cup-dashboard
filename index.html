@@ -340,6 +340,9 @@ function attachFirebaseListeners() {
     livePour.active = val || null;
     renderLive();
   });
+  fbListen('embed-checks', (val) => {
+    if (val) { pourDay.embedChecks = val; renderPourDay(); }
+  });
   // Pour overrides — apply Firebase overrides to sheet data
   fbListen('pour-overrides', (val) => {
     cachedOverrides = val || {};
@@ -1113,6 +1116,20 @@ const FTG_PRESETS = {
   'GB':0,
 };
 
+// CUP embed types (anchor rods + embed post)
+const CUP_EMBEDS = [
+  { embedId:'51A', label:'CUP Anchor Rod', bolts:4,  sp:'SP-13' },
+  { embedId:'55A', label:'CUP Anchor Rod', bolts:4,  sp:'SP-14' },
+  { embedId:'56A', label:'CUP Anchor Rod', bolts:4,  sp:'SP-15' },
+  { embedId:'60A', label:'CUP Anchor Rod', bolts:4,  sp:'SP-15' },
+  { embedId:'65A', label:'CUP Anchor Rod', bolts:4,  sp:'SP-16' },
+  { embedId:'70A', label:'CUP Anchor Rod', bolts:6,  sp:'SP-17' },
+  { embedId:'80A', label:'CUP Anchor Rod', bolts:8,  sp:'SP-18' },
+  { embedId:'85A', label:'CUP Anchor Rod', bolts:8,  sp:'SP-19' },
+  { embedId:'86A', label:'CUP Anchor Rod', bolts:4,  sp:'SP-20' },
+  { embedId:'90A', label:'CUP Embed Post (W14X605)', bolts:30, sp:'SP-20' },
+];
+
 function loadFootingMap(key) {
   // key = pour ID (e.g. 'A-4') or section letter (e.g. 'A') for backwards compat
   if (pourDay.mapCache && pourDay.mapCache[key]) return pourDay.mapCache[key];
@@ -1372,9 +1389,10 @@ let pourDay = {
   activePourId: null,
   trucks: [],
   footingStatus: {},
+  embedChecks: {},
   defaultCY: 9,
   mapCache: {},
-  feed: [],  // live activity feed
+  feed: [],
 };
 let livePour = { active: null }; // { pourId, startedAt, startedBy }
 
@@ -1392,6 +1410,120 @@ function toggleFooting(id) {
   if (newStatus) fbPush('feed', { ts:new Date().toISOString(), type:'footing', msg:`${id} → ${newStatus === 'DONE' ? '100%' : newStatus+'%'}`, pourId: getActivePour()?.id || '' });
   if (newStatus) appendPourLog('footing', id+' → '+(newStatus==='DONE'?'100%':newStatus+'%'));
   renderPourDay();
+}
+
+// ── EMBED CHECK STATUS ─────────────────────────────────────────────────────
+function getEmbedChecked(footingId, embedId) {
+  const key = footingId + '_' + embedId;
+  return pourDay.embedChecks[key] || localStorage.getItem('cup_emb_' + key) === '1';
+}
+function setEmbedChecked(footingId, embedId, checked) {
+  const key = footingId + '_' + embedId;
+  pourDay.embedChecks[key] = checked || null;
+  if (checked) localStorage.setItem('cup_emb_' + key, '1');
+  else localStorage.removeItem('cup_emb_' + key);
+  fbSet('embed-checks/' + key.replace(/[.$\[\]#]/g, '_'), checked || null);
+  // Write to sheet
+  fetch(API_URL, { method:'POST', mode:'no-cors', body:JSON.stringify({
+    action:'checkEmbed', pourId: getActivePour()?.id||'', footingId, embedId, checked: !!checked, timestamp: new Date().toISOString()
+  })}).catch(()=>{});
+  if (checked) {
+    fbPush('feed', { ts:new Date().toISOString(), type:'embed', msg:footingId+' — '+embedId+' verified', pourId:getActivePour()?.id||'' });
+    appendPourLog('embed', footingId+' — '+embedId+' verified');
+  }
+  renderPourDay();
+  if (document.getElementById('embedPopup')) showEmbedPopup(footingId);
+}
+function getFootingEmbedStatus(f) {
+  if (!f.embeds || !f.embeds.length) return 'none';
+  let checked = 0;
+  for (const e of f.embeds) if (getEmbedChecked(f.id, e.embedId)) checked++;
+  if (checked === f.embeds.length) return 'all';
+  if (checked > 0) return 'partial';
+  return 'missing';
+}
+
+// ── EMBED ASSIGNMENT (edit mode) ───────────────────────────────────────────
+function addEmbedToFooting(pourId, embedId) {
+  if (!embedId || !mapSelected.length) return;
+  const map = loadFootingMap(pourId);
+  const f = map?.footings.find(ft => ft.id === mapSelected[0]);
+  if (!f) return;
+  if (!f.embeds) f.embeds = [];
+  if (f.embeds.find(e => e.embedId === embedId)) return;
+  f.embeds.push({ embedId, qty: 1 });
+  saveFootingMap(pourId, map);
+  // Write to sheet
+  fetch(API_URL, { method:'POST', mode:'no-cors', body:JSON.stringify({
+    action:'updateEmbeds', pourId, footingId: f.id, ftype: f.ftype, embeds: f.embeds
+  })}).catch(()=>{});
+  renderPourDay();
+}
+function removeEmbedFromFooting(pourId, idx) {
+  if (!mapSelected.length) return;
+  const map = loadFootingMap(pourId);
+  const f = map?.footings.find(ft => ft.id === mapSelected[0]);
+  if (!f || !f.embeds) return;
+  f.embeds.splice(idx, 1);
+  saveFootingMap(pourId, map);
+  fetch(API_URL, { method:'POST', mode:'no-cors', body:JSON.stringify({
+    action:'updateEmbeds', pourId, footingId: f.id, ftype: f.ftype, embeds: f.embeds
+  })}).catch(()=>{});
+  renderPourDay();
+}
+
+// ── EMBED CHECKLIST POPUP (long-press in view mode) ────────────────────────
+let embedLPTimer = null, embedLPStartX = 0, embedLPStartY = 0;
+function startEmbedLongPress(footingId, ev) {
+  embedLPStartX = ev.clientX; embedLPStartY = ev.clientY;
+  embedLPTimer = setTimeout(() => { ev.preventDefault(); showEmbedPopup(footingId); }, 400);
+  const moveCancel = (e) => {
+    if (Math.abs(e.clientX - embedLPStartX) > 10 || Math.abs(e.clientY - embedLPStartY) > 10) cancelEmbedLongPress();
+  };
+  document.addEventListener('pointermove', moveCancel, { once: false });
+  const cleanup = () => { document.removeEventListener('pointermove', moveCancel); };
+  document.addEventListener('pointerup', cleanup, { once: true });
+  document.addEventListener('pointerleave', cleanup, { once: true });
+}
+function cancelEmbedLongPress() { if (embedLPTimer) { clearTimeout(embedLPTimer); embedLPTimer = null; } }
+
+function showEmbedPopup(footingId) {
+  cancelEmbedLongPress();
+  const pourId = getActivePour()?.id;
+  const map = loadFootingMap(pourId);
+  const f = map?.footings.find(ft => ft.id === footingId);
+  if (!f || !f.embeds || !f.embeds.length) return;
+
+  document.getElementById('embedPopup')?.remove();
+  const status = getFootingEmbedStatus(f);
+  const statusColor = status === 'all' ? '#41A447' : status === 'partial' ? '#FFBF00' : '#ef4444';
+  const checkedCount = f.embeds.filter(e => getEmbedChecked(f.id, e.embedId)).length;
+
+  let h = '<div id="embedPopup" class="fixed inset-0 z-[200] flex items-center justify-center" style="background:rgba(0,0,0,0.6);backdrop-filter:blur(4px)" onclick="if(event.target===this)this.remove()">';
+  h += '<div class="w-80 max-w-[90vw] rounded-xl overflow-hidden" style="background:#0c0e16;border:1px solid rgba(255,255,255,0.08)">';
+  // Header
+  h += '<div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">';
+  h += '<div><span class="text-sm font-bold text-white">' + f.id + '</span>';
+  h += '<span class="text-xs text-white/30 ml-2">' + f.ftype + ' &middot; ' + f.cy + ' CY</span></div>';
+  h += '<span class="text-[9px] font-bold px-2 py-0.5 rounded-full" style="background:' + statusColor + '22;color:' + statusColor + ';border:1px solid ' + statusColor + '44">' + checkedCount + '/' + f.embeds.length + '</span>';
+  h += '</div>';
+  // Checklist
+  h += '<div class="p-3 space-y-1">';
+  f.embeds.forEach(e => {
+    const checked = getEmbedChecked(f.id, e.embedId);
+    const info = CUP_EMBEDS.find(c => c.embedId === e.embedId);
+    const detail = info ? info.bolts + ' bolts &middot; ' + info.sp : '';
+    h += '<div onclick="setEmbedChecked(\'' + f.id + '\',\'' + e.embedId + '\',' + !checked + ')" class="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all ' + (checked ? 'bg-green-500/5' : 'bg-white/[0.03] hover:bg-white/[0.06]') + '">';
+    h += '<div class="w-6 h-6 rounded flex items-center justify-center shrink-0" style="background:' + (checked ? '#41A447' : 'transparent') + ';border:2px solid ' + (checked ? '#41A447' : 'rgba(255,255,255,0.15)') + '">';
+    if (checked) h += '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7l3 3 5-6" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    h += '</div>';
+    h += '<div class="flex-1"><div class="text-sm font-bold ' + (checked ? 'text-white/30 line-through' : 'text-white/90') + '">' + e.embedId + (e.qty > 1 ? ' x'+e.qty : '') + '</div>';
+    h += '<div class="text-[10px] ' + (checked ? 'text-white/15' : 'text-white/35') + '">' + detail + '</div></div></div>';
+  });
+  h += '</div>';
+  h += '<div class="px-4 py-2 border-t border-white/5 text-center"><button onclick="document.getElementById(\'embedPopup\').remove()" class="text-xs text-white/30 hover:text-white/50">Close</button></div>';
+  h += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', h);
 }
 
 function selectMapFooting(id, ev) {
@@ -1480,6 +1612,23 @@ function renderMapEditToolbar(pourId) {
     tb += '<button onclick="changeSelectedType(\'' + pourId + '\',\'' + (sel.type==='ftg'?'pc':sel.type==='pc'?'gb':'ftg') + '\')" class="text-[9px] font-bold px-2 py-1 rounded bg-white/5 text-white/40 border border-white/10 hover:text-white">→ ' + (sel.type==='ftg'?'Pile Cap':sel.type==='pc'?'GB':'Footing') + '</button>';
     if (sel.type === 'gb') tb += '<button onclick="rotateSelectedFooting(\'' + pourId + '\')" class="text-[9px] font-bold px-2 py-1 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">↻</button>';
     tb += '<button onclick="deleteSelectedFooting(\'' + pourId + '\')" class="text-[9px] font-bold px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 ml-auto">Delete</button>';
+    tb += '</div>';
+    // Embed assignment row
+    tb += '<div class="flex items-center gap-2 flex-wrap p-2 rounded-lg border border-amber-500/10 bg-amber-500/[0.03]">';
+    tb += '<span class="text-[8px] font-bold text-amber-400/50 uppercase tracking-wider">Embeds</span>';
+    const curEmbeds = sel.embeds || [];
+    curEmbeds.forEach(function(e, idx) {
+      tb += '<span class="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/25">'
+        + e.embedId + (e.qty > 1 ? ' x'+e.qty : '')
+        + ' <button onclick="removeEmbedFromFooting(\'' + pourId + '\',' + idx + ')" class="text-amber-400/60 hover:text-red-400 ml-0.5">&times;</button></span>';
+    });
+    tb += '<select onchange="addEmbedToFooting(\'' + pourId + '\',this.value);this.value=\'\'" class="bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-[9px] mono text-white/50 focus:outline-none cursor-pointer">';
+    tb += '<option value="">+ embed</option>';
+    CUP_EMBEDS.forEach(function(e) {
+      tb += '<option value="' + e.embedId + '" style="background:#1a1a1a">' + e.embedId + ' (' + e.bolts + ' bolts, ' + e.sp + ')</option>';
+    });
+    tb += '</select>';
+    if (!curEmbeds.length) tb += '<span class="text-[8px] text-white/15 italic">No embeds assigned</span>';
     tb += '</div>';
   }
   tb += '</div>';
@@ -1653,6 +1802,9 @@ async function fetchPourDayData() {
   // Load footing status
   const ftgStatus = await fbGet('footings');
   if (ftgStatus) pourDay.footingStatus = ftgStatus;
+  // Load embed check status
+  const embedChecks = await fbGet('embed-checks');
+  if (embedChecks) pourDay.embedChecks = embedChecks;
 }
 
 function getTodaysPours() {
@@ -1812,6 +1964,21 @@ function exportPourReport() {
   }).join('')}
   </table>` : ''}
 
+  ${(() => {
+    const ewf = ftgs.filter(f => f.embeds && f.embeds.length);
+    if (!ewf.length) return '';
+    const totalE = ewf.reduce((s,f) => s + f.embeds.length, 0);
+    const checkedE = ewf.reduce((s,f) => s + f.embeds.filter(e => getEmbedChecked(f.id, e.embedId)).length, 0);
+    return `<h2>Embed Verification (${checkedE}/${totalE} checked)</h2>
+    <table><tr><th>Footing</th><th>Type</th><th>Embed</th><th>Bolts</th><th>Plate</th><th>Status</th></tr>
+    ${ewf.map(f => f.embeds.map(e => {
+      const info = CUP_EMBEDS.find(c => c.embedId === e.embedId);
+      const ck = getEmbedChecked(f.id, e.embedId);
+      return `<tr><td>${f.id}</td><td>${f.ftype}</td><td>${e.embedId}</td><td>${info?.bolts||''}</td><td>${info?.sp||''}</td><td class="${ck?'ok':'bad'}"><strong>${ck?'VERIFIED':'MISSING'}</strong></td></tr>`;
+    }).join('')).join('')}
+    </table>`;
+  })()}
+
   <div style="margin-top:20pt;font-size:7pt;color:#999;border-top:0.5pt solid #ccc;padding-top:4pt">
     ${pour.id} Pour Day Report · Generated ${today} · Webcor Concrete / OpenYap
   </div>
@@ -1860,6 +2027,17 @@ async function resetPourDay() {
     if (db) await db.ref(`footings/${safeId}`).remove();
     delete pourDay.footingStatus[fid];
     localStorage.removeItem('cup_ftg_'+fid);
+    // Clear embed checks for this footing
+    const ftg = pourMap?.footings?.find(f => f.id === fid);
+    if (ftg?.embeds) {
+      for (const e of ftg.embeds) {
+        const embKey = fid + '_' + e.embedId;
+        const safeEmbKey = embKey.replace(/[.$\[\]#]/g, '_');
+        if (db) await db.ref('embed-checks/' + safeEmbKey).remove();
+        delete pourDay.embedChecks[embKey];
+        localStorage.removeItem('cup_emb_' + embKey);
+      }
+    }
   }
   renderPourDay();
 }
@@ -2014,6 +2192,24 @@ function renderPourDay() {
           <button onclick="localStorage.setItem('cup_gb_mix','5000');renderPourDay()" class="text-[9px] font-bold px-2 py-0.5 rounded transition-all ${gbMix==='5000'?'bg-blue-500/20 text-blue-300 border border-blue-500/30':'bg-white/5 text-white/30'}">5000</button>
         </div>
       </div>
+      ${(() => {
+        const ewf = ftgs.filter(ff => ff.embeds && ff.embeds.length);
+        const totalEmb = ewf.reduce((s,ff) => s + ff.embeds.length, 0);
+        if (!totalEmb) return '';
+        const checkedEmb = ewf.reduce((s,ff) => s + ff.embeds.filter(e => getEmbedChecked(ff.id, e.embedId)).length, 0);
+        const embPct = Math.round(checkedEmb / totalEmb * 100);
+        const fullyDone = ewf.filter(ff => ff.embeds.every(e => getEmbedChecked(ff.id, e.embedId))).length;
+        const noneDone = ewf.filter(ff => !ff.embeds.some(e => getEmbedChecked(ff.id, e.embedId))).length;
+        const ec = embPct === 100 ? '#41A447' : embPct > 50 ? '#FFBF00' : '#ef4444';
+        return '<div class="px-4 py-2 border-b border-white/5 flex items-center gap-4 flex-wrap" style="background:#0a0e14">'
+          + '<div class="flex items-center gap-1.5"><span class="text-[9px] font-bold uppercase tracking-wider" style="color:'+ec+'">Embeds</span>'
+          + '<span class="text-[10px] mono font-bold" style="color:'+ec+'">'+checkedEmb+'/'+totalEmb+' verified ('+embPct+'%)</span></div>'
+          + '<div class="flex items-center gap-3 text-[9px] text-white/30"><span>'+fullyDone+'/'+ewf.length+' footings complete</span>'
+          + (noneDone > 0 ? '<span class="text-red-400 font-bold">'+noneDone+' missing all embeds</span>' : '')
+          + '</div>'
+          + '<div class="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden ml-auto" style="min-width:80px;max-width:200px">'
+          + '<div class="h-full rounded-full transition-all" style="width:'+embPct+'%;background:'+ec+'"></div></div></div>';
+      })()}
       ${mapEditMode && !isManagerView ? renderMapEditToolbar(pour.id) : ''}
       <div style="height:400px;overflow:auto">
         <svg viewBox="${mapData.viewBox}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:800px">
@@ -2047,11 +2243,13 @@ function renderPourDay() {
             const selected = mapEditMode && mapSelected.includes(f.id);
             const safeId = f.id.replace(/'/g, "\\'");
             const clickAction = mapEditMode ? "selectMapFooting('"+safeId+"',event)" : "toggleFooting('"+safeId+"')";
+            const hasEmbeds = f.embeds && f.embeds.length;
+            const lpAttr = (!mapEditMode && hasEmbeds) ? ` onpointerdown="startEmbedLongPress('${safeId}',event)" onpointerup="cancelEmbedLongPress()" onpointerleave="cancelEmbedLongPress()"` : '';
 
             let svg = '';
             if (isGB) {
               // Grade beam — dashed connector style
-              svg += `<rect data-ftg-id="${f.id}" x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="4" fill="${gbColor}20" stroke="${selected?'#fff':gbColor+'aa'}" stroke-width="${selected?2.5:2}" stroke-dasharray="8,4" class="cursor-pointer" onclick="${clickAction}"/>`;
+              svg += `<rect data-ftg-id="${f.id}" x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="4" fill="${gbColor}20" stroke="${selected?'#fff':gbColor+'aa'}" stroke-width="${selected?2.5:2}" stroke-dasharray="8,4" class="cursor-pointer" onclick="${clickAction}"${lpAttr}/>`;
               // Filled portion for GB
               if (pct > 0) {
                 const gbFillW = f.w * (pct / 100);
@@ -2065,7 +2263,7 @@ function renderPourDay() {
               // Footing / Pile cap — vibrant shape
               const baseFill = pct === 0 ? `${shapeColor}25` : `${shapeColor}15`;
               const baseStroke = selected ? '#fff' : (done ? shapeColor : `${shapeColor}88`);
-              svg += `<rect data-ftg-id="${f.id}" x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${baseFill}" stroke="${baseStroke}" stroke-width="${selected?3:2}" class="cursor-pointer" onclick="${clickAction}"/>`;
+              svg += `<rect data-ftg-id="${f.id}" x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${rx}" fill="${baseFill}" stroke="${baseStroke}" stroke-width="${selected?3:2}" class="cursor-pointer" onclick="${clickAction}"${lpAttr}/>`;
               // Filled portion (from bottom up based on %)
               if (pct > 0) {
                 svg += `<defs><clipPath id="${clipId}"><rect x="${f.x}" y="${fillY}" width="${f.w}" height="${fillH}"/></clipPath></defs>`;
@@ -2091,6 +2289,18 @@ function renderPourDay() {
             }
             // Element ID (below shape, tiny)
             if (!isGB) svg += `<text x="${cx}" y="${f.y+f.h+10}" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.3)" font-family="JetBrains Mono" font-weight="500" pointer-events="none">${f.id}</text>`;
+            // Embed status indicator
+            if (hasEmbeds) {
+              const embSt = getFootingEmbedStatus(f);
+              const embClr = embSt === 'all' ? '#41A447' : embSt === 'partial' ? '#FFBF00' : '#ef4444';
+              const embCk = f.embeds.filter(e => getEmbedChecked(f.id, e.embedId)).length;
+              const dx = isGB ? f.x + f.w - 8 : f.x + f.w - 2;
+              const dy = f.y + (isGB ? f.h/2 : 2);
+              svg += `<circle cx="${dx}" cy="${dy}" r="7" fill="#080c14" pointer-events="none"/>`;
+              svg += `<circle cx="${dx}" cy="${dy}" r="5" fill="${embClr}" opacity="0.9" pointer-events="none"/>`;
+              svg += `<text x="${dx}" y="${dy+3}" text-anchor="middle" font-size="6" font-family="JetBrains Mono" fill="#000" font-weight="900" pointer-events="none">${embCk}/${f.embeds.length}</text>`;
+              if (embSt === 'missing') svg += `<circle cx="${dx}" cy="${dy}" r="5" fill="none" stroke="${embClr}" stroke-width="1" opacity="0.5" pointer-events="none"><animate attributeName="r" from="5" to="11" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" from="0.5" to="0" dur="1.5s" repeatCount="indefinite"/></circle>`;
+            }
             return svg;
           }).join('')}
         </svg>
@@ -2102,7 +2312,9 @@ function renderPourDay() {
         <span class="text-white/15">|</span>
         <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:linear-gradient(to top,#fff8 50%,#fff1 50%)"></span><span class="text-white/40">In progress</span></span>
         <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#fff9"></span><span class="text-white/40">Done</span></span>
-        ${!isManagerView ? '<span class="ml-auto text-white/20 italic">Tap to cycle: 0→25→50→75→100→0</span>' : ''}
+        <span class="text-white/15">|</span>
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span><span class="text-white/40">Embed dot</span></span>
+        ${!isManagerView ? '<span class="ml-auto text-white/20 italic">Tap to cycle · Long-press for embeds</span>' : ''}
       </div>
     </div>`;
   }

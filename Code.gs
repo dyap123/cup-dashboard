@@ -11,6 +11,14 @@ function doPost(e) {
     return handleFieldUpdate(sheet, data);
   }
 
+  if (data.action === 'updateEmbeds') {
+    return handleUpdateEmbeds(ss, data);
+  }
+
+  if (data.action === 'checkEmbed') {
+    return handleCheckEmbed(ss, data);
+  }
+
   return ContentService.createTextOutput(JSON.stringify({ok:true}))
     .setMimeType(ContentService.MimeType.JSON);
 }
@@ -19,9 +27,6 @@ function handleFieldUpdate(sheet, data) {
   var pourId = data.pourId;
   var field = data.field;
   var value = data.value;
-
-  // For dates: column C (3) is the same in both detail and summary sections
-  // For quantities: only update ORDER SUMMARY (detail section has different column layout)
   var summaryCol = { date: 3, cy8000: 4, cy5000: 5, slurry: 6 };
   var col = summaryCol[field];
 
@@ -37,20 +42,14 @@ function handleFieldUpdate(sheet, data) {
 
   for (var i = 0; i < values.length; i++) {
     var cellA = String(values[i][0]).trim();
-
     if (cellA === 'ORDER SUMMARY') {
       inOrderSummary = true;
       continue;
     }
-
-    // For date changes, also update the detail section rows (date is col C everywhere)
     if (!inOrderSummary && field === 'date' && cellA === pourId) {
       sheet.getRange(i + 1, 3).setValue(value);
     }
-
     if (!inOrderSummary) continue;
-
-    // Update ORDER SUMMARY row
     if (cellA === pourId) {
       var writeVal = value;
       if (field !== 'date' && !isNaN(Number(value))) {
@@ -92,112 +91,69 @@ function handleOrdered(sheet, data) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// Run this manually from the Apps Script editor to clean up sheet formatting
-// Menu: Run > formatSheet
-function formatSheet() {
-  var ss = SpreadsheetApp.openById('1fTL_w-kLz0Jzwni9r3kSuGqSvlsFhNm0RsfRurQH750');
-  var sheet = ss.getSheetByName('Pour Takeoff');
-  var last = sheet.getLastRow();
-  var lastCol = sheet.getLastColumn();
-  var range = sheet.getRange(1, 1, last, lastCol);
+// Embed tracker: update embed assignments for a footing
+// Columns: Pour | Footing ID | Footing Type | Embed ID | Bolts | Plate (SP) | Qty | Verified | Verified By | Timestamp
+function handleUpdateEmbeds(ss, data) {
+  var tracker = ss.getSheetByName('Embed Tracker');
+  if (!tracker) return ContentService.createTextOutput(JSON.stringify({error:'no Embed Tracker tab'})).setMimeType(ContentService.MimeType.JSON);
 
-  // Reset all formatting to clean baseline
-  range.setBackground('#ffffff');
-  range.setFontColor('#1a1a1a');
-  range.setFontFamily('Inter');
-  range.setFontSize(10);
-  range.setBorder(false, false, false, false, false, false);
-  range.setFontWeight('normal');
+  var pourId = data.pourId;
+  var footingId = data.footingId;
+  var ftype = data.ftype || '';
+  var embeds = data.embeds || [];
 
-  var values = sheet.getDataRange().getValues();
+  // Embed reference data
+  var embedRef = {
+    '51A':{bolts:4,sp:'SP-13'}, '55A':{bolts:4,sp:'SP-14'}, '56A':{bolts:4,sp:'SP-15'},
+    '60A':{bolts:4,sp:'SP-15'}, '65A':{bolts:4,sp:'SP-16'}, '70A':{bolts:6,sp:'SP-17'},
+    '80A':{bolts:8,sp:'SP-18'}, '85A':{bolts:8,sp:'SP-19'}, '86A':{bolts:4,sp:'SP-20'},
+    '90A':{bolts:30,sp:'SP-20'}
+  };
 
-  // Muted section colors (light pastels)
-  var secBg = { 'A': '#e8f5e9', 'B': '#fff3e0', 'C': '#e3f2fd', 'D': '#ede7f6' };
-  var secText = { 'A': '#2e7d32', 'B': '#e65100', 'C': '#1565c0', 'D': '#4527a0' };
-
-  for (var i = 0; i < values.length; i++) {
-    var row = i + 1;
-    var cellA = String(values[i][0]).trim();
-    var rowRange = sheet.getRange(row, 1, 1, lastCol);
-
-    // Title row
-    if (cellA.indexOf('CUP CONCRETE') > -1) {
-      rowRange.setBackground('#1C2E54');
-      rowRange.setFontColor('#ffffff');
-      rowRange.setFontSize(12);
-      rowRange.setFontWeight('bold');
-      continue;
-    }
-
-    // Reference section (A, B, C, D single-letter rows)
-    if (/^[A-D]$/.test(cellA) && i < 10) {
-      var bg = secBg[cellA] || '#f5f5f5';
-      var txt = secText[cellA] || '#333';
-      rowRange.setBackground(bg);
-      sheet.getRange(row, 1).setFontColor(txt).setFontWeight('bold');
-      continue;
-    }
-
-    // TOTAL row
-    if (cellA === 'TOTAL' || cellA === 'GRAND TOTAL') {
-      rowRange.setBackground('#1C2E54');
-      rowRange.setFontColor('#ffffff');
-      rowRange.setFontWeight('bold');
-      continue;
-    }
-
-    // Section headers (SECTION A — ...)
-    if (cellA.indexOf('SECTION') === 0 && cellA.indexOf('TOTAL') === -1) {
-      var sec = cellA.charAt(8);
-      rowRange.setBackground(secBg[sec] || '#f5f5f5');
-      rowRange.setFontColor(secText[sec] || '#333');
-      rowRange.setFontWeight('bold');
-      rowRange.setFontSize(10);
-      continue;
-    }
-
-    // Column headers (Pour, Section, ...)
-    if (cellA === 'Pour' || cellA === 'ORDER SUMMARY') {
-      rowRange.setBackground('#f0f0f0');
-      rowRange.setFontColor('#666666');
-      rowRange.setFontWeight('bold');
-      rowRange.setFontSize(9);
-      continue;
-    }
-
-    // Section total rows
-    if (String(values[i][3]).indexOf('SECTION') > -1 && String(values[i][3]).indexOf('TOTAL') > -1) {
-      rowRange.setBackground('#f5f5f5');
-      rowRange.setFontWeight('bold');
-      rowRange.setFontColor('#333333');
-      continue;
-    }
-
-    // Subtotal rows
-    if (String(values[i][3]).indexOf('SUBTOTAL') > -1) {
-      rowRange.setBackground('#fafafa');
-      rowRange.setFontColor('#999999');
-      rowRange.setFontSize(9);
-      continue;
-    }
-
-    // Pour data rows
-    if (/^[A-D]-[1-9]/.test(cellA)) {
-      var sec = cellA.charAt(0);
-      sheet.getRange(row, 1).setFontColor(secText[sec] || '#333').setFontWeight('bold');
-      // Alternate row shading
-      if (i % 2 === 0) rowRange.setBackground('#fafbfc');
-      continue;
+  // Delete existing rows for this footing
+  var values = tracker.getDataRange().getValues();
+  for (var i = values.length - 1; i >= 1; i--) {
+    if (String(values[i][0]).trim() === pourId && String(values[i][1]).trim() === footingId) {
+      tracker.deleteRow(i + 1);
     }
   }
 
-  // Auto-resize columns
-  for (var c = 1; c <= lastCol; c++) {
-    sheet.autoResizeColumn(c);
+  // Write new rows
+  embeds.forEach(function(e) {
+    var ref = embedRef[e.embedId] || {};
+    tracker.appendRow([
+      pourId, footingId, ftype, e.embedId, ref.bolts || '', ref.sp || '', e.qty || 1, '', '', ''
+    ]);
+  });
+
+  return ContentService.createTextOutput(JSON.stringify({ok:true}))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// Embed tracker: mark an embed as verified/unverified
+function handleCheckEmbed(ss, data) {
+  var tracker = ss.getSheetByName('Embed Tracker');
+  if (!tracker) return ContentService.createTextOutput(JSON.stringify({error:'no Embed Tracker tab'})).setMimeType(ContentService.MimeType.JSON);
+
+  var pourId = data.pourId;
+  var footingId = data.footingId;
+  var embedId = data.embedId;
+  var checked = data.checked;
+  var timestamp = data.timestamp || new Date().toISOString();
+
+  var values = tracker.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]).trim() === pourId &&
+        String(values[i][1]).trim() === footingId &&
+        String(values[i][3]).trim() === embedId) {
+      tracker.getRange(i + 1, 8).setValue(checked ? 'YES' : '');
+      tracker.getRange(i + 1, 9).setValue(checked ? 'Inspector' : '');
+      tracker.getRange(i + 1, 10).setValue(checked ? timestamp : '');
+      return ContentService.createTextOutput(JSON.stringify({ok:true}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
   }
 
-  // Freeze first row
-  sheet.setFrozenRows(1);
-
-  SpreadsheetApp.flush();
+  return ContentService.createTextOutput(JSON.stringify({ok:true, found:false}))
+    .setMimeType(ContentService.MimeType.JSON);
 }
