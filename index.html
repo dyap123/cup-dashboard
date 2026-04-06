@@ -342,11 +342,11 @@ function attachFirebaseListeners() {
       Object.values(trucks).forEach(t => pourDay.trucks.push(t));
     });
     pourDay.trucks.sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
-    renderPourDay();
+    if (!mapEditMode) renderPourDay();
     renderLive();
   });
   fbListen('footings', (val) => {
-    if (val) { pourDay.footingStatus = val; renderPourDay(); renderLive(); }
+    if (val) { pourDay.footingStatus = val; renderMapSection(); renderLive(); }
   });
   fbListen('checklist', (val) => {
     if (val) { localStorage.setItem('cup_checklist', JSON.stringify(val)); }
@@ -1507,7 +1507,7 @@ function toggleFooting(id) {
   fbSet(`footings/${id.replace(/[.$\[\]#]/g, '_')}`, newStatus);
   if (newStatus) fbPush('feed', { ts:new Date().toISOString(), type:'footing', msg:`${id} → ${newStatus === 'DONE' ? '100%' : newStatus+'%'}`, pourId: getActivePour()?.id || '' });
   if (newStatus) appendPourLog('footing', id+' → '+(newStatus==='DONE'?'100%':newStatus+'%'));
-  renderPourDay();
+  renderMapSection();
 }
 
 // ── EMBED CHECK STATUS ─────────────────────────────────────────────────────
@@ -1530,7 +1530,7 @@ function setEmbedChecked(footingId, embedId, checked) {
     fbPush('feed', { ts:new Date().toISOString(), type:'embed', msg:footingId+' — '+embedId+' verified', pourId:getActivePour()?.id||'' });
     appendPourLog('embed', footingId+' — '+embedId+' verified');
   }
-  renderPourDay();
+  renderMapSection();
   if (document.getElementById('embedPopup')) showEmbedPopup(footingId);
 }
 function getFootingEmbedStatus(f) {
@@ -1556,7 +1556,7 @@ function addEmbedToFooting(pourId, embedId) {
   fetch(API_URL, { method:'POST', mode:'no-cors', body:JSON.stringify({
     action:'updateEmbeds', pourId, footingId: f.id, ftype: f.ftype, embeds: f.embeds
   })}).catch(()=>{});
-  renderPourDay();
+  renderMapSection();
 }
 function removeEmbedFromFooting(pourId, idx) {
   if (!mapSelected.length) return;
@@ -1568,7 +1568,7 @@ function removeEmbedFromFooting(pourId, idx) {
   fetch(API_URL, { method:'POST', mode:'no-cors', body:JSON.stringify({
     action:'updateEmbeds', pourId, footingId: f.id, ftype: f.ftype, embeds: f.embeds
   })}).catch(()=>{});
-  renderPourDay();
+  renderMapSection();
 }
 
 // ── EMBED CHECKLIST POPUP (long-press in view mode) ────────────────────────
@@ -1634,7 +1634,7 @@ function selectMapFooting(id, ev) {
   } else {
     mapSelected = [id];
   }
-  renderPourDay();
+  renderMapSection();
 }
 
 // Keyboard shortcuts for edit mode
@@ -1650,7 +1650,7 @@ document.addEventListener('keydown', e => {
     map.footings = map.footings.filter(f => !mapSelected.includes(f.id));
     saveFootingMap(pourId, map);
     mapSelected = [];
-    renderPourDay();
+    renderMapSection();
   }
 
   if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
@@ -1672,7 +1672,7 @@ document.addEventListener('keydown', e => {
     });
     saveFootingMap(pourId, map);
     mapSelected = newIds;
-    renderPourDay();
+    renderMapSection();
   }
 });
 
@@ -1745,13 +1745,13 @@ function createNewMap(pourId) {
   };
   saveFootingMap(pourId, newMap);
   mapEditMode = true;
-  renderPourDay();
+  renderMapSection();
 }
 
 function toggleMapEdit() {
   mapEditMode = !mapEditMode;
   mapSelected = [];
-  renderPourDay();
+  renderMapSection();
 }
 
 function addFootingToMap(section, type) {
@@ -1767,7 +1767,7 @@ function addFootingToMap(section, type) {
   map.footings.push({ id, x:350, y:250, w:d.w, h:d.h, cy, type, ftype:defaultType });
   saveFootingMap(section, map);
   mapSelected = [id];
-  renderPourDay();
+  renderMapSection();
 }
 
 // Live inline editor — updates map in real-time as user types
@@ -1786,7 +1786,7 @@ function updateSelectedFooting(section, field, value) {
   else if (field === 'w') f.w = Math.max(8, parseInt(value) || 20);
   else if (field === 'h') f.h = Math.max(8, parseInt(value) || 20);
   saveFootingMap(section, map);
-  renderPourDay();
+  renderMapSection();
 }
 
 function rotateSelectedFooting(pourId) {
@@ -1798,7 +1798,7 @@ function rotateSelectedFooting(pourId) {
     if (f) { const tmp = f.w; f.w = f.h; f.h = tmp; }
   });
   saveFootingMap(pourId, map);
-  renderPourDay();
+  renderMapSection();
 }
 
 function changeSelectedType(pourId, newType) {
@@ -1816,7 +1816,7 @@ function changeSelectedType(pourId, newType) {
     }
   });
   saveFootingMap(pourId, map);
-  renderPourDay();
+  renderMapSection();
 }
 
 function deleteSelectedFooting(pourId) {
@@ -1826,18 +1826,18 @@ function deleteSelectedFooting(pourId) {
   map.footings = map.footings.filter(f => !mapSelected.includes(f.id));
   saveFootingMap(pourId, map);
   mapSelected = [];
-  renderPourDay();
+  renderMapSection();
 }
 
 // SVG drag support for edit mode
 function initMapDrag() {
-  const svg = document.querySelector('#pourdayContent svg');
+  const svg = document.querySelector('#mapSection svg');
   if (!svg) return;
 
   svg.addEventListener('pointerdown', e => {
     if (!mapEditMode) return;
     const el = e.target.closest('[data-ftg-id]');
-    if (!el) { mapSelected = []; renderPourDay(); return; }
+    if (!el) { mapSelected = []; renderMapSection(); return; }
     const id = el.dataset.ftgId;
     if (!mapSelected.includes(id)) mapSelected = [id];
     const pourId = getActivePour()?.id;
@@ -1879,7 +1879,7 @@ function initMapDrag() {
     const map = loadFootingMap(mapDragging.pourId);
     saveFootingMap(mapDragging.pourId, map);
     mapDragging = null;
-    renderPourDay();
+    renderMapSection();
   });
 }
 
@@ -2139,6 +2139,157 @@ async function resetPourDay() {
   renderPourDay();
 }
 
+// Renders only the footing map + toolbar inside #mapSection (no full page rebuild)
+function renderMapSection() {
+  var container = document.getElementById('mapSection');
+  if (!container) return;
+  var pour = getActivePour();
+  if (!pour) return;
+  var c = SEC_COLORS[pour.section] || '#888';
+  var mapData = loadFootingMap(pour.id);
+  var mh = '';
+
+  if (!mapData && !isManagerView) {
+    mh += '<div class="rounded-xl border border-dashed border-white/10 p-6 mb-4 text-center" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">'
+      + '<p class="text-white/30 text-sm mb-3">No footing map for ' + pour.id + '</p>'
+      + '<button onclick="createNewMap(\'' + pour.id + '\')" class="text-xs font-bold px-4 py-2 rounded-lg bg-white/5 text-white/50 hover:text-white hover:bg-white/10 border border-white/10 transition-all">+ Create Footing Map</button>'
+      + '</div>';
+  }
+  if (mapData) {
+    var ftgs = mapData.footings || [];
+    var doneCount = ftgs.filter(function(f){ return getFootingStatus(f.id) === 'DONE'; }).length;
+    var completedCY = ftgs.reduce(function(s,f){ return s + (f.cy * getFootingPct(f.id) / 100); }, 0);
+    var totalCY = ftgs.reduce(function(s,f){ return s+f.cy; }, 0);
+    var inProgressCount = ftgs.filter(function(f){ var p = getFootingPct(f.id); return p > 0 && p < 100; }).length;
+    var gbMix = localStorage.getItem('cup_gb_mix') || '8000';
+    var cy8000 = ftgs.filter(function(f){ return f.type === 'pc' || (f.type === 'gb' && gbMix === '8000'); }).reduce(function(s,f){ return s+f.cy; }, 0);
+    var cy5000 = ftgs.filter(function(f){ return f.type === 'ftg' || (f.type === 'gb' && gbMix === '5000'); }).reduce(function(s,f){ return s+f.cy; }, 0);
+    var done8000 = ftgs.filter(function(f){ return f.type === 'pc' || (f.type === 'gb' && gbMix === '8000'); }).reduce(function(s,f){ return s + (f.cy * getFootingPct(f.id) / 100); }, 0);
+    var done5000 = ftgs.filter(function(f){ return f.type === 'ftg' || (f.type === 'gb' && gbMix === '5000'); }).reduce(function(s,f){ return s + (f.cy * getFootingPct(f.id) / 100); }, 0);
+
+    mh += '<div class="rounded-xl border border-white/5 overflow-hidden mb-4" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">';
+    mh += '<div class="px-4 py-2 border-b border-white/5 flex items-center justify-between flex-wrap gap-2">';
+    mh += '<span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Footing Map — ' + mapData.label + '</span>';
+    mh += '<div class="flex items-center gap-3">';
+    mh += '<span class="text-[10px] mono text-white/30">' + doneCount + ' done' + (inProgressCount ? ', '+inProgressCount+' in progress' : '') + '</span>';
+    mh += '<span class="text-[10px] mono font-bold" style="color:' + c + '">' + completedCY.toFixed(1) + '/' + totalCY.toFixed(0) + ' CY</span>';
+    if (!isManagerView) mh += '<button onclick="toggleMapEdit()" class="text-[9px] font-bold px-2 py-1 rounded transition-all ' + (mapEditMode ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-white/5 text-white/30 hover:text-white/50') + '">' + (mapEditMode ? 'EDITING' : 'EDIT MAP') + '</button>';
+    mh += '</div></div>';
+    // Mix breakdown strip
+    mh += '<div class="px-4 py-2 border-b border-white/5 flex items-center gap-4 flex-wrap" style="background:rgba(8,10,18,0.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)">';
+    mh += '<div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span><span class="text-[9px] font-bold text-red-300">8000 PSI</span><span class="text-[10px] mono font-bold text-red-200">' + done8000.toFixed(1) + '/' + cy8000.toFixed(0) + ' CY</span><span class="text-[9px] text-white/30">(Pile Caps' + (gbMix==='8000'?' + GB':'') + ')</span></div>';
+    mh += '<div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span><span class="text-[9px] font-bold text-blue-300">5000 PSI</span><span class="text-[10px] mono font-bold text-blue-200">' + done5000.toFixed(1) + '/' + cy5000.toFixed(0) + ' CY</span><span class="text-[9px] text-white/30">(Footings' + (gbMix==='5000'?' + GB':'') + ')</span></div>';
+    mh += '<div class="flex items-center gap-1.5 ml-auto"><span class="text-[8px] text-white/30">GB Mix:</span>';
+    mh += '<button onclick="localStorage.setItem(\'cup_gb_mix\',\'8000\');renderMapSection()" class="text-[9px] font-bold px-2 py-0.5 rounded transition-all ' + (gbMix==='8000' ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-white/5 text-white/30') + '">8000</button>';
+    mh += '<button onclick="localStorage.setItem(\'cup_gb_mix\',\'5000\');renderMapSection()" class="text-[9px] font-bold px-2 py-0.5 rounded transition-all ' + (gbMix==='5000' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-white/5 text-white/30') + '">5000</button>';
+    mh += '</div></div>';
+    // Embed summary strip
+    var ewf = ftgs.filter(function(ff){ return ff.embeds && ff.embeds.length; });
+    var totalEmb = ewf.reduce(function(s,ff){ return s + ff.embeds.length; }, 0);
+    if (totalEmb) {
+      var checkedEmb = ewf.reduce(function(s,ff){ return s + ff.embeds.filter(function(e){ return getEmbedChecked(ff.id, e.embedId); }).length; }, 0);
+      var embPct = Math.round(checkedEmb / totalEmb * 100);
+      var fullyDone = ewf.filter(function(ff){ return ff.embeds.every(function(e){ return getEmbedChecked(ff.id, e.embedId); }); }).length;
+      var noneDone = ewf.filter(function(ff){ return !ff.embeds.some(function(e){ return getEmbedChecked(ff.id, e.embedId); }); }).length;
+      var ec = embPct === 100 ? '#41A447' : embPct > 50 ? '#FFBF00' : '#ef4444';
+      mh += '<div class="px-4 py-2 border-b border-white/5 flex items-center gap-4 flex-wrap" style="background:rgba(8,10,18,0.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)">'
+        + '<span class="text-[9px] font-bold uppercase tracking-wider" style="color:' + ec + '">Embeds</span>'
+        + '<span class="text-[10px] mono font-bold" style="color:' + ec + '">' + checkedEmb + '/' + totalEmb + ' verified (' + embPct + '%)</span>'
+        + '<div class="flex items-center gap-3 text-[9px] text-white/30"><span>' + fullyDone + '/' + ewf.length + ' footings complete</span>'
+        + (noneDone > 0 ? '<span class="text-red-400 font-bold">' + noneDone + ' missing all embeds</span>' : '')
+        + '</div>'
+        + '<div class="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden ml-auto" style="min-width:80px;max-width:200px">'
+        + '<div class="h-full rounded-full transition-all" style="width:' + embPct + '%;background:' + ec + '"></div></div></div>';
+    }
+    // Edit toolbar
+    if (mapEditMode && !isManagerView) mh += renderMapEditToolbar(pour.id);
+    // SVG footings
+    var ftgSvg = '';
+    for (var fi = 0; fi < ftgs.length; fi++) {
+      var f = ftgs[fi];
+      var pct = getFootingPct(f.id);
+      var done = pct === 100;
+      var active = pct > 0 && pct < 100;
+      var mixColor = f.type==='pc' ? '#ff6b6b' : f.type==='ftg' ? '#6bb5ff' : '#888';
+      var fc = mixColor;
+      var rx = f.type==='gb' ? 2 : f.type==='pc' ? 4 : 6;
+      var fcx = f.x + f.w/2, fcy = f.y + f.h/2;
+      var labelSize = f.w > 50 ? 11 : f.w > 30 ? 9 : 7;
+      var clipId = 'clip_'+f.id.replace(/[^a-zA-Z0-9]/g,'_');
+      var fillH = f.h * (pct / 100);
+      var fillY = f.y + f.h - fillH;
+      var isGB = f.type === 'gb';
+      var ftypeLabel = f.ftype || '';
+      var gbColor = '#FFB800';
+      var shapeColor = isGB ? gbColor : fc;
+      var selected = mapEditMode && mapSelected.includes(f.id);
+      var safeId = f.id.replace(/'/g, "\\'");
+      var clickAction = mapEditMode ? "selectMapFooting('"+safeId+"',event)" : "toggleFooting('"+safeId+"')";
+      var hasEmbeds = f.embeds && f.embeds.length;
+      var lpAttr = (!mapEditMode && hasEmbeds) ? ' onpointerdown="startEmbedLongPress(\''+safeId+'\',event)" onpointerup="cancelEmbedLongPress()" onpointerleave="cancelEmbedLongPress()"' : '';
+
+      if (isGB) {
+        ftgSvg += '<rect data-ftg-id="'+f.id+'" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="4" fill="'+gbColor+'20" stroke="'+(selected?'#fff':gbColor+'aa')+'" stroke-width="'+(selected?2.5:2)+'" stroke-dasharray="8,4" class="cursor-pointer" onclick="'+clickAction+'"'+lpAttr+'/>';
+        if (pct > 0) { var gbFillW = f.w * (pct / 100); ftgSvg += '<rect x="'+f.x+'" y="'+f.y+'" width="'+gbFillW+'" height="'+f.h+'" rx="4" fill="'+gbColor+'" opacity="'+(done?0.8:0.45)+'" pointer-events="none"/>'; }
+        var dh = f.h * 0.6;
+        ftgSvg += '<polygon points="'+f.x+','+(f.y+f.h/2)+' '+(f.x+5)+','+(f.y+f.h/2-dh/2)+' '+(f.x+10)+','+(f.y+f.h/2)+' '+(f.x+5)+','+(f.y+f.h/2+dh/2)+'" fill="'+gbColor+'88" pointer-events="none"/>';
+        ftgSvg += '<polygon points="'+(f.x+f.w)+','+(f.y+f.h/2)+' '+(f.x+f.w-5)+','+(f.y+f.h/2-dh/2)+' '+(f.x+f.w-10)+','+(f.y+f.h/2)+' '+(f.x+f.w-5)+','+(f.y+f.h/2+dh/2)+'" fill="'+gbColor+'88" pointer-events="none"/>';
+        ftgSvg += '<text x="'+fcx+'" y="'+(fcy+3)+'" text-anchor="middle" dominant-baseline="central" font-size="8" font-family="JetBrains Mono" fill="#FFB800cc" font-weight="700" pointer-events="none">'+ftypeLabel+' '+f.cy+'CY</text>';
+      } else {
+        var baseFill = pct === 0 ? shapeColor+'25' : shapeColor+'15';
+        var baseStroke = selected ? '#fff' : (done ? shapeColor : shapeColor+'88');
+        ftgSvg += '<rect data-ftg-id="'+f.id+'" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="'+rx+'" fill="'+baseFill+'" stroke="'+baseStroke+'" stroke-width="'+(selected?3:2)+'" class="cursor-pointer" onclick="'+clickAction+'"'+lpAttr+'/>';
+        if (pct > 0) {
+          ftgSvg += '<defs><clipPath id="'+clipId+'"><rect x="'+f.x+'" y="'+fillY+'" width="'+f.w+'" height="'+fillH+'"/></clipPath></defs>';
+          ftgSvg += '<rect x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="'+rx+'" fill="'+shapeColor+'" opacity="'+(done?0.9:0.5)+'" clip-path="url(#'+clipId+')" pointer-events="none"/>';
+        }
+        if (done || active) ftgSvg += '<rect x="'+(f.x-2)+'" y="'+(f.y-2)+'" width="'+(f.w+4)+'" height="'+(f.h+4)+'" rx="'+(rx+2)+'" fill="none" stroke="'+shapeColor+'" stroke-width="1" opacity="0.2" pointer-events="none"/>';
+        ftgSvg += '<text x="'+fcx+'" y="'+(fcy - (f.h > 50 ? 8 : 3))+'" text-anchor="middle" dominant-baseline="central" font-size="'+labelSize+'" font-family="JetBrains Mono" fill="'+(done?'#000':'#fff')+'" font-weight="800" pointer-events="none">'+ftypeLabel+'</text>';
+        if (f.h > 40) ftgSvg += '<text x="'+fcx+'" y="'+(fcy+10)+'" text-anchor="middle" font-size="9" font-family="JetBrains Mono" fill="'+(done?'#000':'rgba(255,255,255,0.7)')+'" font-weight="600" pointer-events="none">'+f.cy+' CY</text>';
+        if (done) ftgSvg += '<text x="'+(f.x+f.w-3)+'" y="'+(f.y+12)+'" text-anchor="end" font-size="11" fill="#000" font-weight="900" pointer-events="none">&#10003;</text>';
+        else if (active) ftgSvg += '<text x="'+fcx+'" y="'+(fcy + (f.h > 50 ? 22 : 13))+'" text-anchor="middle" font-size="9" font-family="JetBrains Mono" fill="#fff" font-weight="800" pointer-events="none">'+pct+'%</text>';
+        ftgSvg += '<text x="'+fcx+'" y="'+(f.y+f.h+10)+'" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.3)" font-family="JetBrains Mono" font-weight="500" pointer-events="none">'+f.id+'</text>';
+      }
+      if (hasEmbeds) {
+        var embSt = getFootingEmbedStatus(f);
+        var embClr = embSt === 'all' ? '#41A447' : embSt === 'partial' ? '#FFBF00' : '#ef4444';
+        var embCk = f.embeds.filter(function(e){ return getEmbedChecked(f.id, e.embedId); }).length;
+        var dx = isGB ? f.x + f.w - 8 : f.x + f.w - 2;
+        var dy = f.y + (isGB ? f.h/2 : 2);
+        ftgSvg += '<circle cx="'+dx+'" cy="'+dy+'" r="7" fill="#080c14" pointer-events="none"/>';
+        ftgSvg += '<circle cx="'+dx+'" cy="'+dy+'" r="5" fill="'+embClr+'" opacity="0.9" pointer-events="none"/>';
+        ftgSvg += '<text x="'+dx+'" y="'+(dy+3)+'" text-anchor="middle" font-size="6" font-family="JetBrains Mono" fill="#000" font-weight="900" pointer-events="none">'+embCk+'/'+f.embeds.length+'</text>';
+        if (embSt === 'missing') ftgSvg += '<circle cx="'+dx+'" cy="'+dy+'" r="5" fill="none" stroke="'+embClr+'" stroke-width="1" opacity="0.5" pointer-events="none"><animate attributeName="r" from="5" to="11" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" from="0.5" to="0" dur="1.5s" repeatCount="indefinite"/></circle>';
+      }
+    }
+    var gridColsSvg = (mapData.gridCols||[]).map(function(g){ return '<line x1="'+g.x+'" y1="15" x2="'+g.x+'" y2="490" stroke="rgba(255,255,255,0.08)" stroke-width="1"/><text x="'+g.x+'" y="12" text-anchor="middle" font-size="11" font-family="JetBrains Mono" fill="rgba(255,255,255,0.30)" font-weight="700">'+g.label+'</text>'; }).join('');
+    var gridRowsSvg = (mapData.gridRows||[]).map(function(g){ return '<line x1="5" y1="'+g.y+'" x2="1195" y2="'+g.y+'" stroke="rgba(255,255,255,0.06)" stroke-width="1"/><text x="4" y="'+(g.y+4)+'" font-size="10" font-family="JetBrains Mono" fill="rgba(255,255,255,0.25)" font-weight="700">'+g.label+'</text>'; }).join('');
+
+    mh += '<div style="height:75vh;min-height:500px;overflow:auto">'
+      + '<svg viewBox="' + mapData.viewBox + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:800px">'
+      + '<rect width="1200" height="500" fill="#080c14"/>'
+      + '<defs><pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.6" fill="rgba(255,255,255,0.06)"/></pattern></defs>'
+      + '<rect width="1200" height="500" fill="url(#fgrid)"/>'
+      + gridColsSvg + gridRowsSvg + ftgSvg
+      + '</svg></div>';
+    // Legend
+    mh += '<div class="px-4 py-2 border-t border-white/5 flex items-center gap-3 text-[9px] flex-wrap">'
+      + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#ff6b6b33;border:1.5px solid #ff6b6b88"></span><span class="text-white/40">Pile Cap <span class="text-red-300">(8000)</span></span></span>'
+      + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#6bb5ff33;border:1.5px solid #6bb5ff88"></span><span class="text-white/40">Footing <span class="text-blue-300">(5000)</span></span></span>'
+      + '<span class="flex items-center gap-1"><span class="w-4 h-2 rounded-sm" style="background:#FFB80020;border:1.5px dashed #FFB800aa"></span><span class="text-white/40">Grade Beam</span></span>'
+      + '<span class="text-white/15">|</span>'
+      + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:linear-gradient(to top,#fff8 50%,#fff1 50%)"></span><span class="text-white/40">In progress</span></span>'
+      + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#fff9"></span><span class="text-white/40">Done</span></span>'
+      + '<span class="text-white/15">|</span>'
+      + '<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span><span class="text-white/40">Embed dot</span></span>'
+      + (!isManagerView ? '<span class="ml-auto text-white/20 italic">Tap to cycle · Long-press for embeds</span>' : '')
+      + '</div>';
+    mh += '</div>';
+  }
+  container.innerHTML = mh;
+  if (mapEditMode) requestAnimationFrame(initMapDrag);
+}
+
 function renderPourDay() {
   const el = document.getElementById('pourdayContent');
   try {
@@ -2260,8 +2411,11 @@ function renderPourDay() {
     </div>
   </div>`;
 
-  // Footing map — keyed by pour ID (e.g. A-4), only shows if map exists or in edit mode
+  // Footing map container — rendered separately via renderMapSection()
+  h += '<div id="mapSection"></div>';
   const mapData = loadFootingMap(pour.id);
+  /* map section moved to renderMapSection() — skip old inline code */
+  if (false) {
   if (!mapData && !isManagerView) {
     // No map for this pour — offer to create one
     h += `<div class="rounded-xl border border-dashed border-white/10 p-6 mb-4 text-center" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
@@ -2438,6 +2592,7 @@ function renderPourDay() {
       </div>
     </div>`;
   }
+  } // end if(false) — old map section
 
   // Truck button + ticket input (hidden for managers)
   if (!isManagerView) {
@@ -2509,12 +2664,12 @@ function renderPourDay() {
   }
 
   // Preserve scroll position across re-renders
-  var scrollParent = el.closest('[id="pourdayView"]') || el;
-  var prevScroll = scrollParent.scrollTop || window.scrollY;
+  var prevScroll = window.scrollY;
   el.innerHTML = h;
+  renderMapSection();
   renderLiveFeed();
   if (mapEditMode) requestAnimationFrame(initMapDrag);
-  requestAnimationFrame(function(){ scrollParent.scrollTop ? scrollParent.scrollTop = prevScroll : window.scrollTo(0, prevScroll); });
+  requestAnimationFrame(function(){ window.scrollTo(0, prevScroll); });
   } catch(err) {
     el.innerHTML = `<div class="p-4 text-red-400 text-sm"><p class="font-bold mb-1">Pour Day render error:</p><pre class="text-xs text-red-300/60 overflow-auto">${err.message}\n${err.stack}</pre></div>`;
     console.error('renderPourDay error:', err);
