@@ -1225,10 +1225,12 @@ function saveMixDesign(code, data) {
 
 function loadFootingMap(key) {
   // key = pour ID (e.g. 'A-4') or section letter (e.g. 'A') for backwards compat
-  if (pourDay.mapCache && pourDay.mapCache[key]) return pourDay.mapCache[key];
-  const saved = localStorage.getItem('cup_ftgmap_'+key);
-  if (saved) try { return JSON.parse(saved); } catch {}
-  return DEFAULT_FOOTING_MAPS[key] || null;
+  let map = null;
+  if (pourDay.mapCache && pourDay.mapCache[key]) map = pourDay.mapCache[key];
+  else { const saved = localStorage.getItem('cup_ftgmap_'+key); if (saved) try { map = JSON.parse(saved); } catch {} }
+  if (!map) map = DEFAULT_FOOTING_MAPS[key] || null;
+  if (map && !map.footings) map.footings = []; // Firebase strips empty arrays
+  return map;
 }
 function saveFootingMap(key, data) {
   localStorage.setItem('cup_ftgmap_'+key, JSON.stringify(data));
@@ -1755,6 +1757,7 @@ function toggleMapEdit() {
 function addFootingToMap(section, type) {
   const map = loadFootingMap(section);
   if (!map) return;
+  if (!map.footings) map.footings = [];
   const defaults = { ftg:{w:34,h:34}, pc:{w:70,h:55}, gb:{w:100,h:12} };
   const d = defaults[type] || defaults.ftg;
   const num = map.footings.length + 1;
