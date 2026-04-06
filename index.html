@@ -1493,6 +1493,14 @@ let pourDay = {
 let livePour = { active: null }; // { pourId, startedAt, startedBy }
 const isManagerView = new URLSearchParams(window.location.search).get('view') === 'manager';
 
+// Per-footing mix: returns explicit mix or default based on type
+function getFootingMix(f) {
+  if (f.mix) return f.mix;
+  if (f.type === 'pc') return '8000';
+  if (f.type === 'ftg') return '5000';
+  return localStorage.getItem('cup_gb_mix') || '8000'; // GB default
+}
+
 // Footing status: cycles through '' → '25' → '50' → '75' → 'DONE' → ''
 const FTG_STAGES = ['', '25', '50', '75', 'DONE'];
 function getFootingStatus(id) { return pourDay.footingStatus[id] || localStorage.getItem('cup_ftg_'+id) || ''; }
@@ -1713,6 +1721,15 @@ function renderMapEditToolbar(pourId) {
     if (sel.type === 'gb') tb += '<button onclick="rotateSelectedFooting(\'' + pourId + '\')" class="text-[9px] font-bold px-2 py-1 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">↻</button>';
     tb += '<button onclick="deleteSelectedFooting(\'' + pourId + '\')" class="text-[9px] font-bold px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 ml-auto">Delete</button>';
     tb += '</div>';
+    // Mix assignment row
+    var curMix = getFootingMix(sel);
+    tb += '<div class="flex items-center gap-2 flex-wrap p-2 rounded-lg border border-white/10 bg-white/[0.03]">';
+    tb += '<span class="text-[8px] font-bold text-white/40 uppercase tracking-wider">Mix</span>';
+    tb += '<button onclick="updateSelectedFooting(\'' + pourId + '\',\'mix\',\'8000\')" class="text-[9px] font-bold px-2.5 py-1 rounded transition-all ' + (curMix==='8000' ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-white/5 text-white/30 border border-white/10') + '">8000 PSI</button>';
+    tb += '<button onclick="updateSelectedFooting(\'' + pourId + '\',\'mix\',\'5000\')" class="text-[9px] font-bold px-2.5 py-1 rounded transition-all ' + (curMix==='5000' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-white/5 text-white/30 border border-white/10') + '">5000 PSI</button>';
+    tb += '<button onclick="updateSelectedFooting(\'' + pourId + '\',\'mix\',\'slurry\')" class="text-[9px] font-bold px-2.5 py-1 rounded transition-all ' + (curMix==='slurry' ? 'bg-gray-500/20 text-gray-300 border border-gray-500/30' : 'bg-white/5 text-white/30 border border-white/10') + '">Slurry</button>';
+    if (sel.mix) tb += '<button onclick="updateSelectedFooting(\'' + pourId + '\',\'mix\',\'\')" class="text-[8px] text-white/20 hover:text-white/40 ml-1">Reset to default</button>';
+    tb += '</div>';
     // Embed assignment row
     tb += '<div class="flex items-center gap-2 flex-wrap p-2 rounded-lg border border-amber-500/10 bg-amber-500/[0.03]">';
     tb += '<span class="text-[8px] font-bold text-amber-400/50 uppercase tracking-wider">Embeds</span>';
@@ -1785,6 +1802,7 @@ function updateSelectedFooting(section, field, value) {
   else if (field === 'cy') f.cy = parseFloat(value) || 0;
   else if (field === 'w') f.w = Math.max(8, parseInt(value) || 20);
   else if (field === 'h') f.h = Math.max(8, parseInt(value) || 20);
+  else if (field === 'mix') { if (value) f.mix = value; else delete f.mix; }
   saveFootingMap(section, map);
   renderMapSection();
 }
@@ -2253,11 +2271,12 @@ function renderMapSection() {
     var completedCY = ftgs.reduce(function(s,f){ return s + (f.cy * getFootingPct(f.id) / 100); }, 0);
     var totalCY = ftgs.reduce(function(s,f){ return s+f.cy; }, 0);
     var inProgressCount = ftgs.filter(function(f){ var p = getFootingPct(f.id); return p > 0 && p < 100; }).length;
-    var gbMix = localStorage.getItem('cup_gb_mix') || '8000';
-    var cy8000 = ftgs.filter(function(f){ return f.type === 'pc' || (f.type === 'gb' && gbMix === '8000'); }).reduce(function(s,f){ return s+f.cy; }, 0);
-    var cy5000 = ftgs.filter(function(f){ return f.type === 'ftg' || (f.type === 'gb' && gbMix === '5000'); }).reduce(function(s,f){ return s+f.cy; }, 0);
-    var done8000 = ftgs.filter(function(f){ return f.type === 'pc' || (f.type === 'gb' && gbMix === '8000'); }).reduce(function(s,f){ return s + (f.cy * getFootingPct(f.id) / 100); }, 0);
-    var done5000 = ftgs.filter(function(f){ return f.type === 'ftg' || (f.type === 'gb' && gbMix === '5000'); }).reduce(function(s,f){ return s + (f.cy * getFootingPct(f.id) / 100); }, 0);
+    var cy8000 = ftgs.filter(function(f){ return getFootingMix(f) === '8000'; }).reduce(function(s,f){ return s+f.cy; }, 0);
+    var cy5000 = ftgs.filter(function(f){ return getFootingMix(f) === '5000'; }).reduce(function(s,f){ return s+f.cy; }, 0);
+    var cySlurry = ftgs.filter(function(f){ return getFootingMix(f) === 'slurry'; }).reduce(function(s,f){ return s+f.cy; }, 0);
+    var done8000 = ftgs.filter(function(f){ return getFootingMix(f) === '8000'; }).reduce(function(s,f){ return s + (f.cy * getFootingPct(f.id) / 100); }, 0);
+    var done5000 = ftgs.filter(function(f){ return getFootingMix(f) === '5000'; }).reduce(function(s,f){ return s + (f.cy * getFootingPct(f.id) / 100); }, 0);
+    var doneSlurry = ftgs.filter(function(f){ return getFootingMix(f) === 'slurry'; }).reduce(function(s,f){ return s + (f.cy * getFootingPct(f.id) / 100); }, 0);
 
     mh += '<div class="rounded-xl border border-white/5 overflow-hidden mb-4" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">';
     mh += '<div class="px-4 py-2 border-b border-white/5 flex items-center justify-between flex-wrap gap-2">';
@@ -2269,12 +2288,10 @@ function renderMapSection() {
     mh += '</div></div>';
     // Mix breakdown strip
     mh += '<div class="px-4 py-2 border-b border-white/5 flex items-center gap-4 flex-wrap" style="background:rgba(8,10,18,0.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)">';
-    mh += '<div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span><span class="text-[9px] font-bold text-red-300">8000 PSI</span><span class="text-[10px] mono font-bold text-red-200">' + done8000.toFixed(1) + '/' + cy8000.toFixed(0) + ' CY</span><span class="text-[9px] text-white/30">(Pile Caps' + (gbMix==='8000'?' + GB':'') + ')</span></div>';
-    mh += '<div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span><span class="text-[9px] font-bold text-blue-300">5000 PSI</span><span class="text-[10px] mono font-bold text-blue-200">' + done5000.toFixed(1) + '/' + cy5000.toFixed(0) + ' CY</span><span class="text-[9px] text-white/30">(Footings' + (gbMix==='5000'?' + GB':'') + ')</span></div>';
-    mh += '<div class="flex items-center gap-1.5 ml-auto"><span class="text-[8px] text-white/30">GB Mix:</span>';
-    mh += '<button onclick="localStorage.setItem(\'cup_gb_mix\',\'8000\');renderMapSection()" class="text-[9px] font-bold px-2 py-0.5 rounded transition-all ' + (gbMix==='8000' ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-white/5 text-white/30') + '">8000</button>';
-    mh += '<button onclick="localStorage.setItem(\'cup_gb_mix\',\'5000\');renderMapSection()" class="text-[9px] font-bold px-2 py-0.5 rounded transition-all ' + (gbMix==='5000' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-white/5 text-white/30') + '">5000</button>';
-    mh += '</div></div>';
+    mh += '<div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span><span class="text-[9px] font-bold text-red-300">8000 PSI</span><span class="text-[10px] mono font-bold text-red-200">' + done8000.toFixed(1) + '/' + cy8000.toFixed(0) + ' CY</span></div>';
+    mh += '<div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span><span class="text-[9px] font-bold text-blue-300">5000 PSI</span><span class="text-[10px] mono font-bold text-blue-200">' + done5000.toFixed(1) + '/' + cy5000.toFixed(0) + ' CY</span></div>';
+    if (cySlurry > 0) mh += '<div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-gray-500"></span><span class="text-[9px] font-bold text-gray-300">Slurry</span><span class="text-[10px] mono font-bold text-gray-200">' + doneSlurry.toFixed(1) + '/' + cySlurry.toFixed(0) + ' CY</span></div>';
+    mh += '</div>';
     // Embed summary strip
     var ewf = ftgs.filter(function(ff){ return ff.embeds && ff.embeds.length; });
     var totalEmb = ewf.reduce(function(s,ff){ return s + ff.embeds.length; }, 0);
@@ -2302,7 +2319,8 @@ function renderMapSection() {
       var pct = getFootingPct(f.id);
       var done = pct === 100;
       var active = pct > 0 && pct < 100;
-      var mixColor = f.type==='pc' ? '#ff6b6b' : f.type==='ftg' ? '#6bb5ff' : '#888';
+      var fMix = getFootingMix(f);
+      var mixColor = fMix==='8000' ? '#ff6b6b' : fMix==='5000' ? '#6bb5ff' : '#9ca3af';
       var fc = mixColor;
       var rx = f.type==='gb' ? 2 : f.type==='pc' ? 4 : 6;
       var fcx = f.x + f.w/2, fcy = f.y + f.h/2;
@@ -2366,8 +2384,9 @@ function renderMapSection() {
       + '</svg></div>';
     // Legend
     mh += '<div class="px-4 py-2 border-t border-white/5 flex items-center gap-3 text-[9px] flex-wrap">'
-      + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#ff6b6b33;border:1.5px solid #ff6b6b88"></span><span class="text-white/40">Pile Cap <span class="text-red-300">(8000)</span></span></span>'
-      + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#6bb5ff33;border:1.5px solid #6bb5ff88"></span><span class="text-white/40">Footing <span class="text-blue-300">(5000)</span></span></span>'
+      + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#ff6b6b33;border:1.5px solid #ff6b6b88"></span><span class="text-white/40"><span class="text-red-300">8000 PSI</span></span></span>'
+      + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#6bb5ff33;border:1.5px solid #6bb5ff88"></span><span class="text-white/40"><span class="text-blue-300">5000 PSI</span></span></span>'
+      + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#9ca3af33;border:1.5px solid #9ca3af88"></span><span class="text-white/40"><span class="text-gray-300">Slurry</span></span></span>'
       + '<span class="flex items-center gap-1"><span class="w-4 h-2 rounded-sm" style="background:#FFB80020;border:1.5px dashed #FFB800aa"></span><span class="text-white/40">Grade Beam</span></span>'
       + '<span class="text-white/15">|</span>'
       + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:linear-gradient(to top,#fff8 50%,#fff1 50%)"></span><span class="text-white/40">In progress</span></span>'
@@ -2781,11 +2800,12 @@ function renderFootingMapReadOnly(pourId) {
   const completedCY = ftgs.reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
   const totalCY = ftgs.reduce((s,f) => s+f.cy, 0);
   const inProgressCount = ftgs.filter(f => { const p = getFootingPct(f.id); return p > 0 && p < 100; }).length;
-  const gbMix = localStorage.getItem('cup_gb_mix') || '8000';
-  const cy8000 = ftgs.filter(f => f.type === 'pc' || (f.type === 'gb' && gbMix === '8000')).reduce((s,f) => s+f.cy, 0);
-  const cy5000 = ftgs.filter(f => f.type === 'ftg' || (f.type === 'gb' && gbMix === '5000')).reduce((s,f) => s+f.cy, 0);
-  const done8000 = ftgs.filter(f => f.type === 'pc' || (f.type === 'gb' && gbMix === '8000')).reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
-  const done5000 = ftgs.filter(f => f.type === 'ftg' || (f.type === 'gb' && gbMix === '5000')).reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
+  const cy8000 = ftgs.filter(f => getFootingMix(f) === '8000').reduce((s,f) => s+f.cy, 0);
+  const cy5000 = ftgs.filter(f => getFootingMix(f) === '5000').reduce((s,f) => s+f.cy, 0);
+  const cySlurry = ftgs.filter(f => getFootingMix(f) === 'slurry').reduce((s,f) => s+f.cy, 0);
+  const done8000 = ftgs.filter(f => getFootingMix(f) === '8000').reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
+  const done5000 = ftgs.filter(f => getFootingMix(f) === '5000').reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
+  const doneSlurry = ftgs.filter(f => getFootingMix(f) === 'slurry').reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
 
   let h = `<div class="rounded-xl border border-white/5 overflow-hidden mb-6" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
     <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between flex-wrap gap-2">
@@ -2806,6 +2826,11 @@ function renderFootingMapReadOnly(pourId) {
         <span class="text-[9px] font-bold text-blue-300">5000 PSI</span>
         <span class="text-[10px] mono font-bold text-blue-200">${done5000.toFixed(1)}/${cy5000.toFixed(0)} CY</span>
       </div>
+      ${cySlurry > 0 ? `<div class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-gray-500"></span>
+        <span class="text-[9px] font-bold text-gray-300">Slurry</span>
+        <span class="text-[10px] mono font-bold text-gray-200">${doneSlurry.toFixed(1)}/${cySlurry.toFixed(0)} CY</span>
+      </div>` : ''}
     </div>`;
 
   // Embed summary strip
@@ -2831,7 +2856,7 @@ function renderFootingMapReadOnly(pourId) {
     var pct = getFootingPct(f.id);
     var done = pct === 100;
     var active = pct > 0 && pct < 100;
-    var mixColor = f.type==='pc' ? '#ff6b6b' : f.type==='ftg' ? '#6bb5ff' : '#888';
+    var fMix = getFootingMix(f); var mixColor = fMix==='8000' ? '#ff6b6b' : fMix==='5000' ? '#6bb5ff' : '#9ca3af';
     var fc = mixColor;
     var rx = f.type==='gb' ? 2 : f.type==='pc' ? 4 : 6;
     var fcx = f.x + f.w/2, fcy = f.y + f.h/2;
@@ -2893,8 +2918,9 @@ function renderFootingMapReadOnly(pourId) {
     + gridColsSvg + gridRowsSvg + ftgSvg
     + '</svg></div>'
     + '<div class="px-4 py-2 border-t border-white/5 flex items-center gap-3 text-[9px] flex-wrap">'
-    + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#ff6b6b33;border:1.5px solid #ff6b6b88"></span><span class="text-white/40">Pile Cap (8000)</span></span>'
-    + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#6bb5ff33;border:1.5px solid #6bb5ff88"></span><span class="text-white/40">Footing (5000)</span></span>'
+    + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#ff6b6b33;border:1.5px solid #ff6b6b88"></span><span class="text-white/40">8000 PSI</span></span>'
+    + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#6bb5ff33;border:1.5px solid #6bb5ff88"></span><span class="text-white/40">5000 PSI</span></span>'
+    + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#9ca3af33;border:1.5px solid #9ca3af88"></span><span class="text-white/40">Slurry</span></span>'
     + '<span class="flex items-center gap-1"><span class="w-4 h-2 rounded-sm" style="background:#FFB80020;border:1.5px dashed #FFB800aa"></span><span class="text-white/40">Grade Beam</span></span>'
     + '<span class="text-white/15">|</span>'
     + '<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span><span class="text-white/40">Embed dot</span></span>'
