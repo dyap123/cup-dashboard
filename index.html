@@ -120,6 +120,7 @@
       <button onclick="switchTab('pourday')" id="tabPour" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Pour Day</button>
       <button onclick="switchTab('live')" id="tabLive" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Live Pour</button>
       <button onclick="switchTab('checklist')" id="tabCheck" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Checklist</button>
+      <span id="managerBadge" class="hidden text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full text-blue-400/70" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2)">Read Only</span>
     </div>
     <div id="sectionFilters" class="flex gap-1.5 shrink-0">
       <button onclick="setSectionFilter('ALL')" data-sec="ALL" class="sec-pill px-3 py-1 rounded-full text-xs font-semibold transition-all active-pill">ALL</button>
@@ -385,12 +386,13 @@ const SEC_DIM    = { A:'#142218', B:'#2a1c0e', C:'#14222e', D:'#1e1a2e' };
 
 // Editable pour labels (persisted in localStorage)
 function getPourLabel(id) { return localStorage.getItem('cup_label_'+id) || ''; }
-function setPourLabel(id, val) { localStorage.setItem('cup_label_'+id, val); }
+function setPourLabel(id, val) { if (isManagerView) return; localStorage.setItem('cup_label_'+id, val); }
 
 // Ordered status — writes to sheet via Apps Script
 const API_URL = 'https://script.google.com/macros/s/AKfycbwNOYItk1zZdQbVktGTND9TIloio1Su4FFIuccoX2hG22FpKug9M-3C3h5zgtkNFmks/exec';
 function getOrdered(id) { return localStorage.getItem('cup_ordered_'+id) === 'YES'; }
 function toggleOrdered(id) {
+  if (isManagerView) return;
   const newVal = !getOrdered(id);
   localStorage.setItem('cup_ordered_'+id, newVal ? 'YES' : 'NO');
   // Write to sheet
@@ -528,6 +530,7 @@ function recalcTotals() {
 
 // Update pour data — writes to Firebase (instant sync) + Sheet (persistent)
 function updatePourField(pourId, field, value) {
+  if (isManagerView) return; // read-only for managers
   const ALLOWED = ['cy8000','cy5000','slurry','date'];
   if (!ALLOWED.includes(field)) return;
   // Coerce numeric fields
@@ -778,23 +781,26 @@ function renderPourCards(pours) {
           <span class="text-xs font-bold px-2 py-0.5 rounded" style="background:${c}22;color:${c}">${p.section}</span>
           <span class="mono font-bold text-sm text-white/90">${p.id}</span>
           <span class="text-xs text-white/40 italic">${p.label || getPourLabel(p.id) || ''}</span>
-          ${!p.label && !getPourLabel(p.id) ? `<input type="text" class="bg-transparent border-b border-dashed border-white/15 text-xs text-white/50 w-20 px-1 py-0.5 focus:border-white/40 focus:outline-none placeholder:text-white/15 placeholder:italic" placeholder="+ label" onchange="setPourLabel('${p.id}',this.value);render()"/>` : ''}
+          ${!isManagerView && !p.label && !getPourLabel(p.id) ? `<input type="text" class="bg-transparent border-b border-dashed border-white/15 text-xs text-white/50 w-20 px-1 py-0.5 focus:border-white/40 focus:outline-none placeholder:text-white/15 placeholder:italic" placeholder="+ label" onchange="setPourLabel('${p.id}',this.value);render()"/>` : ''}
         </div>
         <div class="flex items-center gap-2">
-          <input type="date" value="${p.date ? '2026-' + p.date.split('/').map(n=>String(n).padStart(2,'0')).join('-') : ''}" class="w-28 bg-transparent border-b border-dashed border-white/10 text-xs mono text-white/40 text-center focus:outline-none focus:border-white/30" onchange="if(this.value){const d=this.value.split('-');updatePourField('${p.id}','date',parseInt(d[1])+'/'+parseInt(d[2]))}">
-          <button onclick="toggleOrdered('${p.id}')" class="text-[10px] font-bold px-2.5 py-1 rounded-full transition-all ${isOrdered ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-white/5 text-white/30 border border-white/10 hover:text-white/50'}">${isOrdered ? 'ORDERED' : 'PENDING'}</button>
+          ${isManagerView
+            ? `<span class="text-xs mono text-white/40">${p.date || '—'}</span>`
+            : `<input type="date" value="${p.date ? '2026-' + p.date.split('/').map(n=>String(n).padStart(2,'0')).join('-') : ''}" class="w-28 bg-transparent border-b border-dashed border-white/10 text-xs mono text-white/40 text-center focus:outline-none focus:border-white/30" onchange="if(this.value){const d=this.value.split('-');updatePourField('${p.id}','date',parseInt(d[1])+'/'+parseInt(d[2]))}">`
+          }
+          <span class="text-[10px] font-bold px-2.5 py-1 rounded-full ${isOrdered ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-white/5 text-white/30 border border-white/10'}">${isOrdered ? 'ORDERED' : 'PENDING'}</span>
         </div>
       </div>
       ${p.cy8000 > 0 || p.type==='Structural' ? `<div class="mb-2">
-        <div class="flex justify-between text-xs mb-1"><span class="text-white/40">8000 PSI</span><span class="mono text-red-300 font-semibold cursor-pointer" onclick="let v=prompt('8000 CY:','${p.cy8000}');if(v!==null)updatePourField('${p.id}','cy8000',+v)">${p.cy8000} CY</span></div>
+        <div class="flex justify-between text-xs mb-1"><span class="text-white/40">8000 PSI</span><span class="mono text-red-300 font-semibold ${isManagerView ? '' : 'cursor-pointer" onclick="let v=prompt(\'8000 CY:\',\''+p.cy8000+'\');if(v!==null)updatePourField(\''+p.id+'\',\'cy8000\',+v)'}">${p.cy8000} CY</span></div>
         <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400 bar-animate" style="width:${pct8}%;box-shadow:0 0 6px rgba(239,68,68,0.3)"></div></div>
       </div>` : ''}
       ${p.cy5000 > 0 || p.type==='Structural' ? `<div class="mb-2">
-        <div class="flex justify-between text-xs mb-1"><span class="text-white/40">5000 PSI</span><span class="mono text-blue-300 font-semibold cursor-pointer" onclick="let v=prompt('5000 CY:','${p.cy5000}');if(v!==null)updatePourField('${p.id}','cy5000',+v)">${p.cy5000} CY</span></div>
+        <div class="flex justify-between text-xs mb-1"><span class="text-white/40">5000 PSI</span><span class="mono text-blue-300 font-semibold ${isManagerView ? '' : 'cursor-pointer" onclick="let v=prompt(\'5000 CY:\',\''+p.cy5000+'\');if(v!==null)updatePourField(\''+p.id+'\',\'cy5000\',+v)'}">${p.cy5000} CY</span></div>
         <div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 bar-animate" style="width:${pct5}%;box-shadow:0 0 6px rgba(59,130,246,0.3)"></div></div>
       </div>` : ''}
       ${p.slurry > 0 || p.type==='Slurry' ? `<div class="mb-3">
-        <div class="flex justify-between text-xs mb-1"><span class="text-white/40">Slurry</span><span class="mono text-gray-300 font-semibold cursor-pointer" onclick="let v=prompt('Slurry CY:','${p.slurry}');if(v!==null)updatePourField('${p.id}','slurry',+v)">${p.slurry} CY</span></div>
+        <div class="flex justify-between text-xs mb-1"><span class="text-white/40">Slurry</span><span class="mono text-gray-300 font-semibold ${isManagerView ? '' : 'cursor-pointer" onclick="let v=prompt(\'Slurry CY:\',\''+p.slurry+'\');if(v!==null)updatePourField(\''+p.id+'\',\'slurry\',+v)'}">${p.slurry} CY</span></div>
         <div class="h-1 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-gray-500 to-gray-400 bar-animate" style="width:${Math.round((p.slurry/Math.max(...pours.map(x=>x.slurry),1))*100)}%"></div></div>
       </div>` : ''}
       ${(() => {
@@ -926,8 +932,20 @@ async function init() {
 
     // Auto-switch views
     const viewParam = new URLSearchParams(window.location.search).get('view');
-    if (viewParam === 'manager') switchTab('pourday');
-    if (viewParam === 'live') switchTab('live');
+    if (viewParam === 'manager') {
+      // Manager: live pour only — hide everything else
+      document.querySelector('header')?.remove();
+      document.querySelector('.sticky.top-14')?.remove();
+      document.getElementById('dashboardView')?.classList.add('hidden');
+      document.getElementById('zoneMap')?.classList.add('hidden');
+      document.getElementById('sectionGrid')?.classList.add('hidden');
+      document.getElementById('pourGrid')?.classList.add('hidden');
+      document.getElementById('footer')?.classList.add('hidden');
+      document.getElementById('pourdayView')?.classList.add('hidden');
+      document.getElementById('checklistView')?.classList.add('hidden');
+      document.getElementById('liveView')?.classList.remove('hidden');
+      renderLive();
+    } else if (viewParam === 'live') switchTab('live');
 
     render();
   } catch (err) {
@@ -1134,6 +1152,8 @@ function renderChecklist() {
 }
 
 function switchTab(tab) {
+  // Manager can only see dashboard + live
+  if (isManagerView && (tab === 'pourday' || tab === 'checklist')) return;
   const views = { dashboard:'dashboardView', checklist:'checklistView', pourday:'pourdayView', live:'liveView' };
   const tabs = { dashboard:'tabDash', checklist:'tabCheck', pourday:'tabPour', live:'tabLive' };
   const active = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white';
@@ -1468,12 +1488,14 @@ let pourDay = {
   feed: [],
 };
 let livePour = { active: null }; // { pourId, startedAt, startedBy }
+const isManagerView = new URLSearchParams(window.location.search).get('view') === 'manager';
 
 // Footing status: cycles through '' → '25' → '50' → '75' → 'DONE' → ''
 const FTG_STAGES = ['', '25', '50', '75', 'DONE'];
 function getFootingStatus(id) { return pourDay.footingStatus[id] || localStorage.getItem('cup_ftg_'+id) || ''; }
 function getFootingPct(id) { const s = getFootingStatus(id); return s === 'DONE' ? 100 : parseInt(s) || 0; }
 function toggleFooting(id) {
+  if (isManagerView) return; // read-only for managers
   const cur = getFootingStatus(id);
   const idx = FTG_STAGES.indexOf(cur);
   const newStatus = FTG_STAGES[(idx + 1) % FTG_STAGES.length];
@@ -1491,6 +1513,7 @@ function getEmbedChecked(footingId, embedId) {
   return pourDay.embedChecks[key] || localStorage.getItem('cup_emb_' + key) === '1';
 }
 function setEmbedChecked(footingId, embedId, checked) {
+  if (isManagerView) return; // read-only for managers
   const key = footingId + '_' + embedId;
   pourDay.embedChecks[key] = checked || null;
   if (checked) localStorage.setItem('cup_emb_' + key, '1');
@@ -1586,7 +1609,8 @@ function showEmbedPopup(footingId, pourIdOverride) {
     const checked = getEmbedChecked(f.id, e.embedId);
     const info = CUP_EMBEDS.find(c => c.embedId === e.embedId);
     const detail = info ? info.bolts + ' bolts &middot; ' + info.sp : '';
-    h += '<div onclick="setEmbedChecked(\'' + f.id + '\',\'' + e.embedId + '\',' + !checked + ')" class="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all ' + (checked ? 'bg-green-500/5' : 'bg-white/[0.03] hover:bg-white/[0.06]') + '">';
+    const clickAttr = isManagerView ? '' : 'onclick="setEmbedChecked(\'' + f.id + '\',\'' + e.embedId + '\',' + !checked + ')"';
+    h += '<div ' + clickAttr + ' class="flex items-center gap-3 p-2.5 rounded-lg ' + (isManagerView ? '' : 'cursor-pointer ') + 'transition-all ' + (checked ? 'bg-green-500/5' : 'bg-white/[0.03]' + (isManagerView ? '' : ' hover:bg-white/[0.06]')) + '">';
     h += '<div class="w-6 h-6 rounded flex items-center justify-center shrink-0" style="background:' + (checked ? '#41A447' : 'transparent') + ';border:2px solid ' + (checked ? '#41A447' : 'rgba(255,255,255,0.15)') + '">';
     if (checked) h += '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7l3 3 5-6" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     h += '</div>';
@@ -2124,8 +2148,6 @@ function renderPourDay() {
   const remaining = Math.max(0, ordered - delivered);
   const expectedTrucks = pour.trucks || Math.ceil(ordered / 9);
   const pct = ordered > 0 ? Math.min(100, Math.round(delivered / ordered * 100)) : 0;
-  const isManagerView = new URLSearchParams(window.location.search).get('view') === 'manager';
-
   let h = '';
 
   // Pour selector
@@ -2203,7 +2225,7 @@ function renderPourDay() {
   h += `<div class="rounded-xl overflow-hidden mb-4" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
     <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between">
       <span class="text-[10px] font-bold text-white/30 uppercase tracking-wider">Mix Designs</span>
-      <button onclick="document.getElementById('mixEditPanel').classList.toggle('hidden')" class="text-[9px] font-bold px-2 py-0.5 rounded bg-white/5 text-white/30 hover:text-white/50 border border-white/10">Edit</button>
+      ${!isManagerView ? `<button onclick="document.getElementById('mixEditPanel').classList.toggle('hidden')" class="text-[9px] font-bold px-2 py-0.5 rounded bg-white/5 text-white/30 hover:text-white/50 border border-white/10">Edit</button>` : ''}
     </div>
     <div class="grid grid-cols-3 gap-0">
       ${Object.values(mixes).map(m => `<div class="p-2.5 border-r border-white/[0.03] text-center">
@@ -2212,7 +2234,7 @@ function renderPourDay() {
         <div class="text-[8px] text-white/25 mt-1">${m.maxAgg} agg · ${m.slump} slump${m.lc3 ? ' · LC3' : ''}</div>
       </div>`).join('')}
     </div>
-    <div id="mixEditPanel" class="hidden p-3 border-t border-white/5 space-y-2">
+    ${!isManagerView ? `<div id="mixEditPanel" class="hidden p-3 border-t border-white/5 space-y-2">` : `<div id="mixEditPanel" class="hidden">`}
       ${Object.values(mixes).map(m => `<div class="flex items-center gap-2 text-[9px]">
         <span class="mono font-bold text-white/50 w-24">${m.code}</span>
         <input type="text" value="${m.maxAgg}" placeholder="Agg" class="w-12 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 mono text-white/70 focus:outline-none" onchange="saveMixDesign('${m.code}',{...getMixDesigns()['${m.code}'],maxAgg:this.value});renderPourDay()">
@@ -2491,9 +2513,142 @@ function renderPourDay() {
   }
 }
 
+// ── READ-ONLY FOOTING MAP SVG ──────────────────────────────────────────────
+function renderFootingMapReadOnly(pourId) {
+  const mapData = loadFootingMap(pourId);
+  if (!mapData) return '';
+  const ftgs = mapData.footings || [];
+  if (!ftgs.length) return '';
+  const c = SEC_COLORS[(state.pours.find(p=>p.id===pourId)||{}).section] || '#888';
+  const doneCount = ftgs.filter(f => getFootingStatus(f.id) === 'DONE').length;
+  const completedCY = ftgs.reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
+  const totalCY = ftgs.reduce((s,f) => s+f.cy, 0);
+  const inProgressCount = ftgs.filter(f => { const p = getFootingPct(f.id); return p > 0 && p < 100; }).length;
+  const gbMix = localStorage.getItem('cup_gb_mix') || '8000';
+  const cy8000 = ftgs.filter(f => f.type === 'pc' || (f.type === 'gb' && gbMix === '8000')).reduce((s,f) => s+f.cy, 0);
+  const cy5000 = ftgs.filter(f => f.type === 'ftg' || (f.type === 'gb' && gbMix === '5000')).reduce((s,f) => s+f.cy, 0);
+  const done8000 = ftgs.filter(f => f.type === 'pc' || (f.type === 'gb' && gbMix === '8000')).reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
+  const done5000 = ftgs.filter(f => f.type === 'ftg' || (f.type === 'gb' && gbMix === '5000')).reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
+
+  let h = `<div class="rounded-xl border border-white/5 overflow-hidden mb-6" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+    <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between flex-wrap gap-2">
+      <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Footing Map — ${mapData.label}</span>
+      <div class="flex items-center gap-3">
+        <span class="text-[10px] mono text-white/30">${doneCount} done${inProgressCount ? ', '+inProgressCount+' in progress' : ''}</span>
+        <span class="text-[10px] mono font-bold" style="color:${c}">${completedCY.toFixed(1)}/${totalCY.toFixed(0)} CY</span>
+      </div>
+    </div>
+    <div class="px-4 py-2 border-b border-white/5 flex items-center gap-4 flex-wrap" style="background:rgba(8,10,18,0.75)">
+      <div class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+        <span class="text-[9px] font-bold text-red-300">8000 PSI</span>
+        <span class="text-[10px] mono font-bold text-red-200">${done8000.toFixed(1)}/${cy8000.toFixed(0)} CY</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+        <span class="text-[9px] font-bold text-blue-300">5000 PSI</span>
+        <span class="text-[10px] mono font-bold text-blue-200">${done5000.toFixed(1)}/${cy5000.toFixed(0)} CY</span>
+      </div>
+    </div>`;
+
+  // Embed summary strip
+  const ewf = ftgs.filter(ff => ff.embeds && ff.embeds.length);
+  const totalEmb = ewf.reduce((s,ff) => s + ff.embeds.length, 0);
+  if (totalEmb) {
+    const checkedEmb = ewf.reduce((s,ff) => s + ff.embeds.filter(e => getEmbedChecked(ff.id, e.embedId)).length, 0);
+    const embPct = Math.round(checkedEmb / totalEmb * 100);
+    const ec = embPct === 100 ? '#41A447' : embPct > 50 ? '#FFBF00' : '#ef4444';
+    h += `<div class="px-4 py-2 border-b border-white/5 flex items-center gap-3 flex-wrap" style="background:rgba(8,10,18,0.6)">
+      <span class="text-[9px] font-bold text-white/30 uppercase tracking-wider">Embeds</span>
+      <span class="text-[10px] mono font-bold" style="color:${ec}">${checkedEmb}/${totalEmb} verified (${embPct}%)</span>
+      <div class="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden ml-auto" style="min-width:80px;max-width:200px">
+        <div class="h-full rounded-full transition-all" style="width:${embPct}%;background:${ec}"></div>
+      </div>
+    </div>`;
+  }
+
+  // Build footing SVG elements separately to avoid nested template literal issues
+  var ftgSvg = '';
+  for (var fi = 0; fi < ftgs.length; fi++) {
+    var f = ftgs[fi];
+    var pct = getFootingPct(f.id);
+    var done = pct === 100;
+    var active = pct > 0 && pct < 100;
+    var mixColor = f.type==='pc' ? '#ff6b6b' : f.type==='ftg' ? '#6bb5ff' : '#888';
+    var fc = mixColor;
+    var rx = f.type==='gb' ? 2 : f.type==='pc' ? 4 : 6;
+    var fcx = f.x + f.w/2, fcy = f.y + f.h/2;
+    var labelSize = f.w > 50 ? 11 : f.w > 30 ? 9 : 7;
+    var clipId = 'clipL_'+f.id.replace(/[^a-zA-Z0-9]/g,'_');
+    var fillH = f.h * (pct / 100);
+    var fillY = f.y + f.h - fillH;
+    var isGB = f.type === 'gb';
+    var ftypeLabel = f.ftype || '';
+    var gbColor = '#FFB800';
+    var shapeColor = isGB ? gbColor : fc;
+    var hasEmbeds = f.embeds && f.embeds.length;
+
+    if (isGB) {
+      ftgSvg += '<rect x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="4" fill="'+gbColor+'20" stroke="'+gbColor+'aa" stroke-width="2" stroke-dasharray="8,4"/>';
+      if (pct > 0) { var gbFillW = f.w * (pct / 100); ftgSvg += '<rect x="'+f.x+'" y="'+f.y+'" width="'+gbFillW+'" height="'+f.h+'" rx="4" fill="'+gbColor+'" opacity="'+(done?0.8:0.45)+'" pointer-events="none"/>'; }
+      var dh = f.h * 0.6;
+      ftgSvg += '<polygon points="'+f.x+','+(f.y+f.h/2)+' '+(f.x+5)+','+(f.y+f.h/2-dh/2)+' '+(f.x+10)+','+(f.y+f.h/2)+' '+(f.x+5)+','+(f.y+f.h/2+dh/2)+'" fill="'+gbColor+'88" pointer-events="none"/>';
+      ftgSvg += '<polygon points="'+(f.x+f.w)+','+(f.y+f.h/2)+' '+(f.x+f.w-5)+','+(f.y+f.h/2-dh/2)+' '+(f.x+f.w-10)+','+(f.y+f.h/2)+' '+(f.x+f.w-5)+','+(f.y+f.h/2+dh/2)+'" fill="'+gbColor+'88" pointer-events="none"/>';
+      ftgSvg += '<text x="'+fcx+'" y="'+(fcy+3)+'" text-anchor="middle" dominant-baseline="central" font-size="8" font-family="JetBrains Mono" fill="#FFB800cc" font-weight="700" pointer-events="none">'+ftypeLabel+' '+f.cy+'CY</text>';
+    } else {
+      var baseFill = pct === 0 ? shapeColor+'25' : shapeColor+'15';
+      var baseStroke = done ? shapeColor : shapeColor+'88';
+      ftgSvg += '<rect x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="'+rx+'" fill="'+baseFill+'" stroke="'+baseStroke+'" stroke-width="2"/>';
+      if (pct > 0) {
+        ftgSvg += '<defs><clipPath id="'+clipId+'"><rect x="'+f.x+'" y="'+fillY+'" width="'+f.w+'" height="'+fillH+'"/></clipPath></defs>';
+        ftgSvg += '<rect x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="'+rx+'" fill="'+shapeColor+'" opacity="'+(done?0.9:0.5)+'" clip-path="url(#'+clipId+')" pointer-events="none"/>';
+      }
+      if (done || active) ftgSvg += '<rect x="'+(f.x-2)+'" y="'+(f.y-2)+'" width="'+(f.w+4)+'" height="'+(f.h+4)+'" rx="'+(rx+2)+'" fill="none" stroke="'+shapeColor+'" stroke-width="1" opacity="0.2" pointer-events="none"/>';
+      ftgSvg += '<text x="'+fcx+'" y="'+(fcy - (f.h > 50 ? 8 : 3))+'" text-anchor="middle" dominant-baseline="central" font-size="'+labelSize+'" font-family="JetBrains Mono" fill="'+(done?'#000':'#fff')+'" font-weight="800" pointer-events="none">'+ftypeLabel+'</text>';
+      if (f.h > 40) ftgSvg += '<text x="'+fcx+'" y="'+(fcy+10)+'" text-anchor="middle" font-size="9" font-family="JetBrains Mono" fill="'+(done?'#000':'rgba(255,255,255,0.7)')+'" font-weight="600" pointer-events="none">'+f.cy+' CY</text>';
+      if (done) ftgSvg += '<text x="'+(f.x+f.w-3)+'" y="'+(f.y+12)+'" text-anchor="end" font-size="11" fill="#000" font-weight="900" pointer-events="none">&#10003;</text>';
+      else if (active) ftgSvg += '<text x="'+fcx+'" y="'+(fcy + (f.h > 50 ? 22 : 13))+'" text-anchor="middle" font-size="9" font-family="JetBrains Mono" fill="#fff" font-weight="800" pointer-events="none">'+pct+'%</text>';
+      ftgSvg += '<text x="'+fcx+'" y="'+(f.y+f.h+10)+'" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.3)" font-family="JetBrains Mono" font-weight="500" pointer-events="none">'+f.id+'</text>';
+    }
+    if (hasEmbeds) {
+      var embSt = getFootingEmbedStatus(f);
+      var embClr = embSt === 'all' ? '#41A447' : embSt === 'partial' ? '#FFBF00' : '#ef4444';
+      var embCk = f.embeds.filter(function(e){ return getEmbedChecked(f.id, e.embedId); }).length;
+      var dx = isGB ? f.x + f.w - 8 : f.x + f.w - 2;
+      var dy = f.y + (isGB ? f.h/2 : 2);
+      ftgSvg += '<circle cx="'+dx+'" cy="'+dy+'" r="7" fill="#080c14" pointer-events="none"/>';
+      ftgSvg += '<circle cx="'+dx+'" cy="'+dy+'" r="5" fill="'+embClr+'" opacity="0.9" pointer-events="none"/>';
+      ftgSvg += '<text x="'+dx+'" y="'+(dy+3)+'" text-anchor="middle" font-size="6" font-family="JetBrains Mono" fill="#000" font-weight="900" pointer-events="none">'+embCk+'/'+f.embeds.length+'</text>';
+      if (embSt === 'missing') ftgSvg += '<circle cx="'+dx+'" cy="'+dy+'" r="5" fill="none" stroke="'+embClr+'" stroke-width="1" opacity="0.5" pointer-events="none"><animate attributeName="r" from="5" to="11" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" from="0.5" to="0" dur="1.5s" repeatCount="indefinite"/></circle>';
+    }
+  }
+
+  // Grid lines
+  var gridColsSvg = (mapData.gridCols||[]).map(function(g){ return '<line x1="'+g.x+'" y1="15" x2="'+g.x+'" y2="490" stroke="rgba(255,255,255,0.08)" stroke-width="1"/><text x="'+g.x+'" y="12" text-anchor="middle" font-size="11" font-family="JetBrains Mono" fill="rgba(255,255,255,0.30)" font-weight="700">'+g.label+'</text>'; }).join('');
+  var gridRowsSvg = (mapData.gridRows||[]).map(function(g){ return '<line x1="5" y1="'+g.y+'" x2="1195" y2="'+g.y+'" stroke="rgba(255,255,255,0.06)" stroke-width="1"/><text x="4" y="'+(g.y+4)+'" font-size="10" font-family="JetBrains Mono" fill="rgba(255,255,255,0.25)" font-weight="700">'+g.label+'</text>'; }).join('');
+
+  // SVG map
+  h += '<div style="height:50vh;min-height:350px;overflow:auto">'
+    + '<svg viewBox="' + mapData.viewBox + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:600px">'
+    + '<rect width="1200" height="500" fill="#080c14"/>'
+    + '<defs><pattern id="fgridLive" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.6" fill="rgba(255,255,255,0.06)"/></pattern></defs>'
+    + '<rect width="1200" height="500" fill="url(#fgridLive)"/>'
+    + gridColsSvg + gridRowsSvg + ftgSvg
+    + '</svg></div>'
+    + '<div class="px-4 py-2 border-t border-white/5 flex items-center gap-3 text-[9px] flex-wrap">'
+    + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#ff6b6b33;border:1.5px solid #ff6b6b88"></span><span class="text-white/40">Pile Cap (8000)</span></span>'
+    + '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#6bb5ff33;border:1.5px solid #6bb5ff88"></span><span class="text-white/40">Footing (5000)</span></span>'
+    + '<span class="flex items-center gap-1"><span class="w-4 h-2 rounded-sm" style="background:#FFB80020;border:1.5px dashed #FFB800aa"></span><span class="text-white/40">Grade Beam</span></span>'
+    + '<span class="text-white/15">|</span>'
+    + '<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span><span class="text-white/40">Embed dot</span></span>'
+    + '</div></div>';
+  return h;
+}
+
 // ── LIVE POUR VIEW ─────────────────────────────────────────────────────────
 
 function startLivePour(pourId) {
+  if (isManagerView) return;
   if (!pourId) {
     const pour = getActivePour();
     if (!pour) return;
@@ -2507,6 +2662,7 @@ function startLivePour(pourId) {
 }
 
 function endLivePour() {
+  if (isManagerView) return;
   if (!livePour.active) return;
   if (!confirm('End live pour tracking?')) return;
   const pourId = livePour.active.pourId;
@@ -2520,8 +2676,18 @@ function renderLive() {
   const el = document.getElementById('liveContent');
   if (!el) return;
 
-  // No active pour — show start screen
+  // No active pour — show start screen (or waiting screen for managers)
   if (!livePour.active) {
+    if (isManagerView) {
+      el.innerHTML = `<div class="text-center py-16">
+        <div class="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6" style="background:rgba(59,130,246,0.08);border:2px solid rgba(59,130,246,0.15)">
+          <span class="material-symbols-outlined text-4xl text-blue-400/40">hourglass_empty</span>
+        </div>
+        <h2 class="text-xl font-black text-white/80 mb-2">No Active Pour</h2>
+        <p class="text-sm text-white/30 max-w-md mx-auto">Waiting for the field team to start a live pour. This page will update automatically.</p>
+      </div>`;
+      return;
+    }
     const upcoming = state.pours.filter(p => p.date && parseDateMD(p.date)).sort((a,b) => dateSortVal(a.date) - dateSortVal(b.date));
     const now = new Date(); now.setHours(0,0,0,0);
     const nextPours = upcoming.filter(p => {
@@ -2627,7 +2793,7 @@ function renderLive() {
       <span class="text-sm font-black uppercase tracking-widest" style="color:${c}">LIVE — ${pour.id}</span>
       <span class="text-xs text-white/30 mono">${elapsedStr} elapsed</span>
     </div>
-    <button onclick="endLivePour()" class="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400/60 hover:text-red-400 hover:bg-red-500/20 border border-red-500/15 transition-all">END POUR</button>
+    ${isManagerView ? '' : '<button onclick="endLivePour()" class="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400/60 hover:text-red-400 hover:bg-red-500/20 border border-red-500/15 transition-all">END POUR</button>'}
   </div>`;
 
   // Full-width progress bar
@@ -2710,6 +2876,9 @@ function renderLive() {
     </div>
   </div>`;
 
+  // Footing map (read-only)
+  h += renderFootingMapReadOnly(pour.id);
+
   // Last truck indicator
   if (lastTruckAgo !== null) {
     const urgency = lastTruckAgo > 20 ? 'text-red-400' : lastTruckAgo > 10 ? 'text-yellow-400' : 'text-green-400';
@@ -2780,12 +2949,21 @@ function renderLive() {
   }
   h += `</div></div>`;
 
-  // Share link
-  const liveUrl = window.location.origin + window.location.pathname + '?view=live';
-  h += `<div class="mt-6 p-3 rounded-xl text-center" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-    <div class="text-[9px] text-white/25 uppercase tracking-wider font-bold mb-1">Share with your team</div>
-    <div class="mono text-xs text-white/40 select-all cursor-pointer hover:text-white/60 transition-colors" onclick="navigator.clipboard.writeText('${liveUrl}').then(()=>this.textContent='Copied!').catch(()=>{})">${liveUrl}</div>
-  </div>`;
+  // Share links (hidden for managers)
+  if (!isManagerView) {
+    const liveUrl = window.location.origin + window.location.pathname + '?view=live';
+    const managerUrl = window.location.origin + window.location.pathname + '?view=manager';
+    h += `<div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div class="p-3 rounded-xl text-center" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+        <div class="text-[9px] text-white/25 uppercase tracking-wider font-bold mb-1">Live View Link</div>
+        <div class="mono text-xs text-white/40 select-all cursor-pointer hover:text-white/60 transition-colors" onclick="navigator.clipboard.writeText('${liveUrl}').then(()=>this.textContent='Copied!').catch(()=>{})">${liveUrl}</div>
+      </div>
+      <div class="p-3 rounded-xl text-center" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(59,130,246,0.12)">
+        <div class="text-[9px] text-blue-400/50 uppercase tracking-wider font-bold mb-1">Manager View (Read-Only)</div>
+        <div class="mono text-xs text-white/40 select-all cursor-pointer hover:text-white/60 transition-colors" onclick="navigator.clipboard.writeText('${managerUrl}').then(()=>this.textContent='Copied!').catch(()=>{})">${managerUrl}</div>
+      </div>
+    </div>`;
+  }
 
   el.innerHTML = h;
 }
