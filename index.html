@@ -1983,6 +1983,10 @@ function editTruckEntry(pourId, idx) {
   h += '<button onclick="updateTruckField(\'' + pourId + '\',' + idx + ',\'mix\',\'5000\')" class="flex-1 py-2 rounded text-xs font-bold transition-all ' + (t.mix==='5000' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-white/5 text-white/30') + '">5000</button>';
   h += '<button onclick="updateTruckField(\'' + pourId + '\',' + idx + ',\'mix\',\'slurry\')" class="flex-1 py-2 rounded text-xs font-bold transition-all ' + (t.mix==='slurry' ? 'bg-gray-500/20 text-gray-300 border border-gray-500/30' : 'bg-white/5 text-white/30') + '">Slurry</button>';
   h += '</div></div>';
+  // Ticket #
+  h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1">Ticket #</label>';
+  h += '<input type="text" value="' + (t.ticket||'') + '" placeholder="Enter ticket #" onchange="updateTruckField(\'' + pourId + '\',' + idx + ',\'ticket\',this.value)" class="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs mono text-white/80 placeholder:text-white/20 focus:outline-none focus:border-white/30"/>';
+  h += '</div>';
   // Delete
   h += '<button onclick="deleteTruckEntry(\'' + pourId + '\',' + idx + ')" class="w-full py-2.5 rounded-lg text-xs font-bold text-red-400/70 hover:text-red-400 bg-red-500/5 hover:bg-red-500/10 border border-red-500/15 transition-all mt-2">Delete This Entry</button>';
   h += '</div>';
