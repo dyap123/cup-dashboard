@@ -1955,6 +1955,82 @@ async function logTruck() {
   appendPourLog('truck', 'Truck #'+truckNum+' — '+cy+' CY '+mix, 'Cumulative: '+(prevCum+cy)+' CY');
 }
 
+function editTruckEntry(pourId, idx) {
+  const pourTrucks = pourDay.trucks.filter(t => t.pourId === pourId);
+  const t = pourTrucks[idx];
+  if (!t) return;
+
+  // Build edit popup
+  document.getElementById('truckEditPopup')?.remove();
+  var h = '<div id="truckEditPopup" class="fixed inset-0 z-[200] flex items-center justify-center" style="background:rgba(0,0,0,0.6);backdrop-filter:blur(4px)" onclick="if(event.target===this)this.remove()">';
+  h += '<div class="w-80 max-w-[90vw] rounded-xl overflow-hidden" style="background:rgba(6,6,14,0.95);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1)">';
+  h += '<div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">';
+  h += '<span class="text-sm font-bold text-white">Edit Truck #' + t.truckNum + '</span>';
+  h += '<span class="text-[10px] mono text-white/30">' + (typeof t.timestamp==='string'&&t.timestamp.includes('T') ? new Date(t.timestamp).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : t.timestamp) + '</span>';
+  h += '</div>';
+  h += '<div class="p-4 space-y-3">';
+  // CY
+  h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1">Quantity (CY)</label>';
+  h += '<div class="flex gap-1">';
+  [5,6,7,8,9].forEach(function(cy) {
+    h += '<button onclick="updateTruckField(\'' + pourId + '\',' + idx + ',\'cy\',' + cy + ')" class="flex-1 py-2 rounded text-xs mono font-bold transition-all ' + (t.cy===cy ? 'bg-white/15 text-white' : 'bg-white/5 text-white/30') + '">' + cy + '</button>';
+  });
+  h += '</div></div>';
+  // Mix
+  h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1">Mix Type</label>';
+  h += '<div class="flex gap-1">';
+  h += '<button onclick="updateTruckField(\'' + pourId + '\',' + idx + ',\'mix\',\'8000\')" class="flex-1 py-2 rounded text-xs font-bold transition-all ' + (t.mix==='8000' ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-white/5 text-white/30') + '">8000</button>';
+  h += '<button onclick="updateTruckField(\'' + pourId + '\',' + idx + ',\'mix\',\'5000\')" class="flex-1 py-2 rounded text-xs font-bold transition-all ' + (t.mix==='5000' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-white/5 text-white/30') + '">5000</button>';
+  h += '<button onclick="updateTruckField(\'' + pourId + '\',' + idx + ',\'mix\',\'slurry\')" class="flex-1 py-2 rounded text-xs font-bold transition-all ' + (t.mix==='slurry' ? 'bg-gray-500/20 text-gray-300 border border-gray-500/30' : 'bg-white/5 text-white/30') + '">Slurry</button>';
+  h += '</div></div>';
+  // Delete
+  h += '<button onclick="deleteTruckEntry(\'' + pourId + '\',' + idx + ')" class="w-full py-2.5 rounded-lg text-xs font-bold text-red-400/70 hover:text-red-400 bg-red-500/5 hover:bg-red-500/10 border border-red-500/15 transition-all mt-2">Delete This Entry</button>';
+  h += '</div>';
+  h += '<div class="px-4 py-2 border-t border-white/5 text-center"><button onclick="document.getElementById(\'truckEditPopup\').remove()" class="text-xs text-white/30 hover:text-white/50">Close</button></div>';
+  h += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', h);
+}
+
+function updateTruckField(pourId, idx, field, value) {
+  var pourTrucks = pourDay.trucks.filter(function(t){ return t.pourId === pourId; });
+  var t = pourTrucks[idx];
+  if (!t) return;
+  t[field] = value;
+  // Recalculate cumulative for all trucks in this pour
+  recalcTruckCumulative(pourId);
+  // Save to Firebase
+  fbSet('trucks/' + pourId, null); // clear and rewrite
+  pourTrucks.forEach(function(tk) { fbPush('trucks/' + pourId, tk); });
+  // Re-render popup and truck log
+  document.getElementById('truckEditPopup')?.remove();
+  editTruckEntry(pourId, idx);
+  renderPourDay();
+}
+
+function deleteTruckEntry(pourId, idx) {
+  var pourTrucks = pourDay.trucks.filter(function(t){ return t.pourId === pourId; });
+  var t = pourTrucks[idx];
+  if (!t) return;
+  // Remove from global array
+  var gi = pourDay.trucks.indexOf(t);
+  if (gi >= 0) pourDay.trucks.splice(gi, 1);
+  // Renumber and recalculate
+  var updated = pourDay.trucks.filter(function(t){ return t.pourId === pourId; });
+  var cum = 0;
+  updated.forEach(function(tk, i) { tk.truckNum = i + 1; cum += tk.cy; tk.cumulative = cum; });
+  // Save to Firebase
+  fbSet('trucks/' + pourId, null);
+  updated.forEach(function(tk) { fbPush('trucks/' + pourId, tk); });
+  document.getElementById('truckEditPopup')?.remove();
+  renderPourDay();
+}
+
+function recalcTruckCumulative(pourId) {
+  var pourTrucks = pourDay.trucks.filter(function(t){ return t.pourId === pourId; });
+  var cum = 0;
+  pourTrucks.forEach(function(t) { cum += t.cy; t.cumulative = cum; });
+}
+
 function setPourDayCY(cy) {
   pourDay.defaultCY = cy;
   renderPourDay();
@@ -2008,7 +2084,7 @@ function exportPourReport() {
     tr:nth-child(even){background:#f8fafc}
     .ok{color:#166534} .warn{color:#92400e} .bad{color:#991b1b}
     @media print{body{padding:0.3in 0.5in}}
-  </style></head><body>
+  </style></head><body style="padding-top:50pt">
   <h1>WEBCOR CONCRETE — Pour Day Report</h1>
   <div class="meta">Pour: <strong>${pour.id}</strong> · Section ${pour.section} · Date: ${pour.date || today} · Generated: ${today}</div>
 
@@ -2081,8 +2157,20 @@ function exportPourReport() {
   </div>
   </body></html>`;
 
+  // Add share toolbar for iPad fullscreen
+  const shareBar = `<div style="position:fixed;top:0;left:0;right:0;z-index:999;background:#1C2E54;padding:8pt 16pt;display:flex;align-items:center;justify-content:space-between;gap:8pt;font-family:Arial,sans-serif" id="shareBar">
+    <span style="color:#fff;font-size:10pt;font-weight:700">${pour.id} Pour Report</span>
+    <div style="display:flex;gap:6pt">
+      <button onclick="window.print()" style="background:#fff2;color:#fff;border:1px solid #fff3;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Print / PDF</button>
+      <button onclick="navigator.clipboard.writeText(document.body.innerText).then(()=>this.textContent='Copied!').catch(()=>{})" style="background:#fff2;color:#fff;border:1px solid #fff3;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Copy Text</button>
+      ${typeof navigator.share === 'function' ? '<button onclick="navigator.share({title:\'Pour Report — ' + pour.id + '\',text:document.body.innerText}).catch(()=>{})" style="background:#4ADE80;color:#000;border:none;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Share</button>' : ''}
+      <button onclick="document.getElementById(\'shareBar\').remove()" style="background:transparent;color:#fff6;border:none;padding:6pt 8pt;font-size:12pt;cursor:pointer">&times;</button>
+    </div>
+  </div>
+  <style>@media print{#shareBar{display:none!important}body{padding-top:0.3in!important}}</style>`;
+
   const w = window.open('', '_blank');
-  w.document.write(html);
+  w.document.write(html.replace('</body>', shareBar + '</body>'));
   w.document.close();
 }
 
@@ -2617,7 +2705,7 @@ function renderPourDay() {
     </div>`;
   }
 
-  // Truck log
+  // Truck log (editable — tap row to edit)
   const reverseTrucks = [...pourTrucks].reverse();
   if (reverseTrucks.length) {
     h += `<div class="rounded-xl overflow-hidden" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
@@ -2631,7 +2719,8 @@ function renderPourDay() {
       <div class="max-h-64 overflow-y-auto">
         ${reverseTrucks.map(t => {
           const time = typeof t.timestamp === 'string' && t.timestamp.includes('T') ? new Date(t.timestamp).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : t.timestamp;
-          return `<div class="px-4 py-2.5 flex items-center justify-between border-b border-white/[0.04] text-xs">
+          const idx = pourTrucks.indexOf(t);
+          return `<div class="px-4 py-2.5 flex items-center justify-between border-b border-white/[0.04] text-xs group" onclick="editTruckEntry('${pour.id}',${idx})">
             <div class="flex items-center gap-3">
               <span class="mono font-bold text-white/80 text-sm">#${t.truckNum}</span>
               <span class="mono font-bold text-white text-sm">${t.cy} CY</span>
@@ -2641,6 +2730,7 @@ function renderPourDay() {
             <div class="flex items-center gap-3">
               <span class="mono text-white/30">${time}</span>
               <span class="mono font-bold text-sm" style="color:${c}">${t.cumulative} CY</span>
+              <span class="material-symbols-outlined text-white/15 text-sm group-hover:text-white/40 transition-colors">edit</span>
             </div>
           </div>`;
         }).join('')}
