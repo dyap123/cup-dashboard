@@ -1232,6 +1232,7 @@ function loadFootingMap(key) {
 }
 function saveFootingMap(key, data) {
   localStorage.setItem('cup_ftgmap_'+key, JSON.stringify(data));
+  if (pourDay.mapCache) pourDay.mapCache[key] = data;
   fbSet(`maps/${key}`, data);
 }
 
