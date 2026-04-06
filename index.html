@@ -16,8 +16,8 @@
       theme: {
         extend: {
           colors: {
-            "bg": "#06060A",
-            "card": "#0B0B0F",
+            "bg": "#000000",
+            "card": "#06060E",
             "sa": "#4A8EFF",
             "sb": "#41A447",
             "sc": "#FFBF00",
@@ -32,7 +32,27 @@
     };
   </script>
   <style>
-    body { background:#060810; color:#e4e1e8; font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; transition:margin-right 0.3s cubic-bezier(.4,0,.2,1); }
+    body { background:#000000; color:#e4e1e8; font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; transition:margin-right 0.3s cubic-bezier(.4,0,.2,1); }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      opacity: 0.03;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      background-repeat: repeat;
+      background-size: 256px 256px;
+      pointer-events: none;
+      z-index: 0;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 32px 32px;
+      pointer-events: none;
+      z-index: 0;
+    }
     .mono { font-family:'JetBrains Mono',monospace; }
     .no-scroll::-webkit-scrollbar { display:none; }
     .no-scroll { -ms-overflow-style:none; scrollbar-width:none; }
@@ -42,9 +62,9 @@
     @keyframes barGrow { from{width:0} }
     .bar-animate { animation:barGrow .9s cubic-bezier(.65,0,.35,1) forwards; }
     /* Alfred Sidebar */
-    #alfredToggle { position:fixed; right:0; top:50%; z-index:99; transform:translateY(-50%); width:28px; height:56px; background:rgba(6,8,14,0.97); border:1px solid rgba(60,90,140,0.08); border-right:none; border-radius:6px 0 0 6px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
-    #alfredToggle:hover { background:rgba(10,14,24,1); border-color:rgba(60,90,140,0.15); }
-    #alfredSidebar { position:fixed; top:0; right:0; bottom:0; width:300px; z-index:100; background:#060810; border-left:1px solid rgba(60,90,140,0.06); transform:translateX(100%); transition:transform 0.3s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column; touch-action:pan-y; }
+    #alfredToggle { position:fixed; right:0; top:50%; z-index:99; transform:translateY(-50%); width:28px; height:56px; background:rgba(6,6,14,0.82); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,0.06); border-right:none; border-radius:6px 0 0 6px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
+    #alfredToggle:hover { background:rgba(10,14,24,0.9); border-color:rgba(255,255,255,0.1); }
+    #alfredSidebar { position:fixed; top:0; right:0; bottom:0; width:300px; z-index:100; background:rgba(6,6,14,0.82); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border-left:1px solid rgba(255,255,255,0.06); transform:translateX(100%); transition:transform 0.3s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column; touch-action:pan-y; }
     #alfredSidebar.open { transform:translateX(0); }
     @media(max-width:640px) { #alfredSidebar { width:100vw; } }
     #brainCanvas { width:100%; height:100%; display:block; cursor:grab; }
@@ -74,10 +94,10 @@
     .count-in { animation:countFade 0.3s ease both; }
   </style>
 </head>
-<body class="min-h-screen">
+<body class="min-h-screen" style="position:relative">
 
 <!-- HEADER -->
-<header class="sticky top-0 z-50 border-b" style="border-color:rgba(50,80,130,0.06);background:rgba(6,8,16,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)">
+<header class="sticky top-0 z-50 border-b" style="border-color:rgba(50,80,130,0.06);background:rgba(6,8,16,0.85);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid transparent;border-image:linear-gradient(90deg, transparent, rgba(59,130,246,0.2), transparent) 1">
   <div class="max-w-7xl mx-auto px-4 h-14 flex items-center gap-4">
     <span style="font-family:'Inter',sans-serif;font-weight:300;font-size:12px;letter-spacing:0.25em;color:rgba(140,170,210,0.3)" class="shrink-0">openyap</span>
     <div class="flex-1"></div>
@@ -93,7 +113,7 @@
 </header>
 
 <!-- TAB BAR + FILTER BAR -->
-<div class="sticky top-14 z-40 border-b" style="border-color:rgba(50,80,130,0.06);background:rgba(6,8,16,0.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)">
+<div class="sticky top-14 z-40 border-b" style="border-color:rgba(50,80,130,0.06);background:rgba(6,8,16,0.85);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%)">
   <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 overflow-x-auto no-scroll">
     <div class="flex gap-1 shrink-0 mr-2">
       <button onclick="switchTab('dashboard')" id="tabDash" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white">Dashboard</button>
@@ -115,16 +135,16 @@
 
 <!-- CHECKLIST VIEW -->
 <!-- POUR DAY COMMAND CENTER -->
-<div id="pourdayView" class="hidden max-w-4xl mx-auto px-4 py-5 space-y-4 pb-20">
+<div id="pourdayView" class="hidden max-w-4xl mx-auto px-4 py-5 space-y-4 pb-20" style="position:relative;z-index:1">
   <div id="pourdayContent"></div>
 </div>
 
 <!-- LIVE POUR VIEW -->
-<div id="liveView" class="hidden max-w-3xl mx-auto px-4 py-6 pb-20">
+<div id="liveView" class="hidden max-w-3xl mx-auto px-4 py-6 pb-20" style="position:relative;z-index:1">
   <div id="liveContent"></div>
 </div>
 
-<div id="checklistView" class="hidden max-w-4xl mx-auto px-4 py-6">
+<div id="checklistView" class="hidden max-w-4xl mx-auto px-4 py-6" style="position:relative;z-index:1">
   <div class="flex items-center justify-between mb-5">
     <div>
       <h2 class="text-lg font-black text-white tracking-tight">Pour Day Checklist</h2>
@@ -140,11 +160,11 @@
   <span class="text-[9px] font-bold text-white/25" style="writing-mode:vertical-lr;letter-spacing:2px">›</span>
 </div>
 <aside id="alfredSidebar">
-  <div class="px-3 py-1.5 border-b flex items-center justify-between" style="border-color:rgba(50,80,130,0.06)">
+  <div class="px-3 py-1.5 border-b flex items-center justify-between" style="border-color:rgba(255,255,255,0.06)">
     <span class="text-[10px] font-bold tracking-widest" style="color:rgba(140,170,210,0.3)">ALFRED</span>
     <button onclick="toggleAlfred()" class="text-white/15 hover:text-white/40 transition-colors"><span class="material-symbols-outlined text-sm">close</span></button>
   </div>
-  <div style="height:240px;background:#04060c;border-bottom:1px solid rgba(50,80,130,0.06);position:relative;overflow:hidden">
+  <div style="height:240px;background:rgba(4,6,12,0.9);border-bottom:1px solid rgba(255,255,255,0.06);position:relative;overflow:hidden">
     <canvas id="brainCanvas"></canvas>
     <div id="brainTip" class="hidden absolute px-2 py-1 rounded text-[9px] mono pointer-events-none z-10" style="background:rgba(0,0,0,0.9);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.7)"></div>
     <div id="brainBootText" class="absolute inset-0 flex items-center justify-center pointer-events-none"><span class="text-sm font-light tracking-[0.3em] text-white/15">OpenYap</span></div>
@@ -153,7 +173,7 @@
     <div id="alfredMessages" class="flex-1 overflow-y-auto p-3 space-y-2" style="scrollbar-width:thin">
       <div class="alfred-msg ai">What's up — need anything on the pour schedule, quantities, or footings?</div>
     </div>
-    <div class="px-3 py-2 flex gap-2" style="border-top:1px solid rgba(50,80,130,0.06);background:#050710">
+    <div class="px-3 py-2 flex gap-2" style="border-top:1px solid rgba(255,255,255,0.06);background:rgba(6,6,14,0.82)">
       <input id="alfredInput" type="text" placeholder="Ask Alfred..." class="flex-1 bg-white/[0.02] border rounded-lg px-3 py-2 text-xs text-white/70 placeholder:text-white/15 focus:outline-none" style="border-color:rgba(50,80,130,0.1)" onfocus="this.style.borderColor='rgba(60,100,160,0.2)'" onblur="this.style.borderColor='rgba(50,80,130,0.1)'" onkeydown="if(event.key==='Enter')sendAlfred()">
       <button onclick="sendAlfred()" class="px-3 py-2 rounded-lg text-xs font-bold transition-all" style="background:rgba(50,80,130,0.08);color:rgba(140,170,210,0.4);border:1px solid rgba(50,80,130,0.1)"><span class="material-symbols-outlined text-sm">send</span></button>
     </div>
@@ -161,7 +181,7 @@
 </aside>
 
 <!-- MAIN -->
-<main id="dashboardView" class="max-w-7xl mx-auto px-4 py-5 space-y-5">
+<main id="dashboardView" class="max-w-7xl mx-auto px-4 py-5 space-y-5" style="position:relative;z-index:1">
 
   <!-- LOADING -->
   <div id="loading" class="flex flex-col items-center justify-center py-12 gap-3" style="transition:opacity 0.5s ease">
@@ -239,11 +259,11 @@
 
   <!-- TIMELINE -->
   <div id="timelineWrap" class="hidden">
-    <button onclick="document.getElementById('timelineBody').classList.toggle('hidden');this.querySelector('span.arrow').textContent=document.getElementById('timelineBody').classList.contains('hidden')?'expand_more':'expand_less'" class="w-full flex items-center justify-between px-4 py-2.5 rounded-t-xl text-[11px] font-black tracking-widest text-white/50 uppercase hover:text-white/70 transition-colors" style="background:#0a0c14">
+    <button onclick="document.getElementById('timelineBody').classList.toggle('hidden');this.querySelector('span.arrow').textContent=document.getElementById('timelineBody').classList.contains('hidden')?'expand_more':'expand_less'" class="w-full flex items-center justify-between px-4 py-2.5 rounded-t-xl text-[11px] font-black tracking-widest text-white/50 uppercase hover:text-white/70 transition-colors" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <span>Pour Timeline</span>
       <span class="arrow material-symbols-outlined text-sm">expand_less</span>
     </button>
-    <div id="timelineBody" class="rounded-b-xl p-4 overflow-x-auto" style="background:#0a0c14">
+    <div id="timelineBody" class="rounded-b-xl p-4 overflow-x-auto" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <div id="timelineContent" class="relative" style="min-width:700px"></div>
     </div>
   </div>
@@ -260,11 +280,11 @@
 </main>
 
 <!-- GRAND TOTAL FOOTER -->
-<div id="footer" class="hidden fixed bottom-0 left-0 right-0 z-50 border-t" style="border-color:rgba(50,80,130,0.08);background:rgba(6,8,16,0.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)">
+<div id="footer" class="hidden fixed bottom-0 left-0 right-0 z-50 border-t" style="border-color:rgba(50,80,130,0.08);background:rgba(6,8,16,0.85);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-top:1px solid transparent;border-image:linear-gradient(90deg, transparent, rgba(59,130,246,0.2), transparent) 1">
   <div class="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between gap-4">
     <div class="flex items-center gap-4 overflow-x-auto no-scroll">
       <div class="flex items-center gap-2 shrink-0">
-        <span id="ftTotal" class="mono text-base font-bold text-yellow-300">—</span>
+        <span id="ftTotal" class="mono text-base font-bold" style="color:#34D399">—</span>
         <span class="text-xs text-white/30">CY</span>
       </div>
       <div class="flex items-center gap-2 shrink-0">
@@ -508,6 +528,13 @@ function recalcTotals() {
 
 // Update pour data — writes to Firebase (instant sync) + Sheet (persistent)
 function updatePourField(pourId, field, value) {
+  const ALLOWED = ['cy8000','cy5000','slurry','date'];
+  if (!ALLOWED.includes(field)) return;
+  // Coerce numeric fields
+  if (['cy8000','cy5000','slurry'].includes(field)) {
+    value = parseFloat(value);
+    if (isNaN(value) || value < 0) return;
+  }
   // Instant sync via Firebase
   fbSet(`pour-overrides/${pourId}/${field}`, value);
   // Write back to sheet so it stays in sync
@@ -528,6 +555,14 @@ function updatePourField(pourId, field, value) {
   render();
 }
 
+// ── HELPERS ──────────────────────────────────────────────────────────────────
+function parseDateMD(d) {
+  if (!d || typeof d !== 'string') return null;
+  const m = d.match(/^(\d{1,2})\/(\d{1,2})$/);
+  return m ? [parseInt(m[1]), parseInt(m[2])] : null;
+}
+function dateSortVal(d) { const p = parseDateMD(d); return p ? p[0]*100+p[1] : 99999; }
+
 // ── FILTER LOGIC ─────────────────────────────────────────────────────────────
 function filteredPours() {
   let pours = state.pours.filter(p => {
@@ -536,14 +571,7 @@ function filteredPours() {
     return secOk && dateOk;
   });
   if (state.sortByDate) {
-    pours = [...pours].sort((a, b) => {
-      if (!a.date && !b.date) return 0;
-      if (!a.date) return 1;
-      if (!b.date) return -1;
-      const [am,ad] = a.date.split('/').map(Number);
-      const [bm,bd] = b.date.split('/').map(Number);
-      return (am*100+ad) - (bm*100+bd);
-    });
+    pours = [...pours].sort((a, b) => dateSortVal(a.date) - dateSortVal(b.date));
   }
   return pours;
 }
@@ -574,6 +602,10 @@ function render() {
   if (!hasContent && (state.sectionFilter !== 'ALL' || state.dateFilter !== 'ALL')) {
     document.getElementById('emptyState').classList.remove('hidden');
   }
+
+  // Also update whichever tab is currently visible
+  if (!document.getElementById('pourdayView')?.classList.contains('hidden')) renderPourDay();
+  if (!document.getElementById('liveView')?.classList.contains('hidden')) renderLive();
 }
 
 // Zone Map — layout: C=left, B=upper-center, D=bottom-left, A=right (matches CUP site)
@@ -631,15 +663,11 @@ function renderZoneMap(pours) {
 // Timeline — Gantt-style with section swim lanes
 function renderTimeline(pours) {
   const tl = document.getElementById('timelineContent');
-  const dated = pours.filter(p => p.date).sort((a,b) => {
-    const [am,ad] = (a.date||'').split('/').map(Number);
-    const [bm,bd] = (b.date||'').split('/').map(Number);
-    return (am*100+ad) - (bm*100+bd);
-  });
+  const dated = pours.filter(p => p.date && parseDateMD(p.date)).sort((a,b) => dateSortVal(a.date) - dateSortVal(b.date));
   if (!dated.length) { document.getElementById('timelineWrap').classList.add('hidden'); return; }
   document.getElementById('timelineWrap').classList.remove('hidden');
 
-  const parseMD = d => { const [m,dd] = d.split('/').map(Number); return new Date(2026, m-1, dd); };
+  const parseMD = d => { const p = parseDateMD(d); return p ? new Date(2026, p[0]-1, p[1]) : new Date(); };
   const allDated = pours.filter(p => p.date);
   const minD = parseMD(dated[0].date);
   const maxD = new Date(parseMD(dated[dated.length-1].date).getTime() + 3*86400000); // pad 3 days
@@ -717,7 +745,7 @@ function renderSectionCards(pours, refs) {
   grid.innerHTML = secs.map((s, idx) => {
     const r = refs[s] || {};
     const c = SEC_COLORS[s];
-    return `<div class="sec-card pour-card rounded-xl p-3" style="background:#0a0c14;border-left:3px solid ${c};animation-delay:${idx*60}ms">
+    return `<div class="sec-card pour-card rounded-xl p-4" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06);border-left:3px solid ${c};animation-delay:${idx*60}ms">
       <div class="flex items-center gap-2 mb-3">
         <span class="text-xs font-bold px-2 py-0.5 rounded" style="background:${c}22;color:${c}">SECTION ${s}</span>
       </div>
@@ -744,7 +772,7 @@ function renderPourCards(pours) {
     const pct8  = Math.round((p.cy8000 / maxCy8000) * 100);
     const pct5  = Math.round((p.cy5000 / maxCy5000) * 100);
     const isOrdered = p.status?.toLowerCase().includes('yes') || getOrdered(p.id);
-    return `<div class="pour-card rounded-xl p-3 ${isOrdered ? 'border border-green-500/30' : ''}" style="background:#0a0c14;animation-delay:${idx*50}ms">
+    return `<div class="pour-card rounded-xl p-4 ${isOrdered ? 'border border-green-500/30' : ''}" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06);border-left:3px solid ${c};animation-delay:${idx*50}ms">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
           <span class="text-xs font-bold px-2 py-0.5 rounded" style="background:${c}22;color:${c}">${p.section}</span>
@@ -753,7 +781,7 @@ function renderPourCards(pours) {
           ${!p.label && !getPourLabel(p.id) ? `<input type="text" class="bg-transparent border-b border-dashed border-white/15 text-xs text-white/50 w-20 px-1 py-0.5 focus:border-white/40 focus:outline-none placeholder:text-white/15 placeholder:italic" placeholder="+ label" onchange="setPourLabel('${p.id}',this.value);render()"/>` : ''}
         </div>
         <div class="flex items-center gap-2">
-          <input type="text" value="${p.date||''}" placeholder="date" class="w-20 bg-transparent border-b border-dashed border-white/10 text-xs mono text-white/40 text-center focus:outline-none focus:border-white/30 placeholder:text-white/15" onchange="updatePourField('${p.id}','date',this.value)">
+          <input type="date" value="${p.date ? '2026-' + p.date.split('/').map(n=>String(n).padStart(2,'0')).join('-') : ''}" class="w-28 bg-transparent border-b border-dashed border-white/10 text-xs mono text-white/40 text-center focus:outline-none focus:border-white/30" onchange="if(this.value){const d=this.value.split('-');updatePourField('${p.id}','date',parseInt(d[1])+'/'+parseInt(d[2]))}">
           <button onclick="toggleOrdered('${p.id}')" class="text-[10px] font-bold px-2.5 py-1 rounded-full transition-all ${isOrdered ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-white/5 text-white/30 border border-white/10 hover:text-white/50'}">${isOrdered ? 'ORDERED' : 'PENDING'}</button>
         </div>
       </div>
@@ -794,7 +822,7 @@ function renderPourCards(pours) {
         return out;
       })()}
       <div class="flex items-center justify-between pt-2 border-t border-white/5">
-        <span class="mono text-yellow-300 font-bold text-sm">${p.total} <span class="text-white/40 font-normal text-xs">CY</span></span>
+        <span class="mono font-bold text-sm" style="color:#34D399">${p.total} <span class="text-white/40 font-normal text-xs">CY</span></span>
         <span class="text-xs text-white/40">${p.trucks} trucks</span>
       </div>
     </div>`;
@@ -884,6 +912,9 @@ async function init() {
     state.pours = pours;
     state.grand = grand;
     applyOverrides(); // apply any Firebase overrides on top of sheet data
+
+    // Attach Firebase listeners AFTER state is populated (avoids race condition)
+    if (db) attachFirebaseListeners();
 
     var loadEl = document.getElementById('loading');
     loadEl.style.opacity = '0';
@@ -1032,7 +1063,7 @@ function renderChecklist() {
 
   // Pour selector + info card
   const allPours = getUpcomingPours();
-  html += `<div class="mb-4 p-4 rounded-xl border" style="background:#0a0c14;border-color:${secColor}33">
+  html += `<div class="mb-4 p-4 rounded-xl border" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid ${secColor}33">
     <div class="flex items-center justify-between mb-3">
       <div class="flex items-center gap-2 flex-wrap">
         ${allPours.map(p => {
@@ -1058,13 +1089,13 @@ function renderChecklist() {
   </div>`;
 
   // Progress bar
-  html += `<div class="mb-5 p-3 rounded-xl border border-white/5" style="background:#0a0c14">
+  html += `<div class="mb-5 p-3 rounded-xl border border-white/5" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
     <div class="flex items-center justify-between mb-1.5">
       <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">${pour.id} Progress</span>
       <span class="mono text-xs font-bold" style="color:${pct===100?'#41A447':'#FFBF00'}">${doneCount}/${totalItems} — ${pct}%</span>
     </div>
     <div class="h-1.5 rounded-full bg-white/5 overflow-hidden">
-      <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:${pct===100?'#41A447':pct>50?'#FFBF00':'#4AB8FF'}"></div>
+      <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:${pct===100?'#34D399':'linear-gradient(90deg, #3B82F6, #8B5CF6)'}"></div>
     </div>
   </div>`;
 
@@ -1153,6 +1184,24 @@ const CUP_EMBEDS = [
   { embedId:'86A', label:'CUP Anchor Rod', bolts:4,  sp:'SP-20' },
   { embedId:'90A', label:'CUP Embed Post (W14X605)', bolts:30, sp:'SP-20' },
 ];
+
+// Mix design reference
+const MIX_DESIGNS = {
+  'O80D739K1': { code:'O80D739K1', psi:8000, maxAgg:'3/4"', slump:'8"', lc3:false, label:'8000 PSI Structural' },
+  'O60C649J1': { code:'O60C649J1', psi:5000, maxAgg:'3/4"', slump:'8"', lc3:false, label:'5000 PSI Footings' },
+  'S80S662L2': { code:'S80S662L2', psi:0, maxAgg:'3/8"', slump:'10"', lc3:false, label:'Slurry Backfill (8sk)' },
+};
+function getMixDesigns() {
+  const saved = localStorage.getItem('cup_mix_designs');
+  if (saved) try { return {...MIX_DESIGNS, ...JSON.parse(saved)}; } catch {}
+  return {...MIX_DESIGNS};
+}
+function saveMixDesign(code, data) {
+  const all = getMixDesigns();
+  all[code] = data;
+  localStorage.setItem('cup_mix_designs', JSON.stringify(all));
+  fbSet('mix-designs', all);
+}
 
 function loadFootingMap(key) {
   // key = pour ID (e.g. 'A-4') or section letter (e.g. 'A') for backwards compat
@@ -1498,9 +1547,9 @@ function removeEmbedFromFooting(pourId, idx) {
 
 // ── EMBED CHECKLIST POPUP (long-press in view mode) ────────────────────────
 let embedLPTimer = null, embedLPStartX = 0, embedLPStartY = 0;
-function startEmbedLongPress(footingId, ev) {
+function startEmbedLongPress(footingId, ev, pourIdOverride) {
   embedLPStartX = ev.clientX; embedLPStartY = ev.clientY;
-  embedLPTimer = setTimeout(() => { ev.preventDefault(); showEmbedPopup(footingId); }, 400);
+  embedLPTimer = setTimeout(() => { ev.preventDefault(); showEmbedPopup(footingId, pourIdOverride); }, 400);
   const moveCancel = (e) => {
     if (Math.abs(e.clientX - embedLPStartX) > 10 || Math.abs(e.clientY - embedLPStartY) > 10) cancelEmbedLongPress();
   };
@@ -1511,9 +1560,9 @@ function startEmbedLongPress(footingId, ev) {
 }
 function cancelEmbedLongPress() { if (embedLPTimer) { clearTimeout(embedLPTimer); embedLPTimer = null; } }
 
-function showEmbedPopup(footingId) {
+function showEmbedPopup(footingId, pourIdOverride) {
   cancelEmbedLongPress();
-  const pourId = getActivePour()?.id;
+  const pourId = pourIdOverride || getActivePour()?.id;
   const map = loadFootingMap(pourId);
   const f = map?.footings.find(ft => ft.id === footingId);
   if (!f || !f.embeds || !f.embeds.length) return;
@@ -1524,7 +1573,7 @@ function showEmbedPopup(footingId) {
   const checkedCount = f.embeds.filter(e => getEmbedChecked(f.id, e.embedId)).length;
 
   let h = '<div id="embedPopup" class="fixed inset-0 z-[200] flex items-center justify-center" style="background:rgba(0,0,0,0.6);backdrop-filter:blur(4px)" onclick="if(event.target===this)this.remove()">';
-  h += '<div class="w-80 max-w-[90vw] rounded-xl overflow-hidden" style="background:#0c0e16;border:1px solid rgba(255,255,255,0.08)">';
+  h += '<div class="w-80 max-w-[90vw] rounded-xl overflow-hidden" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">';
   // Header
   h += '<div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">';
   h += '<div><span class="text-sm font-bold text-white">' + f.id + '</span>';
@@ -1606,7 +1655,7 @@ function renderMapEditToolbar(pourId) {
   const sel = sels.length === 1 ? sels[0] : null;
   const multi = sels.length > 1;
 
-  let tb = '<div class="px-3 py-2 border-b border-white/5 space-y-2" style="background:#0a0e14">';
+  let tb = '<div class="px-3 py-2 border-b border-white/5 space-y-2" style="background:rgba(8,10,18,0.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)">';
   tb += '<div class="flex items-center gap-2 flex-wrap">';
   tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'ftg\')" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20">+ Footing</button>';
   tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'pc\')" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20">+ Pile Cap</button>';
@@ -1843,13 +1892,9 @@ function getActivePour() {
   const todays = getTodaysPours();
   if (todays.length) return todays[0];
   // Fall back to next upcoming
-  const upcoming = state.pours.filter(p => p.date).sort((a,b) => {
-    const [am,ad] = a.date.split('/').map(Number);
-    const [bm,bd] = b.date.split('/').map(Number);
-    return (am*100+ad) - (bm*100+bd);
-  });
+  const upcoming = state.pours.filter(p => p.date && parseDateMD(p.date)).sort((a,b) => dateSortVal(a.date) - dateSortVal(b.date));
   const now = new Date(); now.setHours(0,0,0,0);
-  return upcoming.find(p => { const [pm,pd]=p.date.split('/').map(Number); return new Date(2026,pm-1,pd)>=now; }) || upcoming[0];
+  return upcoming.find(p => { const pd = parseDateMD(p.date); return pd && new Date(2026,pd[0]-1,pd[1])>=now; }) || upcoming[0];
 }
 
 function selectPourDay(pourId) {
@@ -2097,7 +2142,7 @@ function renderPourDay() {
   // Pour info
   const typeDesc = pour.type === 'Slurry' ? 'Slurry Backfill (S80S662L2)' : pour.type === 'Plinth' ? 'Concrete Plinth' : 'Structural Concrete';
   const isLive = livePour.active && livePour.active.pourId === pour.id;
-  h += `<div class="p-4 rounded-xl border mb-4" style="background:#0a0c14;border-color:${c}33">
+  h += `<div class="p-4 rounded-xl border mb-4" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid ${c}33">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-lg flex items-center justify-center text-xl font-black" style="background:${c}22;color:${c}">${pour.section}</div>
       <div class="flex-1">
@@ -2121,46 +2166,71 @@ function renderPourDay() {
   const cySlDel = trucksSl.reduce((s,t) => s+t.cy, 0);
 
   h += `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-    <div class="p-3 rounded-xl border border-white/5" style="background:#0a0c14">
+    <div class="p-3 rounded-xl border border-white/5" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Ordered</div>
       <div class="mono text-xl font-bold text-white">${ordered} <span class="text-xs text-white/30">CY</span></div>
     </div>
-    <div class="p-3 rounded-xl border border-white/5" style="background:#0a0c14">
+    <div class="p-3 rounded-xl border border-white/5" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Delivered</div>
       <div class="mono text-xl font-bold" style="color:${pctColor}">${delivered} <span class="text-xs text-white/30">CY</span></div>
     </div>
-    <div class="p-3 rounded-xl border border-white/5" style="background:#0a0c14">
+    <div class="p-3 rounded-xl border border-white/5" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Remaining</div>
       <div class="mono text-xl font-bold ${remaining<=0?'text-green-400':'text-white'}">${remaining} <span class="text-xs text-white/30">CY</span></div>
     </div>
-    <div class="p-3 rounded-xl border border-white/5" style="background:#0a0c14">
+    <div class="p-3 rounded-xl border border-white/5" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Total Trucks</div>
       <div class="mono text-xl font-bold text-white">${pourTrucks.length} <span class="text-xs text-white/30">of ${expectedTrucks}</span></div>
     </div>
   </div>
   <div class="grid grid-cols-3 gap-3 mb-4">
-    <div class="p-2.5 rounded-lg border border-red-500/15 flex items-center justify-between" style="background:#0a0c14">
+    <div class="p-2.5 rounded-lg border border-red-500/15 flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <div><div class="text-[8px] font-bold text-red-300/60 uppercase tracking-wider">8000 PSI</div><div class="mono text-xs text-red-300 font-bold">${cy8kDel} CY</div></div>
       <div class="mono text-lg font-bold text-red-400">${trucks8k.length}<span class="text-[9px] text-red-300/40 ml-0.5">trk</span></div>
     </div>
-    <div class="p-2.5 rounded-lg border border-blue-500/15 flex items-center justify-between" style="background:#0a0c14">
+    <div class="p-2.5 rounded-lg border border-blue-500/15 flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <div><div class="text-[8px] font-bold text-blue-300/60 uppercase tracking-wider">5000 PSI</div><div class="mono text-xs text-blue-300 font-bold">${cy5kDel} CY</div></div>
       <div class="mono text-lg font-bold text-blue-400">${trucks5k.length}<span class="text-[9px] text-blue-300/40 ml-0.5">trk</span></div>
     </div>
-    <div class="p-2.5 rounded-lg border border-gray-500/15 flex items-center justify-between" style="background:#0a0c14">
+    <div class="p-2.5 rounded-lg border border-gray-500/15 flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <div><div class="text-[8px] font-bold text-gray-300/60 uppercase tracking-wider">Slurry</div><div class="mono text-xs text-gray-300 font-bold">${cySlDel} CY</div></div>
       <div class="mono text-lg font-bold text-gray-400">${trucksSl.length}<span class="text-[9px] text-gray-300/40 ml-0.5">trk</span></div>
     </div>
   </div>`;
 
+  // Mix design reference strip
+  const mixes = getMixDesigns();
+  h += `<div class="rounded-xl overflow-hidden mb-4" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+    <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between">
+      <span class="text-[10px] font-bold text-white/30 uppercase tracking-wider">Mix Designs</span>
+      <button onclick="document.getElementById('mixEditPanel').classList.toggle('hidden')" class="text-[9px] font-bold px-2 py-0.5 rounded bg-white/5 text-white/30 hover:text-white/50 border border-white/10">Edit</button>
+    </div>
+    <div class="grid grid-cols-3 gap-0">
+      ${Object.values(mixes).map(m => `<div class="p-2.5 border-r border-white/[0.03] text-center">
+        <div class="text-[8px] font-bold ${m.psi>=8000?'text-red-300/60':m.psi>=5000?'text-blue-300/60':'text-gray-300/60'} uppercase">${m.psi||'—'} PSI</div>
+        <div class="mono text-[10px] text-white/60 font-bold">${m.code}</div>
+        <div class="text-[8px] text-white/25 mt-1">${m.maxAgg} agg · ${m.slump} slump${m.lc3 ? ' · LC3' : ''}</div>
+      </div>`).join('')}
+    </div>
+    <div id="mixEditPanel" class="hidden p-3 border-t border-white/5 space-y-2">
+      ${Object.values(mixes).map(m => `<div class="flex items-center gap-2 text-[9px]">
+        <span class="mono font-bold text-white/50 w-24">${m.code}</span>
+        <input type="text" value="${m.maxAgg}" placeholder="Agg" class="w-12 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 mono text-white/70 focus:outline-none" onchange="saveMixDesign('${m.code}',{...getMixDesigns()['${m.code}'],maxAgg:this.value});renderPourDay()">
+        <input type="text" value="${m.slump}" placeholder="Slump" class="w-12 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 mono text-white/70 focus:outline-none" onchange="saveMixDesign('${m.code}',{...getMixDesigns()['${m.code}'],slump:this.value});renderPourDay()">
+        <input type="number" value="${m.psi}" placeholder="PSI" class="w-14 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 mono text-white/70 focus:outline-none" onchange="saveMixDesign('${m.code}',{...getMixDesigns()['${m.code}'],psi:+this.value});renderPourDay()">
+        <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" ${m.lc3?'checked':''} onchange="saveMixDesign('${m.code}',{...getMixDesigns()['${m.code}'],lc3:this.checked});renderPourDay()"><span class="text-white/40">LC3</span></label>
+      </div>`).join('')}
+    </div>
+  </div>`;
+
   // Progress bar
-  h += `<div class="p-3 rounded-xl border border-white/5 mb-4" style="background:#0a0c14">
+  h += `<div class="p-3 rounded-xl border border-white/5 mb-4" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
     <div class="flex items-center justify-between mb-1.5">
       <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Pour Progress</span>
       <span class="mono text-sm font-bold" style="color:${pctColor}">${pct}%</span>
     </div>
     <div class="h-3 rounded-full bg-white/5 overflow-hidden">
-      <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:${pctColor}"></div>
+      <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:${pct>=100?'#34D399':'linear-gradient(90deg, #3B82F6, #8B5CF6)'}"></div>
     </div>
   </div>`;
 
@@ -2168,7 +2238,7 @@ function renderPourDay() {
   const mapData = loadFootingMap(pour.id);
   if (!mapData && !isManagerView) {
     // No map for this pour — offer to create one
-    h += `<div class="rounded-xl border border-dashed border-white/10 p-6 mb-4 text-center" style="background:#0a0c14">
+    h += `<div class="rounded-xl border border-dashed border-white/10 p-6 mb-4 text-center" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <p class="text-white/30 text-sm mb-3">No footing map for ${pour.id}</p>
       <button onclick="createNewMap('${pour.id}')" class="text-xs font-bold px-4 py-2 rounded-lg bg-white/5 text-white/50 hover:text-white hover:bg-white/10 border border-white/10 transition-all">+ Create Footing Map</button>
     </div>`;
@@ -2187,7 +2257,7 @@ function renderPourDay() {
     const done8000 = ftgs.filter(f => f.type === 'pc' || (f.type === 'gb' && gbMix === '8000')).reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
     const done5000 = ftgs.filter(f => f.type === 'ftg' || (f.type === 'gb' && gbMix === '5000')).reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
 
-    h += `<div class="rounded-xl border border-white/5 overflow-hidden mb-4" style="background:#0a0c14">
+    h += `<div class="rounded-xl border border-white/5 overflow-hidden mb-4" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between flex-wrap gap-2">
         <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Footing Map — ${mapData.label}</span>
         <div class="flex items-center gap-3">
@@ -2197,7 +2267,7 @@ function renderPourDay() {
         </div>
       </div>
       <!-- Mix breakdown strip -->
-      <div class="px-4 py-2 border-b border-white/5 flex items-center gap-4 flex-wrap" style="background:#0a0e14">
+      <div class="px-4 py-2 border-b border-white/5 flex items-center gap-4 flex-wrap" style="background:rgba(8,10,18,0.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)">
         <div class="flex items-center gap-1.5">
           <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
           <span class="text-[9px] font-bold text-red-300">8000 PSI</span>
@@ -2225,7 +2295,7 @@ function renderPourDay() {
         const fullyDone = ewf.filter(ff => ff.embeds.every(e => getEmbedChecked(ff.id, e.embedId))).length;
         const noneDone = ewf.filter(ff => !ff.embeds.some(e => getEmbedChecked(ff.id, e.embedId))).length;
         const ec = embPct === 100 ? '#41A447' : embPct > 50 ? '#FFBF00' : '#ef4444';
-        return '<div class="px-4 py-2 border-b border-white/5 flex items-center gap-4 flex-wrap" style="background:#0a0e14">'
+        return '<div class="px-4 py-2 border-b border-white/5 flex items-center gap-4 flex-wrap" style="background:rgba(8,10,18,0.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)">'
           + '<div class="flex items-center gap-1.5"><span class="text-[9px] font-bold uppercase tracking-wider" style="color:'+ec+'">Embeds</span>'
           + '<span class="text-[10px] mono font-bold" style="color:'+ec+'">'+checkedEmb+'/'+totalEmb+' verified ('+embPct+'%)</span></div>'
           + '<div class="flex items-center gap-3 text-[9px] text-white/30"><span>'+fullyDone+'/'+ewf.length+' footings complete</span>'
@@ -2369,7 +2439,7 @@ function renderPourDay() {
   // Truck log
   const reverseTrucks = [...pourTrucks].reverse();
   if (reverseTrucks.length) {
-    h += `<div class="rounded-xl overflow-hidden" style="background:#0a0c14">
+    h += `<div class="rounded-xl overflow-hidden" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between">
         <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Truck Log</span>
         <div class="flex items-center gap-3">
@@ -2396,11 +2466,11 @@ function renderPourDay() {
       </div>
     </div>`;
   } else {
-    h += `<div class="text-center py-8 text-white/20 text-sm rounded-xl border border-white/5" style="background:#0a0c14">No trucks logged yet — tap the button when a truck arrives</div>`;
+    h += `<div class="text-center py-8 text-white/20 text-sm rounded-xl border border-white/5" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">No trucks logged yet — tap the button when a truck arrives</div>`;
   }
 
   // Live activity feed
-  h += `<div id="liveFeedContainer" class="rounded-xl overflow-hidden mt-4" style="background:#0a0c14">
+  h += `<div id="liveFeedContainer" class="rounded-xl overflow-hidden mt-4" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
     <div class="px-4 py-2 border-b border-white/5 flex items-center gap-2">
       <span class="w-2 h-2 rounded-full bg-green-400 pulse"></span>
       <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Live Feed</span>
@@ -2452,15 +2522,11 @@ function renderLive() {
 
   // No active pour — show start screen
   if (!livePour.active) {
-    const upcoming = state.pours.filter(p => p.date).sort((a,b) => {
-      const [am,ad] = (a.date||'').split('/').map(Number);
-      const [bm,bd] = (b.date||'').split('/').map(Number);
-      return (am*100+ad) - (bm*100+bd);
-    });
+    const upcoming = state.pours.filter(p => p.date && parseDateMD(p.date)).sort((a,b) => dateSortVal(a.date) - dateSortVal(b.date));
     const now = new Date(); now.setHours(0,0,0,0);
     const nextPours = upcoming.filter(p => {
-      const [pm,pd] = p.date.split('/').map(Number);
-      return new Date(2026,pm-1,pd) >= now;
+      const pd = parseDateMD(p.date);
+      return pd && new Date(2026,pd[0]-1,pd[1]) >= now;
     }).slice(0,6);
 
     let h = `<div class="text-center py-16">
@@ -2473,7 +2539,7 @@ function renderLive() {
       h += `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-lg mx-auto">`;
       for (const p of nextPours) {
         const c = SEC_COLORS[p.section] || '#888';
-        h += `<button onclick="startLivePour('${p.id}')" class="p-4 rounded-xl text-left transition-all hover:scale-[1.02] active:scale-[0.98]" style="background:#0a0c14;border:1px solid ${c}33">
+        h += `<button onclick="startLivePour('${p.id}')" class="p-4 rounded-xl text-left transition-all hover:scale-[1.02] active:scale-[0.98]" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid ${c}33">
           <div class="flex items-center gap-2 mb-2">
             <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:${c}22;color:${c}">${p.section}</span>
             <span class="mono font-bold text-sm text-white/90">${p.id}</span>
@@ -2565,7 +2631,7 @@ function renderLive() {
   </div>`;
 
   // Full-width progress bar
-  h += `<div class="mb-6 rounded-xl p-3" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+  h += `<div class="mb-6 rounded-xl p-3" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
     <div class="flex items-center justify-between mb-2">
       <span class="text-[9px] font-bold text-white/25 uppercase tracking-wider">Overall Progress</span>
       <span class="mono text-xs font-bold" style="color:${pctColor}">${delivered} / ${ordered} CY</span>
@@ -2593,32 +2659,32 @@ function renderLive() {
     </div>
     <div class="flex-1 w-full space-y-3">
       <div class="grid grid-cols-2 gap-3">
-        <div class="p-4 rounded-xl" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+        <div class="p-4 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
           <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Delivered</div>
           <div class="mono text-3xl font-black" style="color:${pctColor}">${delivered}</div>
           <div class="text-xs text-white/30 mono">of ${ordered} CY</div>
         </div>
-        <div class="p-4 rounded-xl" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+        <div class="p-4 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
           <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Trucks</div>
           <div class="mono text-3xl font-black text-white">${pourTrucks.length}</div>
           <div class="text-xs text-white/30 mono">${remaining > 0 ? `~${Math.ceil(remaining/9)} more` : 'done'}</div>
         </div>
       </div>
       <div class="grid grid-cols-2 gap-3">
-        <div class="p-3 rounded-xl flex items-center justify-between" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+        <div class="p-3 rounded-xl flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
           <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider">Pace</div>
           <div class="mono text-sm font-bold text-white">${cyPerHr} <span class="text-[10px] text-white/30">CY/hr</span></div>
         </div>
-        <div class="p-3 rounded-xl flex items-center justify-between" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+        <div class="p-3 rounded-xl flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
           <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider">ETA</div>
           <div class="mono text-sm font-bold ${remaining <= 0 ? 'text-green-400' : 'text-yellow-300'}">${remaining <= 0 ? 'DONE' : etaStr}</div>
         </div>
       </div>
-      <div class="p-3 rounded-xl flex items-center justify-between" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+      <div class="p-3 rounded-xl flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
         <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider">Remaining</div>
         <div class="mono text-xl font-bold ${remaining <= 0 ? 'text-green-400' : 'text-white'}">${remaining} <span class="text-xs text-white/30">CY</span></div>
       </div>
-      ${sparkSvg ? `<div class="rounded-xl p-3" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+      ${sparkSvg ? `<div class="rounded-xl p-3" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
         <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Delivery Cadence</div>
         ${sparkSvg}
       </div>` : ''}
@@ -2627,17 +2693,17 @@ function renderLive() {
 
   // Mix breakdown strip
   h += `<div class="grid grid-cols-3 gap-3 mb-6">
-    <div class="p-3 rounded-xl text-center" style="background:#0a0c14;border:1px solid rgba(239,68,68,0.1)">
+    <div class="p-3 rounded-xl text-center" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(239,68,68,0.1)">
       <div class="text-[8px] font-bold text-red-300/50 uppercase tracking-wider mb-1">8000 PSI</div>
       <div class="mono text-lg font-bold text-red-300">${cy8kDel} <span class="text-[10px] text-red-300/40">CY</span></div>
       <div class="text-[10px] text-white/20 mono">${pourTrucks.filter(t=>t.mix==='8000').length} trucks</div>
     </div>
-    <div class="p-3 rounded-xl text-center" style="background:#0a0c14;border:1px solid rgba(59,130,246,0.1)">
+    <div class="p-3 rounded-xl text-center" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(59,130,246,0.1)">
       <div class="text-[8px] font-bold text-blue-300/50 uppercase tracking-wider mb-1">5000 PSI</div>
       <div class="mono text-lg font-bold text-blue-300">${cy5kDel} <span class="text-[10px] text-blue-300/40">CY</span></div>
       <div class="text-[10px] text-white/20 mono">${pourTrucks.filter(t=>t.mix==='5000').length} trucks</div>
     </div>
-    <div class="p-3 rounded-xl text-center" style="background:#0a0c14;border:1px solid rgba(107,114,128,0.1)">
+    <div class="p-3 rounded-xl text-center" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(107,114,128,0.1)">
       <div class="text-[8px] font-bold text-gray-300/50 uppercase tracking-wider mb-1">Slurry</div>
       <div class="mono text-lg font-bold text-gray-300">${cySlDel} <span class="text-[10px] text-gray-300/40">CY</span></div>
       <div class="text-[10px] text-white/20 mono">${pourTrucks.filter(t=>t.mix==='slurry').length} trucks</div>
@@ -2663,7 +2729,7 @@ function renderLive() {
   // Recent truck arrivals (last 8)
   const recentTrucks = [...pourTrucks].reverse().slice(0,8);
   if (recentTrucks.length) {
-    h += `<div class="rounded-xl overflow-hidden mb-6" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+    h += `<div class="rounded-xl overflow-hidden mb-6" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <div class="px-4 py-2 border-b border-white/5 flex items-center gap-2">
         <span class="material-symbols-outlined text-sm text-white/20">local_shipping</span>
         <span class="text-[10px] font-bold text-white/30 uppercase tracking-wider">Recent Trucks</span>
@@ -2688,7 +2754,7 @@ function renderLive() {
   }
 
   // Live feed
-  h += `<div class="rounded-xl overflow-hidden" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+  h += `<div class="rounded-xl overflow-hidden" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
     <div class="px-4 py-2 border-b border-white/5 flex items-center gap-2">
       <span class="w-2 h-2 rounded-full bg-green-400 pulse"></span>
       <span class="text-[10px] font-bold text-white/30 uppercase tracking-wider">Activity Feed</span>
@@ -2716,7 +2782,7 @@ function renderLive() {
 
   // Share link
   const liveUrl = window.location.origin + window.location.pathname + '?view=live';
-  h += `<div class="mt-6 p-3 rounded-xl text-center" style="background:#0a0c14;border:1px solid rgba(255,255,255,0.05)">
+  h += `<div class="mt-6 p-3 rounded-xl text-center" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
     <div class="text-[9px] text-white/25 uppercase tracking-wider font-bold mb-1">Share with your team</div>
     <div class="mono text-xs text-white/40 select-all cursor-pointer hover:text-white/60 transition-colors" onclick="navigator.clipboard.writeText('${liveUrl}').then(()=>this.textContent='Copied!').catch(()=>{})">${liveUrl}</div>
   </div>`;
@@ -3021,6 +3087,16 @@ function buildAlfredContext() {
   state.pours.forEach(p => ctx += `${p.id}: Sec ${p.section} | ${p.date||'TBD'} | 8k:${p.cy8000} 5k:${p.cy5000} slr:${p.slurry} = ${p.total}CY\n`);
   const ftgEntries = Object.entries(pourDay.footingStatus).filter(([,v])=>v);
   if (ftgEntries.length) { ctx += '\n## Footing Progress\n'; ftgEntries.forEach(([id,s]) => ctx += `${id}: ${s==='DONE'?'100%':s+'%'}\n`); }
+  // Embed status
+  const map = loadFootingMap(pour?.id);
+  const ftgs = map?.footings || [];
+  const embedLines = [];
+  ftgs.forEach(f => { (f.embeds||[]).forEach(e => { embedLines.push(`${f.id}:${e.embedId} ${getEmbedChecked(f.id, e.embedId) ? 'VERIFIED' : 'MISSING'}`); }); });
+  if (embedLines.length) { ctx += '\n## Embeds\n' + embedLines.join('\n') + '\n'; }
+  // Mix designs
+  const mixes = getMixDesigns();
+  ctx += '\n## Mix Designs\n';
+  Object.values(mixes).forEach(m => ctx += `${m.code}: ${m.psi} PSI, ${m.maxAgg} agg, ${m.slump} slump, LC3:${m.lc3?'YES':'NO'}\n`);
   return ctx;
 }
 
@@ -3126,9 +3202,8 @@ function appendPourLog(type, msg, detail) {
   });
 }
 
-// Init Firebase synchronously before async init, then attach real-time listeners
+// Init Firebase synchronously, listeners attach after state is populated in init()
 initFirebase();
-if (db) attachFirebaseListeners();
 init();
 
 setInterval(async () => {
