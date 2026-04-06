@@ -362,7 +362,7 @@ function attachFirebaseListeners() {
     renderLive();
   });
   fbListen('embed-checks', (val) => {
-    if (val) { pourDay.embedChecks = val; renderPourDay(); }
+    if (val) { pourDay.embedChecks = val; if (!mapEditMode) renderPourDay(); }
   });
   // Pour overrides — apply Firebase overrides to sheet data
   fbListen('pour-overrides', (val) => {
@@ -606,8 +606,8 @@ function render() {
     document.getElementById('emptyState').classList.remove('hidden');
   }
 
-  // Also update whichever tab is currently visible
-  if (!document.getElementById('pourdayView')?.classList.contains('hidden')) renderPourDay();
+  // Also update whichever tab is currently visible — skip pour day if user is editing the map
+  if (!document.getElementById('pourdayView')?.classList.contains('hidden') && !mapEditMode) renderPourDay();
   if (!document.getElementById('liveView')?.classList.contains('hidden')) renderLive();
 }
 
@@ -1654,14 +1654,14 @@ document.addEventListener('keydown', e => {
   }
 
   if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-    // Copy selected
+    e.preventDefault();
     const map = loadFootingMap(pourId);
     if (!map) return;
     mapClipboard = map.footings.filter(f => mapSelected.includes(f.id)).map(f => ({...f}));
   }
 
   if ((e.ctrlKey || e.metaKey) && e.key === 'v' && mapClipboard.length) {
-    // Paste copied footings offset by 30px
+    e.preventDefault();
     const map = loadFootingMap(pourId);
     if (!map) return;
     const newIds = [];
@@ -2508,9 +2508,13 @@ function renderPourDay() {
     h += `<button onclick="resetPourDay()" class="w-full mt-4 py-2 rounded-lg text-xs font-bold text-red-400/40 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all">Reset Pour Day</button>`;
   }
 
+  // Preserve scroll position across re-renders
+  var scrollParent = el.closest('[id="pourdayView"]') || el;
+  var prevScroll = scrollParent.scrollTop || window.scrollY;
   el.innerHTML = h;
   renderLiveFeed();
   if (mapEditMode) requestAnimationFrame(initMapDrag);
+  requestAnimationFrame(function(){ scrollParent.scrollTop ? scrollParent.scrollTop = prevScroll : window.scrollTo(0, prevScroll); });
   } catch(err) {
     el.innerHTML = `<div class="p-4 text-red-400 text-sm"><p class="font-bold mb-1">Pour Day render error:</p><pre class="text-xs text-red-300/60 overflow-auto">${err.message}\n${err.stack}</pre></div>`;
     console.error('renderPourDay error:', err);
