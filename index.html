@@ -82,12 +82,24 @@
     #bjSidebar { position:fixed; top:0; left:0; bottom:0; width:340px; z-index:100; background:rgba(6,6,14,0.95); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-right:1px solid rgba(34,197,94,0.1); transform:translateX(-100%); transition:transform 0.35s cubic-bezier(.16,1,.3,1); display:flex; flex-direction:column; touch-action:pan-y; box-shadow:8px 0 40px rgba(0,0,0,0.3); }
     #bjSidebar.open { transform:translateX(0); }
     @media(max-width:640px) { #bjSidebar { width:100vw; } }
-    .bj-card { display:inline-flex; align-items:center; justify-content:center; width:52px; height:72px; border-radius:8px; font-size:18px; font-weight:800; margin:3px; box-shadow:0 2px 8px rgba(0,0,0,0.4); transition:transform 0.3s cubic-bezier(.16,1,.3,1), opacity 0.3s; }
-    .bj-card.red { background:linear-gradient(135deg,#fff 0%,#f8f8f8 100%); color:#dc2626; border:1.5px solid rgba(0,0,0,0.08); }
-    .bj-card.black { background:linear-gradient(135deg,#fff 0%,#f8f8f8 100%); color:#1a1a2e; border:1.5px solid rgba(0,0,0,0.08); }
-    .bj-card.hidden-card { background:linear-gradient(135deg,#1a3a2a,#0d2818); color:transparent; border:1.5px solid rgba(34,197,94,0.3); }
-    @keyframes bjDeal { from { opacity:0; transform:translateY(-30px) rotate(-10deg); } to { opacity:1; transform:translateY(0) rotate(0); } }
-    .bj-deal { animation:bjDeal 0.35s cubic-bezier(.16,1,.3,1) both; }
+    .bj-card-wrap { display:inline-block; perspective:600px; margin:3px; }
+    .bj-card { display:flex; align-items:center; justify-content:center; flex-direction:column; width:52px; height:72px; border-radius:8px; font-size:18px; font-weight:800; box-shadow:0 2px 8px rgba(0,0,0,0.4); position:relative; transform-style:preserve-3d; }
+    .bj-card .bj-face, .bj-card .bj-back { position:absolute; inset:0; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-direction:column; backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+    .bj-card .bj-face { z-index:2; }
+    .bj-card .bj-back { transform:rotateY(180deg); background:linear-gradient(135deg,#1a3a2a,#0d2818); border:1.5px solid rgba(34,197,94,0.3); }
+    .bj-card .bj-back::after { content:''; position:absolute; inset:4px; border-radius:5px; border:1px solid rgba(34,197,94,0.15); background:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(34,197,94,0.05) 3px,rgba(34,197,94,0.05) 6px); }
+    .bj-card.red .bj-face { background:linear-gradient(135deg,#fff 0%,#f8f8f8 100%); color:#dc2626; border:1.5px solid rgba(0,0,0,0.08); }
+    .bj-card.black .bj-face { background:linear-gradient(135deg,#fff 0%,#f8f8f8 100%); color:#1a1a2e; border:1.5px solid rgba(0,0,0,0.08); }
+    .bj-card.hidden-card { transform:rotateY(180deg); }
+    .bj-card.hidden-card .bj-face { visibility:hidden; }
+    @keyframes bjSlideIn { 0% { opacity:0; transform:translateX(-120px) translateY(-40px) scale(0.7) rotate(-15deg); } 60% { opacity:1; transform:translateX(5px) translateY(2px) scale(1.03) rotate(1deg); } 100% { opacity:1; transform:translateX(0) translateY(0) scale(1) rotate(0); } }
+    @keyframes bjFlipReveal { 0% { transform:rotateY(180deg); } 100% { transform:rotateY(0deg); } }
+    .bj-slide { animation:bjSlideIn 0.45s cubic-bezier(.16,1,.3,1) both; }
+    .bj-flip { animation:bjFlipReveal 0.5s cubic-bezier(.4,0,.2,1) both; }
+    @keyframes bjBust { 0% { filter:none; } 50% { filter:brightness(1.5) saturate(0.3); transform:scale(1.05); } 100% { filter:brightness(0.6) saturate(0.2); transform:scale(0.97); } }
+    .bj-bust { animation:bjBust 0.4s ease both; }
+    @keyframes bjWinGlow { 0%,100% { box-shadow:0 2px 8px rgba(0,0,0,0.4); } 50% { box-shadow:0 0 20px rgba(34,197,94,0.5), 0 0 40px rgba(34,197,94,0.2); } }
+    .bj-win { animation:bjWinGlow 0.6s ease 2; }
     /* Card entrance */
     @keyframes cardIn { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:translateY(0) } }
     .pour-card { animation:cardIn 0.35s cubic-bezier(.4,0,.2,1) both; }
@@ -299,6 +311,7 @@
       <button id="bjHitBtn" onclick="bjHit()" class="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all bg-blue-500/15 text-blue-400 border border-blue-500/25 hover:bg-blue-500/25 hidden">HIT</button>
       <button id="bjStandBtn" onclick="bjStand()" class="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all bg-yellow-500/15 text-yellow-400 border border-yellow-500/25 hover:bg-yellow-500/25 hidden">STAND</button>
       <button id="bjDoubleBtn" onclick="bjDouble()" class="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all bg-purple-500/15 text-purple-400 border border-purple-500/25 hover:bg-purple-500/25 hidden">2x</button>
+      <button id="bjRebuyBtn" onclick="bjRebuy()" class="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all bg-red-500/15 text-red-400 border border-red-500/25 hover:bg-red-500/25 hidden">REBUY 1000</button>
     </div>
     <!-- Stats -->
     <div class="px-4 py-2 flex items-center justify-between text-[9px] text-white/20 border-t" style="border-color:rgba(255,255,255,0.04)">
@@ -4190,21 +4203,23 @@ function bjHandVal(hand) {
 
 function bjIsRed(card) { return card.suit === '\u2665' || card.suit === '\u2666'; }
 
-function bjRenderCard(card, hidden, delay) {
-  if (hidden) return '<div class="bj-card hidden-card bj-deal" style="animation-delay:' + (delay||0) + 'ms">?</div>';
+function bjRenderCard(card, hidden, delay, extraClass) {
+  const d = delay || 0;
+  const ex = extraClass || '';
+  const face = '<div class="bj-face">' + card.rank + '<span style="font-size:11px;margin-top:-2px">' + card.suit + '</span></div><div class="bj-back"></div>';
+  if (hidden) return '<div class="bj-card-wrap bj-slide" style="animation-delay:' + d + 'ms"><div class="bj-card hidden-card ' + ex + '">' + face + '</div></div>';
   const cls = bjIsRed(card) ? 'red' : 'black';
-  return '<div class="bj-card ' + cls + ' bj-deal" style="animation-delay:' + (delay||0) + 'ms">' + card.rank + '<span style="font-size:12px">' + card.suit + '</span></div>';
+  return '<div class="bj-card-wrap bj-slide" style="animation-delay:' + d + 'ms"><div class="bj-card ' + cls + ' ' + ex + '">' + face + '</div></div>';
 }
 
 function bjChangeBet(delta) {
   if (!bjGameOver) return;
-  bjBet = Math.max(25, Math.min(bjChips, bjBet + delta));
+  bjBet = Math.max(25, bjBet + delta);
   document.getElementById('bjBet').textContent = bjBet;
 }
 
 function bjDeal() {
   if (!bjGameOver) return;
-  if (bjChips < bjBet) { bjShowResult('BROKE', '#ef4444'); return; }
   if (bjDeck.length < 20) bjDeck = bjMakeDeck();
   bjPlayerHand = [bjDeck.pop(), bjDeck.pop()];
   bjDealerHand = [bjDeck.pop(), bjDeck.pop()];
@@ -4214,8 +4229,10 @@ function bjDeal() {
   bjUpdateUI();
   // Check natural blackjack
   if (bjHandVal(bjPlayerHand) === 21) {
-    if (bjHandVal(bjDealerHand) === 21) { bjEnd('push'); }
-    else { bjEnd('blackjack'); }
+    setTimeout(() => {
+      if (bjHandVal(bjDealerHand) === 21) bjEnd('push');
+      else bjEnd('blackjack');
+    }, 600);
   }
 }
 
@@ -4229,17 +4246,43 @@ function bjHit() {
 
 function bjStand() {
   if (bjGameOver) return;
-  // Dealer draws to 17
-  while (bjHandVal(bjDealerHand) < 17) bjDealerHand.push(bjDeck.pop());
-  const pv = bjHandVal(bjPlayerHand), dv = bjHandVal(bjDealerHand);
-  if (dv > 21) bjEnd('dealer-bust');
-  else if (pv > dv) bjEnd('win');
-  else if (pv < dv) bjEnd('lose');
-  else bjEnd('push');
+  // Disable buttons during dealer draw
+  document.getElementById('bjHitBtn').classList.add('hidden');
+  document.getElementById('bjStandBtn').classList.add('hidden');
+  document.getElementById('bjDoubleBtn').classList.add('hidden');
+  // Flip hole card first
+  const holeCard = document.querySelector('#bjDealerCards .bj-card.hidden-card');
+  if (holeCard) { holeCard.classList.remove('hidden-card'); holeCard.classList.add('bj-flip'); }
+  // Stagger dealer draws
+  const drawCards = [];
+  const simHand = [...bjDealerHand];
+  while (bjHandVal(simHand) < 17) { const c = bjDeck.pop(); simHand.push(c); drawCards.push(c); }
+  bjDealerHand = simHand;
+  // Animate each draw card one at a time
+  let delay = 400; // initial delay for hole card flip
+  drawCards.forEach((c, i) => {
+    setTimeout(() => {
+      const container = document.getElementById('bjDealerCards');
+      const wrap = document.createElement('div');
+      wrap.className = 'bj-card-wrap bj-slide';
+      const cls = bjIsRed(c) ? 'red' : 'black';
+      wrap.innerHTML = '<div class="bj-card ' + cls + '"><div class="bj-face">' + c.rank + '<span style="font-size:11px;margin-top:-2px">' + c.suit + '</span></div><div class="bj-back"></div></div>';
+      container.appendChild(wrap);
+      document.getElementById('bjDealerScore').textContent = bjHandVal(bjDealerHand.slice(0, 2 + i + 1));
+    }, delay + i * 350);
+  });
+  // Resolve after all draws
+  setTimeout(() => {
+    const pv = bjHandVal(bjPlayerHand), dv = bjHandVal(bjDealerHand);
+    if (dv > 21) bjEnd('dealer-bust');
+    else if (pv > dv) bjEnd('win');
+    else if (pv < dv) bjEnd('lose');
+    else bjEnd('push');
+  }, delay + drawCards.length * 350 + 200);
 }
 
 function bjDouble() {
-  if (bjGameOver || bjPlayerHand.length !== 2 || bjChips < bjBet) return;
+  if (bjGameOver || bjPlayerHand.length !== 2) return;
   bjChips -= bjBet;
   bjBet *= 2;
   bjPlayerHand.push(bjDeck.pop());
@@ -4250,6 +4293,7 @@ function bjDouble() {
 
 function bjEnd(result) {
   bjGameOver = true;
+  const origBet = bjBet;
   let msg = '', color = '';
   switch (result) {
     case 'blackjack': msg = 'BLACKJACK!'; color = '#fbbf24'; bjChips += Math.floor(bjBet * 2.5); bjWins++; break;
@@ -4258,13 +4302,27 @@ function bjEnd(result) {
     case 'bust': msg = 'BUST'; color = '#ef4444'; bjLosses++; break;
     case 'lose': msg = 'DEALER WINS'; color = '#ef4444'; bjLosses++; break;
   }
-  if (result === 'blackjack' || result === 'win' || result === 'dealer-bust') {
-    // Reset doubled bet
-  }
-  bjBet = Math.min(bjBet > 50 ? 50 : bjBet, bjChips || 50); // reset doubled bet
-  if (bjChips <= 0) { bjChips = 1000; } // reload
+  // Reset doubled bet back to base
+  if (origBet > 50) bjBet = 50;
   bjSaveStats();
-  bjShowResult(msg, color);
+  // Animate dealer reveal then show result
+  const revealDelay = (result !== 'bust') ? bjDealerHand.length * 150 : 0;
+  bjUpdateUI();
+  // Add win/bust effects to player cards
+  setTimeout(() => {
+    const pCards = document.querySelectorAll('#bjPlayerCards .bj-card');
+    const dCards = document.querySelectorAll('#bjDealerCards .bj-card');
+    if (result === 'bust') pCards.forEach(c => c.classList.add('bj-bust'));
+    if (result === 'win' || result === 'blackjack' || result === 'dealer-bust') pCards.forEach(c => c.classList.add('bj-win'));
+    if (result === 'lose') dCards.forEach(c => c.classList.add('bj-win'));
+    if (result === 'dealer-bust') dCards.forEach(c => c.classList.add('bj-bust'));
+    bjShowResult(msg, color);
+  }, revealDelay);
+}
+
+function bjRebuy() {
+  bjChips += 1000;
+  bjSaveStats();
   bjUpdateUI();
 }
 
@@ -4308,11 +4366,16 @@ function bjUpdateUI() {
   bjPlayerHand.forEach((c, i) => { pCards += bjRenderCard(c, false, i * 100); });
   document.getElementById('bjPlayerCards').innerHTML = pCards;
   document.getElementById('bjPlayerScore').textContent = bjPlayerHand.length ? bjHandVal(bjPlayerHand) : '';
+  // Chips color — red when negative
+  const chipsEl = document.getElementById('bjChips');
+  chipsEl.style.color = bjChips < 0 ? '#ef4444' : bjChips === 0 ? '#fbbf24' : '#22c55e';
   // Buttons
-  document.getElementById('bjDealBtn').classList.toggle('hidden', !bjGameOver);
+  const broke = bjChips <= 0 && bjGameOver;
+  document.getElementById('bjDealBtn').classList.toggle('hidden', !bjGameOver || broke);
   document.getElementById('bjHitBtn').classList.toggle('hidden', bjGameOver);
   document.getElementById('bjStandBtn').classList.toggle('hidden', bjGameOver);
-  document.getElementById('bjDoubleBtn').classList.toggle('hidden', bjGameOver || bjPlayerHand.length !== 2 || bjChips < bjBet);
+  document.getElementById('bjDoubleBtn').classList.toggle('hidden', bjGameOver || bjPlayerHand.length !== 2);
+  document.getElementById('bjRebuyBtn').classList.toggle('hidden', !broke);
 }
 
 // Initialize deck
