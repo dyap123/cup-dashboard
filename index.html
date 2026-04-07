@@ -518,7 +518,7 @@ function attachFirebaseListeners() {
       Object.values(trucks).forEach(t => pourDay.trucks.push(t));
     });
     pourDay.trucks.sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
-    if (!mapEditMode) renderPourDay();
+    if (!mapEditMode && !isPourDayBusy()) renderPourDay();
     renderLive();
   });
   fbListen('footings', (val) => {
@@ -538,7 +538,7 @@ function attachFirebaseListeners() {
     renderLive();
   });
   fbListen('embed-checks', (val) => {
-    if (val) { pourDay.embedChecks = val; if (!mapEditMode) renderPourDay(); }
+    if (val) { pourDay.embedChecks = val; if (!mapEditMode && !isPourDayBusy()) renderPourDay(); }
   });
   // Pour overrides — apply Firebase overrides to sheet data
   fbListen('pour-overrides', (val) => {
@@ -779,6 +779,16 @@ function toggleSortByDate() {
   render();
 }
 
+// Check if user is actively interacting with Pour Day inputs (truck edit popup, focused inputs)
+function isPourDayBusy() {
+  if (document.getElementById('truckEditPopup')) return true;
+  const active = document.activeElement;
+  if (!active) return false;
+  const pdView = document.getElementById('pourdayView');
+  if (pdView && pdView.contains(active) && (active.tagName === 'INPUT' || active.tagName === 'SELECT' || active.tagName === 'TEXTAREA')) return true;
+  return false;
+}
+
 // ── RENDER ───────────────────────────────────────────────────────────────────
 function render() {
   const pours = filteredPours();
@@ -797,8 +807,8 @@ function render() {
     document.getElementById('emptyState').classList.remove('hidden');
   }
 
-  // Also update whichever tab is currently visible — skip pour day if user is editing the map
-  if (!document.getElementById('pourdayView')?.classList.contains('hidden') && !mapEditMode) renderPourDay();
+  // Also update whichever tab is currently visible — skip pour day if user is editing the map or interacting with inputs
+  if (!document.getElementById('pourdayView')?.classList.contains('hidden') && !mapEditMode && !isPourDayBusy()) renderPourDay();
   if (!document.getElementById('liveView')?.classList.contains('hidden')) renderLive();
 }
 
