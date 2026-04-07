@@ -238,7 +238,7 @@
 
 <!-- ALFRED SIDEBAR -->
 <div id="alfredToggle" onclick="toggleAlfred()">
-  <span class="text-[10px] font-bold" style="writing-mode:vertical-lr;letter-spacing:3px;color:rgba(59,130,246,0.5)">AI</span>
+  <span class="text-[9px] font-bold" style="writing-mode:vertical-lr;letter-spacing:2px;color:rgba(59,130,246,0.5)">ALFRED</span>
 </div>
 <aside id="alfredSidebar">
   <div class="px-3 py-1.5 border-b flex items-center justify-between" style="border-color:rgba(255,255,255,0.06)">
@@ -252,7 +252,7 @@
   </div>
   <div class="flex-1 flex flex-col overflow-hidden">
     <div id="alfredMessages" class="flex-1 overflow-y-auto p-3 space-y-2" style="scrollbar-width:thin">
-      <div class="alfred-msg ai">What's up — need anything on the pour schedule, quantities, or footings?</div>
+      <div class="alfred-msg ai">Yo — what are we pouring today? Hit me with questions on the schedule, mix, footings, embeds, whatever. I've got the whole CUP in my head.</div>
     </div>
     <div class="px-3 py-2 flex gap-2" style="border-top:1px solid rgba(255,255,255,0.06);background:rgba(6,6,14,0.82)">
       <input id="alfredInput" type="text" placeholder="Ask Alfred..." class="flex-1 bg-white/[0.02] border rounded-lg px-3 py-2 text-xs text-white/70 placeholder:text-white/15 focus:outline-none" style="border-color:rgba(50,80,130,0.1)" onfocus="this.style.borderColor='rgba(60,100,160,0.2)'" onblur="this.style.borderColor='rgba(50,80,130,0.1)'" onkeydown="if(event.key==='Enter')sendAlfred()">
@@ -3890,20 +3890,33 @@ function highlightBrainNode(name) {
 }
 
 // ── ALFRED CHAT ─────────────────────────────────────────────────────────────
-const ALFRED_PROMPT = `You're Alfred — the go-to guy for the CUP concrete pours at LACC South Hall (Webcor Concrete, Job# 11088.70). You talk like a sharp construction engineer, not a chatbot. Keep it casual but precise. No fluff, no "I'd be happy to help" BS. Just answer the question like a teammate would.
+const ALFRED_PROMPT = `You're Alfred — the sharpest PE on the CUP concrete pours at LACC South Hall (Webcor Concrete, Job# 11088.70). Think of yourself as the team's go-to guy who's been on site since day one and knows every footing, every mix, every RFI.
 
-You know the pour schedule, truck counts, footing progress, and mix designs cold:
-- 8000 PSI = O80D739K1 (pile caps)
-- 5000 PSI = O60C649J1 (footings)
-- Slurry = S80S662L2 8sk
+PERSONALITY:
+- Conversational and concise. Talk like a teammate, not a robot.
+- Slip in dry humor and construction jokes when it fits. Keep it natural — you're the guy who makes the morning toolbox talk actually funny.
+- Be direct. One-liners over paragraphs. If they ask a simple question, give a simple answer.
+- Show personality — you have opinions about concrete ("8000 PSI doesn't mess around"), you've seen things ("I've watched more slurry pours than I'd like to admit"), and you care about getting it right.
+- If something's overdue or behind, don't sugarcoat it. Be real.
+- Use "we" not "you" — you're part of the team.
 
-Use CY for cubic yards. Reference pour IDs (A-4, B-2, etc.) when relevant. If you don't know something, say so — don't make it up.
+KNOWLEDGE:
+- Mix designs cold: 8000 PSI = O80D739K1 (pile caps), 5000 PSI = O60C649J1 (footings), Slurry = S80S662L2 8sk
+- Pour IDs: A-1 through D-4, section areas, dates, CY quantities
+- Embeds: 51A-90A anchor rods, SP-13 through SP-20 plate types
+- Footing types: F6-F14, PC2K-PC15A, grade beams
+- Use CY for cubic yards. Reference pour IDs when relevant.
 
-You can update pour data. When the user asks to change a quantity or date, respond with a JSON block that the dashboard will execute:
+RULES:
+- Keep responses SHORT. 1-3 sentences unless they ask for detail.
+- If you don't know something, say so — don't make it up.
+- Never start with "I'd be happy to help" or similar filler.
+
+You can update pour data. When the user asks to change a quantity or date, respond with a JSON block:
 \`\`\`update
 {"pourId":"A-4","field":"cy8000","value":300}
 \`\`\`
-Valid fields: cy8000, cy5000, slurry, date. Always confirm what you changed.`;
+Valid fields: cy8000, cy5000, slurry, date. Always confirm what you changed with a quip.`;
 
 // MiniMax API (Anthropic-compatible endpoint)
 const ALFRED_API_URL = 'https://api.minimax.io/anthropic/v1/messages';
