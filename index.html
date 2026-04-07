@@ -76,20 +76,25 @@
     .alfred-msg.ai.streaming { border-left:2px solid rgba(59,130,246,0.4); padding-left:10px; }
     @keyframes alfredPulse { 0%,100%{box-shadow:0 0 0 rgba(59,130,246,0)} 50%{box-shadow:0 0 20px rgba(59,130,246,0.08)} }
     #alfredSidebar.thinking { animation:alfredPulse 1.2s ease-in-out infinite; }
-    /* Blackjack Sidebar */
+    /* Blackjack Overlay */
     #bjToggle { position:fixed; left:0; top:50%; z-index:99; transform:translateY(-50%); width:36px; height:72px; background:rgba(34,197,94,0.12); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(34,197,94,0.25); border-left:none; border-radius:0 10px 10px 0; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.3s; box-shadow:0 0 20px rgba(34,197,94,0.08); }
     #bjToggle:hover { background:rgba(34,197,94,0.22); border-color:rgba(34,197,94,0.4); box-shadow:0 0 30px rgba(34,197,94,0.15); }
-    #bjSidebar { position:fixed; top:0; left:0; bottom:0; width:340px; z-index:100; background:rgba(6,6,14,0.95); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-right:1px solid rgba(34,197,94,0.1); transform:translateX(-100%); transition:transform 0.35s cubic-bezier(.16,1,.3,1); display:flex; flex-direction:column; touch-action:pan-y; box-shadow:8px 0 40px rgba(0,0,0,0.3); }
-    #bjSidebar.open { transform:translateX(0); }
-    @media(max-width:640px) { #bjSidebar { width:100vw; } }
-    .bj-card-wrap { display:inline-block; perspective:600px; margin:3px; }
-    .bj-card { display:flex; align-items:center; justify-content:center; flex-direction:column; width:52px; height:72px; border-radius:8px; font-size:18px; font-weight:800; box-shadow:0 2px 8px rgba(0,0,0,0.4); position:relative; transform-style:preserve-3d; }
-    .bj-card .bj-face, .bj-card .bj-back { position:absolute; inset:0; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-direction:column; backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+    #bjOverlay { position:fixed; inset:0; z-index:200; background:rgba(2,4,8,0.92); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); opacity:0; pointer-events:none; transition:opacity 0.4s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    #bjOverlay.open { opacity:1; pointer-events:auto; }
+    #bjTable { width:100%; max-width:520px; display:flex; flex-direction:column; align-items:center; position:relative; padding:0 20px; }
+    .bj-card-wrap { display:inline-block; perspective:800px; margin:4px; }
+    .bj-card { display:flex; align-items:center; justify-content:center; flex-direction:column; width:64px; height:90px; border-radius:10px; font-size:22px; font-weight:800; box-shadow:0 4px 16px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05); position:relative; transform-style:preserve-3d; }
+    .bj-card .bj-face, .bj-card .bj-back { position:absolute; inset:0; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-direction:column; backface-visibility:hidden; -webkit-backface-visibility:hidden; }
     .bj-card .bj-face { z-index:2; }
-    .bj-card .bj-back { transform:rotateY(180deg); background:linear-gradient(135deg,#1a3a2a,#0d2818); border:1.5px solid rgba(34,197,94,0.3); }
-    .bj-card .bj-back::after { content:''; position:absolute; inset:4px; border-radius:5px; border:1px solid rgba(34,197,94,0.15); background:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(34,197,94,0.05) 3px,rgba(34,197,94,0.05) 6px); }
-    .bj-card.red .bj-face { background:linear-gradient(135deg,#fff 0%,#f8f8f8 100%); color:#dc2626; border:1.5px solid rgba(0,0,0,0.08); }
-    .bj-card.black .bj-face { background:linear-gradient(135deg,#fff 0%,#f8f8f8 100%); color:#1a1a2e; border:1.5px solid rgba(0,0,0,0.08); }
+    .bj-card .bj-back { transform:rotateY(180deg); background:linear-gradient(145deg,#0a1f15 0%,#143d28 40%,#0a1f15 100%); border:1.5px solid rgba(34,197,94,0.25); }
+    .bj-card .bj-back::before { content:''; position:absolute; inset:5px; border-radius:6px; border:1px solid rgba(34,197,94,0.12); }
+    .bj-card .bj-back::after { content:'Y'; position:absolute; font-family:'Inter',sans-serif; font-weight:900; font-size:24px; color:rgba(34,197,94,0.08); letter-spacing:2px; }
+    .bj-card.red .bj-face { background:linear-gradient(145deg,#1a1520 0%,#12101a 100%); color:#ff4d6a; border:1.5px solid rgba(255,77,106,0.15); }
+    .bj-card.red .bj-face::before { content:''; position:absolute; inset:4px; border-radius:7px; border:1px solid rgba(255,77,106,0.06); }
+    .bj-card.black .bj-face { background:linear-gradient(145deg,#1a1a22 0%,#12121a 100%); color:#e8e6f0; border:1.5px solid rgba(255,255,255,0.08); }
+    .bj-card.black .bj-face::before { content:''; position:absolute; inset:4px; border-radius:7px; border:1px solid rgba(255,255,255,0.04); }
+    .bj-card .bj-rank { font-size:22px; font-weight:900; line-height:1; }
+    .bj-card .bj-suit { font-size:14px; margin-top:-1px; opacity:0.7; }
     .bj-card.hidden-card { transform:rotateY(180deg); }
     .bj-card.hidden-card .bj-face { visibility:hidden; }
     @keyframes bjSlideIn { 0% { opacity:0; transform:translateX(-160px) translateY(-50px) scale(0.6) rotate(-20deg); } 50% { opacity:0.8; } 75% { transform:translateX(6px) translateY(2px) scale(1.04) rotate(1.5deg); } 100% { opacity:1; transform:translateX(0) translateY(0) scale(1) rotate(0); } }
@@ -98,8 +103,10 @@
     .bj-flip { animation:bjFlipReveal 0.8s cubic-bezier(.4,0,.2,1) both; }
     @keyframes bjBust { 0% { filter:none; } 50% { filter:brightness(1.5) saturate(0.3); transform:scale(1.05); } 100% { filter:brightness(0.6) saturate(0.2); transform:scale(0.97); } }
     .bj-bust { animation:bjBust 0.4s ease both; }
-    @keyframes bjWinGlow { 0%,100% { box-shadow:0 2px 8px rgba(0,0,0,0.4); } 50% { box-shadow:0 0 20px rgba(34,197,94,0.5), 0 0 40px rgba(34,197,94,0.2); } }
+    @keyframes bjWinGlow { 0%,100% { box-shadow:0 4px 16px rgba(0,0,0,0.5); } 50% { box-shadow:0 0 30px rgba(34,197,94,0.6), 0 0 60px rgba(34,197,94,0.2); } }
     .bj-win { animation:bjWinGlow 0.6s ease 2; }
+    @keyframes bjNodeBurst { 0% { transform:scale(0); opacity:1; } 100% { transform:scale(3); opacity:0; } }
+    .bj-burst { position:absolute; width:6px; height:6px; border-radius:50%; pointer-events:none; animation:bjNodeBurst 0.8s cubic-bezier(.22,1,.36,1) both; }
     /* Card entrance */
     @keyframes cardIn { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:translateY(0) } }
     .pour-card { animation:cardIn 0.35s cubic-bezier(.4,0,.2,1) both; }
@@ -260,63 +267,63 @@
   <div id="checklistContent"></div>
 </div>
 
-<!-- BLACKJACK SIDEBAR -->
+<!-- BLACKJACK OVERLAY -->
 <div id="bjToggle" onclick="toggleBlackjack()">
   <span class="text-[8px] font-bold" style="writing-mode:vertical-lr;letter-spacing:2px;color:rgba(34,197,94,0.5)">BJ</span>
 </div>
-<aside id="bjSidebar">
-  <!-- Table felt background -->
-  <div class="flex-1 flex flex-col overflow-hidden" style="background:radial-gradient(ellipse at 50% 40%, #0d3320 0%, #091a12 60%, #06060e 100%)">
-    <!-- Header -->
-    <div class="px-3 py-1.5 flex items-center justify-between" style="border-bottom:1px solid rgba(34,197,94,0.08);background:rgba(0,0,0,0.3)">
-      <div class="flex items-center gap-2">
-        <span class="text-[10px] font-bold tracking-widest" style="color:rgba(34,197,94,0.4)">BLACKJACK</span>
-        <span class="text-[9px] text-white/15 mono" id="bjRecord">0W - 0L - 0P</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="text-[9px] font-bold text-white/30 uppercase tracking-wider">Chips</span>
-        <span id="bjChips" class="mono font-bold text-sm text-green-400">1000</span>
-        <button onclick="toggleBlackjack()" class="text-white/15 hover:text-white/40 transition-colors ml-2"><span class="material-symbols-outlined text-sm">close</span></button>
-      </div>
+<div id="bjOverlay">
+  <!-- Node burst canvas (behind everything) -->
+  <canvas id="bjBurstCanvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0"></canvas>
+  <!-- Top bar -->
+  <div class="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-3" style="z-index:10">
+    <div class="flex items-center gap-3">
+      <span class="text-[10px] font-bold tracking-[0.3em] uppercase" style="color:rgba(34,197,94,0.3)">Blackjack</span>
+      <span class="text-[9px] text-white/15 mono" id="bjRecord">0W - 0L - 0P</span>
     </div>
-    <!-- Alfred (Dealer) -->
-    <div class="flex flex-col items-center pt-4 pb-2">
-      <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg mb-1" style="background:rgba(59,130,246,0.15);border:1.5px solid rgba(59,130,246,0.25)">A</div>
-      <span class="text-[9px] font-bold tracking-wider mb-1" style="color:rgba(59,130,246,0.4)">ALFRED</span>
-      <span id="bjDealerScore" class="mono text-xs font-bold text-white/50 mb-2"></span>
-      <div id="bjDealerCards" class="flex flex-wrap items-center justify-center min-h-[78px]"></div>
-    </div>
-    <!-- Result (centered between hands) -->
-    <div id="bjResult" class="py-2 text-center hidden">
-      <span id="bjResultText" class="mono font-bold text-lg"></span>
-    </div>
-    <!-- Divider — table center line -->
-    <div class="mx-8 my-1" style="border-top:1px dashed rgba(34,197,94,0.12)"></div>
-    <!-- Player (You) -->
-    <div class="flex-1 flex flex-col items-center pt-2 pb-4">
-      <div id="bjPlayerCards" class="flex flex-wrap items-center justify-center min-h-[78px]"></div>
-      <span id="bjPlayerScore" class="mono text-xs font-bold text-white/50 mt-2"></span>
-      <span class="text-[9px] font-bold tracking-wider mt-1 text-white/20">YOU</span>
-    </div>
-    <!-- Actions + Bet (bottom bar) -->
-    <div class="px-4 py-3 flex items-center gap-2 flex-wrap" style="border-top:1px solid rgba(34,197,94,0.08);background:rgba(0,0,0,0.4)">
-      <div class="flex items-center gap-1.5">
-        <button onclick="bjChangeBet(-25)" class="w-7 h-7 rounded-full bg-white/5 text-white/40 text-xs font-bold border border-white/10 hover:bg-white/10">-</button>
-        <span id="bjBet" class="mono font-bold text-sm text-yellow-400 min-w-[32px] text-center">50</span>
-        <button onclick="bjChangeBet(25)" class="w-7 h-7 rounded-full bg-white/5 text-white/40 text-xs font-bold border border-white/10 hover:bg-white/10">+</button>
-      </div>
-      <button id="bjDealBtn" onclick="bjDeal()" class="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all bg-green-500/15 text-green-400 border border-green-500/25 hover:bg-green-500/25">DEAL</button>
-      <button id="bjHitBtn" onclick="bjHit()" class="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all bg-blue-500/15 text-blue-400 border border-blue-500/25 hover:bg-blue-500/25 hidden">HIT</button>
-      <button id="bjStandBtn" onclick="bjStand()" class="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all bg-yellow-500/15 text-yellow-400 border border-yellow-500/25 hover:bg-yellow-500/25 hidden">STAND</button>
-      <button id="bjDoubleBtn" onclick="bjDouble()" class="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all bg-purple-500/15 text-purple-400 border border-purple-500/25 hover:bg-purple-500/25 hidden">2x</button>
-      <button id="bjRebuyBtn" onclick="bjRebuy()" class="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all bg-red-500/15 text-red-400 border border-red-500/25 hover:bg-red-500/25 hidden">REBUY 1000</button>
-    </div>
-    <!-- Footer -->
-    <div class="px-4 py-1.5 flex items-center justify-end" style="background:rgba(0,0,0,0.3)">
-      <button onclick="bjReset()" class="text-[9px] text-white/15 hover:text-red-400 transition-colors uppercase tracking-wider font-bold">Reset</button>
+    <div class="flex items-center gap-3">
+      <span class="text-[9px] font-bold text-white/25 uppercase tracking-wider">Chips</span>
+      <span id="bjChips" class="mono font-bold text-lg text-green-400">1000</span>
+      <button onclick="toggleBlackjack()" class="text-white/20 hover:text-white/50 transition-colors ml-3"><span class="material-symbols-outlined">close</span></button>
     </div>
   </div>
-</aside>
+  <!-- Table -->
+  <div id="bjTable">
+    <!-- Alfred dealer — mini node brain -->
+    <div class="flex flex-col items-center mb-3">
+      <div style="position:relative;width:64px;height:64px">
+        <canvas id="bjBrainCanvas" width="128" height="128" style="width:64px;height:64px;display:block"></canvas>
+      </div>
+      <span class="text-[10px] font-bold tracking-[0.2em] mt-1" style="color:rgba(59,130,246,0.35)">ALFRED</span>
+      <span id="bjDealerScore" class="mono text-sm font-bold text-white/50 mt-1"></span>
+    </div>
+    <!-- Dealer cards -->
+    <div id="bjDealerCards" class="flex flex-wrap items-center justify-center min-h-[96px] mb-2"></div>
+    <!-- Result -->
+    <div id="bjResult" class="py-3 text-center hidden" style="z-index:5">
+      <span id="bjResultText" class="mono font-black text-2xl tracking-wider"></span>
+    </div>
+    <!-- Divider -->
+    <div class="w-48 my-2" style="border-top:1px dashed rgba(34,197,94,0.1)"></div>
+    <!-- Player cards -->
+    <div id="bjPlayerCards" class="flex flex-wrap items-center justify-center min-h-[96px] mt-2"></div>
+    <span id="bjPlayerScore" class="mono text-sm font-bold text-white/50 mt-2"></span>
+    <span class="text-[10px] font-bold tracking-[0.2em] mt-1 text-white/15">YOU</span>
+  </div>
+  <!-- Bottom bar — bet + actions -->
+  <div class="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-3 px-6 py-4" style="z-index:10;background:linear-gradient(transparent,rgba(0,0,0,0.6))">
+    <div class="flex items-center gap-1.5">
+      <button onclick="bjChangeBet(-25)" class="w-8 h-8 rounded-full text-white/40 text-sm font-bold border border-white/10 hover:bg-white/10 transition-all" style="background:rgba(255,255,255,0.03)">-</button>
+      <span id="bjBet" class="mono font-bold text-lg text-yellow-400 min-w-[40px] text-center">50</span>
+      <button onclick="bjChangeBet(25)" class="w-8 h-8 rounded-full text-white/40 text-sm font-bold border border-white/10 hover:bg-white/10 transition-all" style="background:rgba(255,255,255,0.03)">+</button>
+    </div>
+    <button id="bjDealBtn" onclick="bjDeal()" class="px-8 py-3 rounded-xl text-sm font-bold transition-all bg-green-500/15 text-green-400 border border-green-500/25 hover:bg-green-500/25 hover:scale-105">DEAL</button>
+    <button id="bjHitBtn" onclick="bjHit()" class="px-6 py-3 rounded-xl text-sm font-bold transition-all bg-blue-500/15 text-blue-400 border border-blue-500/25 hover:bg-blue-500/25 hidden">HIT</button>
+    <button id="bjStandBtn" onclick="bjStand()" class="px-6 py-3 rounded-xl text-sm font-bold transition-all bg-yellow-500/15 text-yellow-400 border border-yellow-500/25 hover:bg-yellow-500/25 hidden">STAND</button>
+    <button id="bjDoubleBtn" onclick="bjDouble()" class="px-5 py-3 rounded-xl text-sm font-bold transition-all bg-purple-500/15 text-purple-400 border border-purple-500/25 hover:bg-purple-500/25 hidden">2x</button>
+    <button id="bjRebuyBtn" onclick="bjRebuy()" class="px-6 py-3 rounded-xl text-sm font-bold transition-all bg-red-500/15 text-red-400 border border-red-500/25 hover:bg-red-500/25 hidden">REBUY</button>
+    <button onclick="bjReset()" class="text-[9px] text-white/10 hover:text-red-400 transition-colors uppercase tracking-wider font-bold ml-2">Reset</button>
+  </div>
+</div>
 
 <!-- ALFRED SIDEBAR -->
 <div id="alfredToggle" onclick="toggleAlfred()">
@@ -4154,17 +4161,98 @@ let bjWins = parseInt(localStorage.getItem('cup_bj_wins')) || 0;
 let bjLosses = parseInt(localStorage.getItem('cup_bj_losses')) || 0;
 let bjPushes = parseInt(localStorage.getItem('cup_bj_pushes')) || 0;
 
+let bjBrainAnim = null;
+let bjBrainNodes = [];
+
 function toggleBlackjack() {
   bjOpen = !bjOpen;
-  document.getElementById('bjSidebar').classList.toggle('open', bjOpen);
+  document.getElementById('bjOverlay').classList.toggle('open', bjOpen);
   document.getElementById('bjToggle').style.display = bjOpen ? 'none' : '';
-  const pad = (bjOpen && window.innerWidth > 640) ? '320px' : '0';
-  document.body.style.marginLeft = pad;
-  document.querySelectorAll('header, #footer, .sticky').forEach(el => {
-    el.style.transition = 'left 0.3s cubic-bezier(.4,0,.2,1)';
-    el.style.left = pad;
-  });
+  if (bjOpen && !bjBrainNodes.length) initBjBrain();
+  if (bjOpen) bjBrainLoop(); else { cancelAnimationFrame(bjBrainAnim); bjBrainAnim = null; }
   bjUpdateUI();
+}
+
+function initBjBrain() {
+  const colors = ['#3D9E6B','#D4842A','#5BA8D9','#7B6FC7','#22c55e','#3b82f6'];
+  for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI * 2;
+    const r = 28 + Math.random() * 18;
+    bjBrainNodes.push({ angle, r, speed: 0.003 + Math.random() * 0.005, size: 2 + Math.random() * 3, color: colors[i % colors.length], flash: 0 });
+  }
+}
+
+function bjBrainLoop() {
+  const c = document.getElementById('bjBrainCanvas');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const W = 128, H = 128, cx = W/2, cy = H/2;
+  ctx.clearRect(0,0,W,H);
+  // Connections
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i < bjBrainNodes.length; i++) {
+    const a = bjBrainNodes[i];
+    a.angle += a.speed;
+    const ax = cx + Math.cos(a.angle) * a.r, ay = cy + Math.sin(a.angle) * a.r;
+    for (let j = i+1; j < bjBrainNodes.length; j++) {
+      const b = bjBrainNodes[j];
+      const bx = cx + Math.cos(b.angle) * b.r, by = cy + Math.sin(b.angle) * b.r;
+      const d = Math.hypot(ax-bx, ay-by);
+      if (d < 50) {
+        ctx.strokeStyle = a.color + Math.round((1 - d/50) * 40).toString(16).padStart(2,'0');
+        ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
+      }
+    }
+    // Node
+    if (a.flash > 0) { a.flash -= 0.02; ctx.shadowBlur = 12; ctx.shadowColor = a.color; } else { ctx.shadowBlur = 0; }
+    ctx.fillStyle = a.color + (a.flash > 0 ? 'cc' : '88');
+    ctx.beginPath(); ctx.arc(ax, ay, a.size, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  // Center glow
+  const g = ctx.createRadialGradient(cx,cy,0,cx,cy,12);
+  g.addColorStop(0,'rgba(59,130,246,0.15)'); g.addColorStop(1,'transparent');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx,cy,12,0,Math.PI*2); ctx.fill();
+  bjBrainAnim = requestAnimationFrame(bjBrainLoop);
+}
+
+function bjDealBurst() {
+  const canvas = document.getElementById('bjBurstCanvas');
+  if (!canvas) return;
+  canvas.width = canvas.parentElement.clientWidth * 2;
+  canvas.height = canvas.parentElement.clientHeight * 2;
+  canvas.style.width = canvas.parentElement.clientWidth + 'px';
+  canvas.style.height = canvas.parentElement.clientHeight + 'px';
+  const ctx = canvas.getContext('2d');
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  const colors = ['#3D9E6B','#D4842A','#5BA8D9','#7B6FC7','#22c55e','#3b82f6','#fbbf24'];
+  const particles = [];
+  for (let i = 0; i < 40; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 6;
+    particles.push({ x:cx, y:cy, vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed, r:1.5+Math.random()*3, color:colors[Math.floor(Math.random()*colors.length)], life:1 });
+  }
+  // Also flash brain nodes
+  bjBrainNodes.forEach(n => n.flash = 1);
+  let frame = 0;
+  function animate() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    let alive = false;
+    for (const p of particles) {
+      p.x += p.vx; p.y += p.vy; p.vx *= 0.97; p.vy *= 0.97; p.life -= 0.015;
+      if (p.life <= 0) continue;
+      alive = true;
+      ctx.globalAlpha = p.life * 0.7;
+      ctx.fillStyle = p.color;
+      ctx.shadowBlur = 8; ctx.shadowColor = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+    if (alive && frame < 80) { frame++; requestAnimationFrame(animate); }
+    else ctx.clearRect(0,0,canvas.width,canvas.height);
+  }
+  animate();
 }
 
 function bjMakeDeck() {
@@ -4203,7 +4291,7 @@ function bjIsRed(card) { return card.suit === '\u2665' || card.suit === '\u2666'
 function bjRenderCard(card, hidden, delay, extraClass) {
   const d = delay || 0;
   const ex = extraClass || '';
-  const face = '<div class="bj-face">' + card.rank + '<span style="font-size:11px;margin-top:-2px">' + card.suit + '</span></div><div class="bj-back"></div>';
+  const face = '<div class="bj-face"><span class="bj-rank">' + card.rank + '</span><span class="bj-suit">' + card.suit + '</span></div><div class="bj-back"></div>';
   if (hidden) return '<div class="bj-card-wrap bj-slide" style="animation-delay:' + d + 'ms"><div class="bj-card hidden-card ' + ex + '">' + face + '</div></div>';
   const cls = bjIsRed(card) ? 'red' : 'black';
   return '<div class="bj-card-wrap bj-slide" style="animation-delay:' + d + 'ms"><div class="bj-card ' + cls + ' ' + ex + '">' + face + '</div></div>';
@@ -4224,6 +4312,7 @@ function bjDeal() {
   bjGameOver = false;
   bjChips -= bjBet;
   bjSaveStats();
+  bjDealBurst();
   bjUpdateUI();
   // Check natural blackjack
   if (bjHandVal(bjPlayerHand) === 21) {
