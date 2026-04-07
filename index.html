@@ -2582,6 +2582,7 @@ function exportPourReport() {
       <button onclick="window.print()" style="background:#fff2;color:#fff;border:1px solid #fff3;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Print / PDF</button>
       <button onclick="navigator.clipboard.writeText(document.body.innerText).then(()=>this.textContent='Copied!').catch(()=>{})" style="background:#fff2;color:#fff;border:1px solid #fff3;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Copy Text</button>
       ${typeof navigator.share === 'function' ? '<button onclick="navigator.share({title:\'Pour Report — ' + pour.id + '\',text:document.body.innerText}).catch(()=>{})" style="background:#4ADE80;color:#000;border:none;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Share</button>' : ''}
+      <button onclick="window.close();window.location.href=\'https://dyap123.github.io/cup-dashboard/\'" style="background:#fff2;color:#fff;border:1px solid #fff3;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Back</button>
       <button onclick="document.getElementById(\'shareBar\').remove()" style="background:transparent;color:#fff6;border:none;padding:6pt 8pt;font-size:12pt;cursor:pointer">&times;</button>
     </div>
   </div>
@@ -4211,11 +4212,11 @@ function bjToggleFullscreen() {
 }
 
 function initBjBrain() {
-  const colors = ['#3D9E6B','#D4842A','#5BA8D9','#7B6FC7','#22c55e','#3b82f6'];
-  for (let i = 0; i < 10; i++) {
-    const angle = (i / 10) * Math.PI * 2;
-    const r = 16 + Math.random() * 18;
-    bjBrainNodes.push({ angle, r, speed: 0.004 + Math.random() * 0.006, size: 1.5 + Math.random() * 2, color: colors[i % colors.length], glow: 0 });
+  const colors = ['#3D9E6B','#D4842A','#5BA8D9','#7B6FC7','#22c55e','#3b82f6','#fbbf24','#ff4d6a'];
+  for (let i = 0; i < 14; i++) {
+    const angle = (i / 14) * Math.PI * 2;
+    const r = 14 + Math.random() * 22;
+    bjBrainNodes.push({ angle, r, speed: 0.005 + Math.random() * 0.008, size: 2.5 + Math.random() * 3, color: colors[i % colors.length], glow: 0 });
   }
 }
 
@@ -4225,7 +4226,7 @@ function bjBrainLoop() {
   const ctx = c.getContext('2d');
   const W = c.width, H = c.height, cx = W/2, cy = H/2;
   ctx.clearRect(0,0,W,H);
-  ctx.lineWidth = 0.5;
+  ctx.lineWidth = 1;
   for (let i = 0; i < bjBrainNodes.length; i++) {
     const a = bjBrainNodes[i];
     a.angle += a.speed;
@@ -4234,25 +4235,33 @@ function bjBrainLoop() {
       const b = bjBrainNodes[j];
       const bx = cx + Math.cos(b.angle) * b.r, by = cy + Math.sin(b.angle) * b.r;
       const d = Math.hypot(ax-bx, ay-by);
-      if (d < 40) {
-        ctx.strokeStyle = a.color + Math.round((1 - d/40) * 35).toString(16).padStart(2,'0');
+      if (d < 50) {
+        const alpha = Math.round((1 - d/50) * (a.glow > 0 || b.glow > 0 ? 80 : 45));
+        ctx.strokeStyle = a.color + alpha.toString(16).padStart(2,'0');
         ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
       }
     }
     if (a.glow > 0) {
-      a.glow -= 0.008;
-      ctx.shadowBlur = 14; ctx.shadowColor = a.color;
+      a.glow -= 0.006;
+      ctx.shadowBlur = 20; ctx.shadowColor = a.color;
       ctx.fillStyle = a.color;
-      ctx.beginPath(); ctx.arc(ax, ay, a.size * (1 + a.glow * 0.8), 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(ax, ay, a.size * (1 + a.glow), 0, Math.PI*2); ctx.fill();
+      // Outer ring
+      ctx.strokeStyle = a.color + '44';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(ax, ay, a.size * (1 + a.glow) + 4, 0, Math.PI*2); ctx.stroke();
       ctx.shadowBlur = 0;
     } else {
-      ctx.fillStyle = a.color + '88';
+      ctx.shadowBlur = 6; ctx.shadowColor = a.color;
+      ctx.fillStyle = a.color + 'aa';
       ctx.beginPath(); ctx.arc(ax, ay, a.size, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
     }
   }
-  const g = ctx.createRadialGradient(cx,cy,0,cx,cy,8);
-  g.addColorStop(0,'rgba(59,130,246,0.15)'); g.addColorStop(1,'transparent');
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx,cy,8,0,Math.PI*2); ctx.fill();
+  const anyGlow = bjBrainNodes.some(n => n.glow > 0);
+  const gr = ctx.createRadialGradient(cx,cy,0,cx,cy,anyGlow ? 16 : 10);
+  gr.addColorStop(0, anyGlow ? 'rgba(59,130,246,0.3)' : 'rgba(59,130,246,0.12)'); gr.addColorStop(1,'transparent');
+  ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx,cy,anyGlow ? 16 : 10,0,Math.PI*2); ctx.fill();
   bjBrainAnim = requestAnimationFrame(bjBrainLoop);
 }
 
@@ -4305,9 +4314,10 @@ function bjChangeBet(delta) {
   document.getElementById('bjBet').textContent = bjBet;
 }
 
-function bjFlashBrain() {
-  bjBrainNodes.forEach((n, i) => { n.glow = 1; n.speed = 0.015 + Math.random() * 0.01; });
-  setTimeout(() => bjBrainNodes.forEach(n => { n.speed = 0.004 + Math.random() * 0.006; }), 2000);
+function bjFlashBrain(intensity) {
+  const g = intensity || 1;
+  bjBrainNodes.forEach((n, i) => { n.glow = g; n.speed = 0.02 + Math.random() * 0.015; });
+  setTimeout(() => bjBrainNodes.forEach(n => { n.speed = 0.005 + Math.random() * 0.008; }), 2500);
 }
 
 function bjDeal() {
@@ -4329,10 +4339,21 @@ function bjDeal() {
   }
 }
 
+function bjAppendCard(containerId, card, hidden) {
+  const container = document.getElementById(containerId);
+  const wrap = document.createElement('div');
+  wrap.className = 'bj-card-wrap bj-slide';
+  const cls = hidden ? 'hidden-card' : (bjIsRed(card) ? 'red' : 'black');
+  wrap.innerHTML = '<div class="bj-card ' + cls + '"><div class="bj-face"><span class="bj-rank">' + card.rank + '</span><span class="bj-suit">' + card.suit + '</span></div><div class="bj-back"></div></div>';
+  container.appendChild(wrap);
+}
+
 function bjHit() {
   if (bjGameOver) return;
-  bjPlayerHand.push(bjDeck.pop());
-  bjUpdateUI();
+  const card = bjDeck.pop();
+  bjPlayerHand.push(card);
+  bjAppendCard('bjPlayerCards', card, false);
+  document.getElementById('bjPlayerScore').textContent = bjHandVal(bjPlayerHand);
   if (bjHandVal(bjPlayerHand) > 21) bjEnd('bust');
   else if (bjHandVal(bjPlayerHand) === 21) bjStand();
 }
@@ -4379,8 +4400,13 @@ function bjDouble() {
   if (bjGameOver || bjPlayerHand.length !== 2) return;
   bjChips -= bjBet;
   bjBet *= 2;
-  bjPlayerHand.push(bjDeck.pop());
-  bjUpdateUI();
+  const card = bjDeck.pop();
+  bjPlayerHand.push(card);
+  bjAppendCard('bjPlayerCards', card, false);
+  document.getElementById('bjPlayerScore').textContent = bjHandVal(bjPlayerHand);
+  document.getElementById('bjChips').textContent = bjChips;
+  document.getElementById('bjBet').textContent = bjBet;
+  document.getElementById('bjDoubleBtn').classList.add('hidden');
   if (bjHandVal(bjPlayerHand) > 21) bjEnd('bust');
   else bjStand();
 }
@@ -4388,10 +4414,10 @@ function bjDouble() {
 function bjEnd(result) {
   bjGameOver = true;
   const origBet = bjBet;
-  let msg = '', color = '';
+  let msg = '', color = '', winAmount = 0;
   switch (result) {
-    case 'blackjack': msg = 'BLACKJACK!'; color = '#fbbf24'; bjChips += Math.floor(bjBet * 2.5); bjWins++; break;
-    case 'win': case 'dealer-bust': msg = result === 'win' ? 'YOU WIN' : 'DEALER BUSTS'; color = '#22c55e'; bjChips += bjBet * 2; bjWins++; break;
+    case 'blackjack': winAmount = Math.floor(bjBet * 1.5); bjChips += Math.floor(bjBet * 2.5); bjWins++; msg = 'BLACKJACK! +' + winAmount; color = '#fbbf24'; break;
+    case 'win': case 'dealer-bust': winAmount = bjBet; bjChips += bjBet * 2; bjWins++; msg = (result === 'win' ? 'YOU WIN' : 'DEALER BUSTS') + ' +' + winAmount; color = '#22c55e'; break;
     case 'push': msg = 'PUSH'; color = '#94a3b8'; bjChips += bjBet; bjPushes++; break;
     case 'bust': msg = 'BUST'; color = '#ef4444'; bjLosses++; break;
     case 'lose': msg = 'DEALER WINS'; color = '#ef4444'; bjLosses++; break;
