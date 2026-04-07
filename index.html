@@ -2536,8 +2536,9 @@ function exportPourReport() {
   <table><tr><th>ID</th><th>Type</th><th>CY</th><th>Mix</th><th>Progress</th></tr>
   ${ftgs.filter(f=>f.type!=='gb').map(f => {
     const pct = getFootingPct(f.id);
-    const mix = f.type==='pc'?'8000':'5000';
-    return `<tr><td>${f.id}</td><td>${f.ftype}</td><td>${f.cy}</td><td>${mix}</td><td><strong class="${pct===100?'ok':pct>0?'warn':''}">${pct}%</strong></td></tr>`;
+    const mix = getFootingMix(f);
+    const mixLabel = mix==='8000'?'8000 PSI':mix==='5000'?'5000 PSI':mix==='slurry'?'Slurry':mix;
+    return `<tr><td>${f.id}</td><td>${f.ftype}</td><td>${f.cy}</td><td>${mixLabel}</td><td><strong class="${pct===100?'ok':pct>0?'warn':''}">${pct}%</strong></td></tr>`;
   }).join('')}
   </table>` : ''}
 
@@ -2555,9 +2556,9 @@ function exportPourReport() {
     const takeoff5k = pour.cy5000 || 0;
     const takeoffSl = pour.slurry || 0;
     const takeoffTotal = takeoff8k + takeoff5k + takeoffSl;
-    const placed8k = ftgs.filter(f => f.type==='pc' || (f.type==='gb' && gbMix==='8000')).reduce((s,f) => s + f.cy * getFootingPct(f.id) / 100, 0);
-    const placed5k = ftgs.filter(f => f.type==='ftg' || (f.type==='gb' && gbMix==='5000')).reduce((s,f) => s + f.cy * getFootingPct(f.id) / 100, 0);
-    const placedSl = 0;
+    const placed8k = ftgs.filter(f => getFootingMix(f)==='8000').reduce((s,f) => s + f.cy * getFootingPct(f.id) / 100, 0);
+    const placed5k = ftgs.filter(f => getFootingMix(f)==='5000').reduce((s,f) => s + f.cy * getFootingPct(f.id) / 100, 0);
+    const placedSl = ftgs.filter(f => getFootingMix(f)==='slurry').reduce((s,f) => s + f.cy * getFootingPct(f.id) / 100, 0);
     const placedTotal = placed8k + placed5k + placedSl;
     const varClass = (actual, takeoff) => {
       if (takeoff === 0) return '';
@@ -3008,12 +3009,13 @@ function renderPourDay() {
     const totalCY = ftgs.reduce((s,f) => s+f.cy, 0);
     const inProgressCount = ftgs.filter(f => { const p = getFootingPct(f.id); return p > 0 && p < 100; }).length;
 
-    // Mix breakdown: PC = 8000 PSI, Footing = 5000 PSI, GB = user choice (stored in localStorage)
-    const gbMix = localStorage.getItem('cup_gb_mix') || '8000';
-    const cy8000 = ftgs.filter(f => f.type === 'pc' || (f.type === 'gb' && gbMix === '8000')).reduce((s,f) => s+f.cy, 0);
-    const cy5000 = ftgs.filter(f => f.type === 'ftg' || (f.type === 'gb' && gbMix === '5000')).reduce((s,f) => s+f.cy, 0);
-    const done8000 = ftgs.filter(f => f.type === 'pc' || (f.type === 'gb' && gbMix === '8000')).reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
-    const done5000 = ftgs.filter(f => f.type === 'ftg' || (f.type === 'gb' && gbMix === '5000')).reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
+    // Mix breakdown: uses each footing's assigned mix
+    const cy8000 = ftgs.filter(f => getFootingMix(f) === '8000').reduce((s,f) => s+f.cy, 0);
+    const cy5000 = ftgs.filter(f => getFootingMix(f) === '5000').reduce((s,f) => s+f.cy, 0);
+    const cySlurryMap = ftgs.filter(f => getFootingMix(f) === 'slurry').reduce((s,f) => s+f.cy, 0);
+    const done8000 = ftgs.filter(f => getFootingMix(f) === '8000').reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
+    const done5000 = ftgs.filter(f => getFootingMix(f) === '5000').reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
+    const doneSlurryMap = ftgs.filter(f => getFootingMix(f) === 'slurry').reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
 
     h += `<div class="rounded-xl border border-white/5 overflow-hidden mb-4" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between flex-wrap gap-2">
@@ -3026,23 +3028,21 @@ function renderPourDay() {
       </div>
       <!-- Mix breakdown strip -->
       <div class="px-4 py-2 border-b border-white/5 flex items-center gap-4 flex-wrap" style="background:rgba(8,10,18,0.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)">
-        <div class="flex items-center gap-1.5">
+        ${cy8000 > 0 ? `<div class="flex items-center gap-1.5">
           <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
           <span class="text-[9px] font-bold text-red-300">8000 PSI</span>
           <span class="text-[10px] mono font-bold text-red-200">${done8000.toFixed(1)}/${cy8000.toFixed(0)} CY</span>
-          <span class="text-[9px] text-white/30">(Pile Caps${gbMix==='8000'?' + GB':''})</span>
-        </div>
-        <div class="flex items-center gap-1.5">
+        </div>` : ''}
+        ${cy5000 > 0 ? `<div class="flex items-center gap-1.5">
           <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
           <span class="text-[9px] font-bold text-blue-300">5000 PSI</span>
           <span class="text-[10px] mono font-bold text-blue-200">${done5000.toFixed(1)}/${cy5000.toFixed(0)} CY</span>
-          <span class="text-[9px] text-white/30">(Footings${gbMix==='5000'?' + GB':''})</span>
-        </div>
-        <div class="flex items-center gap-1.5 ml-auto">
-          <span class="text-[8px] text-white/30">GB Mix:</span>
-          <button onclick="localStorage.setItem('cup_gb_mix','8000');renderPourDay()" class="text-[9px] font-bold px-2 py-0.5 rounded transition-all ${gbMix==='8000'?'bg-red-500/20 text-red-300 border border-red-500/30':'bg-white/5 text-white/30'}">8000</button>
-          <button onclick="localStorage.setItem('cup_gb_mix','5000');renderPourDay()" class="text-[9px] font-bold px-2 py-0.5 rounded transition-all ${gbMix==='5000'?'bg-blue-500/20 text-blue-300 border border-blue-500/30':'bg-white/5 text-white/30'}">5000</button>
-        </div>
+        </div>` : ''}
+        ${cySlurryMap > 0 ? `<div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full bg-gray-500"></span>
+          <span class="text-[9px] font-bold text-gray-300">Slurry</span>
+          <span class="text-[10px] mono font-bold text-gray-200">${doneSlurryMap.toFixed(1)}/${cySlurryMap.toFixed(0)} CY</span>
+        </div>` : ''}
       </div>
       ${(() => {
         const ewf = ftgs.filter(ff => ff.embeds && ff.embeds.length);
