@@ -1651,7 +1651,7 @@ document.addEventListener('keydown', e => {
   const pourId = getActivePour()?.id;
   if (!pourId) return;
 
-  if (e.key === 'Delete' || e.key === 'Backspace') {
+  if (e.key === 'Delete') {
     e.preventDefault();
     const map = loadFootingMap(pourId);
     if (!map) return;
@@ -1684,6 +1684,41 @@ document.addEventListener('keydown', e => {
   }
 });
 
+let gridEditOpen = false;
+function toggleGridEdit() { gridEditOpen = !gridEditOpen; renderPourDay(); }
+function updateGridCol(pourId, idx, field, value) {
+  const map = loadFootingMap(pourId); if (!map) return;
+  if (field === 'label') map.gridCols[idx].label = value;
+  else map.gridCols[idx].x = parseInt(value) || 0;
+  saveFootingMap(pourId, map); renderPourDay();
+}
+function updateGridRow(pourId, idx, field, value) {
+  const map = loadFootingMap(pourId); if (!map) return;
+  if (field === 'label') map.gridRows[idx].label = value;
+  else map.gridRows[idx].y = parseInt(value) || 0;
+  saveFootingMap(pourId, map); renderPourDay();
+}
+function addGridCol(pourId) {
+  const map = loadFootingMap(pourId); if (!map) return;
+  const lastX = map.gridCols.length ? map.gridCols[map.gridCols.length-1].x + 100 : 100;
+  map.gridCols.push({x: lastX, label: '?'});
+  saveFootingMap(pourId, map); renderPourDay();
+}
+function addGridRow(pourId) {
+  const map = loadFootingMap(pourId); if (!map) return;
+  const lastY = map.gridRows.length ? map.gridRows[map.gridRows.length-1].y + 100 : 100;
+  map.gridRows.push({y: lastY, label: '?'});
+  saveFootingMap(pourId, map); renderPourDay();
+}
+function removeGridCol(pourId, idx) {
+  const map = loadFootingMap(pourId); if (!map) return;
+  map.gridCols.splice(idx, 1); saveFootingMap(pourId, map); renderPourDay();
+}
+function removeGridRow(pourId, idx) {
+  const map = loadFootingMap(pourId); if (!map) return;
+  map.gridRows.splice(idx, 1); saveFootingMap(pourId, map); renderPourDay();
+}
+
 function renderMapEditToolbar(pourId) {
   const allFtgs = loadFootingMap(pourId)?.footings || [];
   const sels = allFtgs.filter(f => mapSelected.includes(f.id));
@@ -1692,12 +1727,44 @@ function renderMapEditToolbar(pourId) {
 
   let tb = '<div class="px-3 py-2 border-b border-white/5 space-y-2" style="background:rgba(8,10,18,0.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)">';
   tb += '<div class="flex items-center gap-2 flex-wrap">';
+  tb += '<button onclick="toggleGridEdit()" class="text-[9px] font-bold px-2.5 py-1.5 rounded transition-all ' + (gridEditOpen ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-white/5 text-white/40 border border-white/10 hover:text-white/60') + '">Edit Grid</button>';
   tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'ftg\')" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20">+ Footing</button>';
   tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'pc\')" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20">+ Pile Cap</button>';
   tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'gb\')" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20">+ Grade Beam</button>';
   if (!sels.length) tb += '<span class="text-[9px] text-white/25 italic ml-2">Click to select · Shift+click for multi · Ctrl+C/V · Delete key</span>';
   tb += '<span class="ml-auto text-[9px] text-white/20">Auto-saves</span>';
   tb += '</div>';
+
+  // Grid editor panel
+  if (gridEditOpen) {
+    const gMap = loadFootingMap(pourId);
+    if (gMap) {
+      tb += '<div class="p-2 rounded-lg border border-purple-500/20 bg-purple-500/[0.03] space-y-2">';
+      tb += '<div class="text-[8px] font-bold text-purple-300/60 uppercase tracking-wider">Grid Columns</div>';
+      tb += '<div class="flex flex-wrap gap-1.5">';
+      (gMap.gridCols || []).forEach(function(col, ci) {
+        tb += '<div class="flex items-center gap-1 bg-white/[0.03] rounded px-1.5 py-1">';
+        tb += '<input type="text" value="' + (col.label||'') + '" onchange="updateGridCol(\'' + pourId + '\',' + ci + ',\'label\',this.value)" class="w-16 bg-white/5 border border-white/10 rounded px-1 py-0.5 text-[9px] mono text-white font-bold focus:outline-none focus:border-purple-400/40">';
+        tb += '<input type="number" value="' + (col.x||0) + '" onchange="updateGridCol(\'' + pourId + '\',' + ci + ',\'x\',this.value)" class="w-16 bg-white/5 border border-white/10 rounded px-1 py-0.5 text-[9px] mono text-white/60 focus:outline-none focus:border-purple-400/40">';
+        tb += '<button onclick="removeGridCol(\'' + pourId + '\',' + ci + ')" class="text-red-400/50 hover:text-red-400 text-xs leading-none">&times;</button>';
+        tb += '</div>';
+      });
+      tb += '<button onclick="addGridCol(\'' + pourId + '\')" class="text-[9px] font-bold px-2 py-1 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 hover:bg-purple-500/20">+ Add Col</button>';
+      tb += '</div>';
+      tb += '<div class="text-[8px] font-bold text-purple-300/60 uppercase tracking-wider mt-2">Grid Rows</div>';
+      tb += '<div class="flex flex-wrap gap-1.5">';
+      (gMap.gridRows || []).forEach(function(row, ri) {
+        tb += '<div class="flex items-center gap-1 bg-white/[0.03] rounded px-1.5 py-1">';
+        tb += '<input type="text" value="' + (row.label||'') + '" onchange="updateGridRow(\'' + pourId + '\',' + ri + ',\'label\',this.value)" class="w-16 bg-white/5 border border-white/10 rounded px-1 py-0.5 text-[9px] mono text-white font-bold focus:outline-none focus:border-purple-400/40">';
+        tb += '<input type="number" value="' + (row.y||0) + '" onchange="updateGridRow(\'' + pourId + '\',' + ri + ',\'y\',this.value)" class="w-16 bg-white/5 border border-white/10 rounded px-1 py-0.5 text-[9px] mono text-white/60 focus:outline-none focus:border-purple-400/40">';
+        tb += '<button onclick="removeGridRow(\'' + pourId + '\',' + ri + ')" class="text-red-400/50 hover:text-red-400 text-xs leading-none">&times;</button>';
+        tb += '</div>';
+      });
+      tb += '<button onclick="addGridRow(\'' + pourId + '\')" class="text-[9px] font-bold px-2 py-1 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 hover:bg-purple-500/20">+ Add Row</button>';
+      tb += '</div>';
+      tb += '</div>';
+    }
+  }
 
   if (multi) {
     // Multi-selection toolbar
@@ -2058,6 +2125,43 @@ function setPourDayCY(cy) {
   renderPourDay();
 }
 
+function showExportModal() {
+  const pour = getActivePour(); if (!pour) return;
+  const pourId = pour.id;
+  const saved = JSON.parse(localStorage.getItem('cup_actuals_'+pourId) || '{}');
+  const pourTrucks = pourDay.trucks.filter(t => t.pourId === pourId);
+  const del8k = pourTrucks.filter(t=>t.mix==='8000').reduce((s,t)=>s+t.cy,0);
+  const del5k = pourTrucks.filter(t=>t.mix==='5000').reduce((s,t)=>s+t.cy,0);
+  const delSl = pourTrucks.filter(t=>t.mix==='slurry').reduce((s,t)=>s+t.cy,0);
+
+  let html = '<div id="exportModal" class="fixed inset-0 z-[200] flex items-center justify-center" style="background:rgba(0,0,0,0.6);backdrop-filter:blur(4px)" onclick="if(event.target===this)this.remove()">';
+  html += '<div class="w-80 rounded-xl overflow-hidden" style="background:#0c0e16;border:1px solid rgba(255,255,255,0.08)">';
+  html += '<div class="px-4 py-3 border-b border-white/5"><span class="text-sm font-bold text-white">Enter Actual CY for Report</span></div>';
+  html += '<div class="p-4 space-y-3">';
+  html += '<div><label class="text-[10px] text-red-300 font-bold uppercase">8000 PSI Actual CY</label><input id="expAct8k" type="number" value="'+(saved.cy8000||del8k)+'" class="w-full mt-1 bg-white/5 border border-white/10 rounded px-3 py-2 text-sm mono text-white focus:outline-none"></div>';
+  html += '<div><label class="text-[10px] text-blue-300 font-bold uppercase">5000 PSI Actual CY</label><input id="expAct5k" type="number" value="'+(saved.cy5000||del5k)+'" class="w-full mt-1 bg-white/5 border border-white/10 rounded px-3 py-2 text-sm mono text-white focus:outline-none"></div>';
+  html += '<div><label class="text-[10px] text-gray-300 font-bold uppercase">Slurry Actual CY</label><input id="expActSl" type="number" value="'+(saved.slurry||delSl)+'" class="w-full mt-1 bg-white/5 border border-white/10 rounded px-3 py-2 text-sm mono text-white focus:outline-none"></div>';
+  html += '</div>';
+  html += '<div class="px-4 py-3 border-t border-white/5 flex gap-2">';
+  html += '<button onclick="document.getElementById(\'exportModal\').remove()" class="flex-1 py-2 rounded-lg text-xs font-bold text-white/30 bg-white/5">Cancel</button>';
+  html += '<button onclick="saveActualsAndExport()" class="flex-1 py-2 rounded-lg text-xs font-bold text-white bg-blue-500/20 border border-blue-500/30">Export Report</button>';
+  html += '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function saveActualsAndExport() {
+  const pour = getActivePour(); if (!pour) return;
+  const actuals = {
+    cy8000: parseFloat(document.getElementById('expAct8k').value) || 0,
+    cy5000: parseFloat(document.getElementById('expAct5k').value) || 0,
+    slurry: parseFloat(document.getElementById('expActSl').value) || 0,
+  };
+  localStorage.setItem('cup_actuals_'+pour.id, JSON.stringify(actuals));
+  fbSet('pour-actuals/'+pour.id, actuals);
+  document.getElementById('exportModal')?.remove();
+  exportPourReport();
+}
+
 function exportPourReport() {
   const pour = getActivePour();
   if (!pour) return;
@@ -2133,6 +2237,50 @@ function exportPourReport() {
   <tr><td>Actual Trucks</td><td>${pourTrucks.length} <span class="${pourTrucks.length >= (pour.trucks||Math.ceil(ordered/9)) ? 'ok' : 'warn'}">(${pourTrucks.length >= (pour.trucks||Math.ceil(ordered/9)) ? 'met' : 'under'})</span></td></tr>
   </table>
 
+  ${(() => {
+    // Pour Rate Graph — cumulative CY over time (SVG)
+    if (pourTrucks.length < 2) return '';
+    const svgW = 500, svgH = 200, pad = 40;
+    const pts = pourTrucks.map(t => ({ts: new Date(t.timestamp).getTime(), cum: t.cumulative})).filter(p => !isNaN(p.ts));
+    if (pts.length < 2) return '';
+    const t0 = pts[0].ts, t1 = pts[pts.length-1].ts, tRange = Math.max(1, t1 - t0);
+    const maxCY = Math.max(ordered, pts[pts.length-1].cum);
+    const sx = ts => pad + ((ts - t0) / tRange) * (svgW - pad*2);
+    const sy = cy => svgH - pad - (cy / maxCY) * (svgH - pad*2);
+    // Build step line path
+    let pathD = 'M' + sx(pts[0].ts).toFixed(1) + ',' + sy(pts[0].cum).toFixed(1);
+    for (let i = 1; i < pts.length; i++) {
+      pathD += ' L' + sx(pts[i].ts).toFixed(1) + ',' + sy(pts[i-1].cum).toFixed(1);
+      pathD += ' L' + sx(pts[i].ts).toFixed(1) + ',' + sy(pts[i].cum).toFixed(1);
+    }
+    // Time labels
+    const fmtT = ms => { const d = new Date(ms); return d.getHours() + ':' + String(d.getMinutes()).padStart(2,'0'); };
+    const xLabels = [pts[0].ts, pts[Math.floor(pts.length/2)].ts, pts[pts.length-1].ts];
+    const uniqueXL = [...new Set(xLabels)];
+    return '<h2>Pour Rate — Cumulative CY over Time</h2>'
+      + '<svg width="' + svgW + '" height="' + svgH + '" viewBox="0 0 ' + svgW + ' ' + svgH + '" style="max-width:100%;font-family:Arial,sans-serif">'
+      + '<rect width="' + svgW + '" height="' + svgH + '" fill="#f8fafc" rx="4"/>'
+      // Y axis gridlines
+      + [0, 0.25, 0.5, 0.75, 1].map(f => {
+          const yy = sy(f * maxCY).toFixed(1);
+          return '<line x1="' + pad + '" y1="' + yy + '" x2="' + (svgW-pad) + '" y2="' + yy + '" stroke="#e2e8f0" stroke-width="0.5"/>'
+            + '<text x="' + (pad-4) + '" y="' + yy + '" text-anchor="end" dominant-baseline="central" font-size="7" fill="#94a3b8">' + Math.round(f*maxCY) + '</text>';
+        }).join('')
+      // Ordered dashed line
+      + '<line x1="' + pad + '" y1="' + sy(ordered).toFixed(1) + '" x2="' + (svgW-pad) + '" y2="' + sy(ordered).toFixed(1) + '" stroke="#1C2E54" stroke-width="1" stroke-dasharray="4,3"/>'
+      + '<text x="' + (svgW-pad+4) + '" y="' + sy(ordered).toFixed(1) + '" font-size="7" fill="#1C2E54" dominant-baseline="central">Ordered: ' + ordered + '</text>'
+      // Step line
+      + '<path d="' + pathD + '" fill="none" stroke="#1C2E54" stroke-width="2" stroke-linejoin="round"/>'
+      // Dots
+      + pts.map(p => '<circle cx="' + sx(p.ts).toFixed(1) + '" cy="' + sy(p.cum).toFixed(1) + '" r="3" fill="#1C2E54"/>').join('')
+      // X axis labels
+      + uniqueXL.map(t => '<text x="' + sx(t).toFixed(1) + '" y="' + (svgH-8) + '" text-anchor="middle" font-size="7" fill="#94a3b8">' + fmtT(t) + '</text>').join('')
+      // Axes
+      + '<line x1="' + pad + '" y1="' + (svgH-pad) + '" x2="' + (svgW-pad) + '" y2="' + (svgH-pad) + '" stroke="#cbd5e1" stroke-width="1"/>'
+      + '<line x1="' + pad + '" y1="' + pad + '" x2="' + pad + '" y2="' + (svgH-pad) + '" stroke="#cbd5e1" stroke-width="1"/>'
+      + '</svg>';
+  })()}
+
   <h2>Delivery Summary by Mix</h2>
   <table><tr><th>Mix</th><th>Code</th><th>Trucks</th><th>CY Delivered</th></tr>
   <tr><td style="color:#c53030">8000 PSI</td><td>O80D739K1</td><td><strong>${pourTrucks.filter(t=>t.mix==='8000').length}</strong></td><td>${pourTrucks.filter(t=>t.mix==='8000').reduce((s,t)=>s+t.cy,0)} CY</td></tr>
@@ -2158,6 +2306,40 @@ function exportPourReport() {
     return `<tr><td>${f.id}</td><td>${f.ftype}</td><td>${f.cy}</td><td>${mix}</td><td><strong class="${pct===100?'ok':pct>0?'warn':''}">${pct}%</strong></td></tr>`;
   }).join('')}
   </table>` : ''}
+
+  ${(() => {
+    // Takeoff vs Actual table
+    const actuals = JSON.parse(localStorage.getItem('cup_actuals_'+pour.id) || '{}');
+    const del8kR = pourTrucks.filter(t=>t.mix==='8000').reduce((s,t)=>s+t.cy,0);
+    const del5kR = pourTrucks.filter(t=>t.mix==='5000').reduce((s,t)=>s+t.cy,0);
+    const delSlR = pourTrucks.filter(t=>t.mix==='slurry').reduce((s,t)=>s+t.cy,0);
+    const act8k = actuals.cy8000 || del8kR;
+    const act5k = actuals.cy5000 || del5kR;
+    const actSl = actuals.slurry || delSlR;
+    const actTotal = act8k + act5k + actSl;
+    const takeoff8k = pour.cy8000 || 0;
+    const takeoff5k = pour.cy5000 || 0;
+    const takeoffSl = pour.slurry || 0;
+    const takeoffTotal = takeoff8k + takeoff5k + takeoffSl;
+    const placed8k = ftgs.filter(f => f.type==='pc' || (f.type==='gb' && gbMix==='8000')).reduce((s,f) => s + f.cy * getFootingPct(f.id) / 100, 0);
+    const placed5k = ftgs.filter(f => f.type==='ftg' || (f.type==='gb' && gbMix==='5000')).reduce((s,f) => s + f.cy * getFootingPct(f.id) / 100, 0);
+    const placedSl = 0;
+    const placedTotal = placed8k + placed5k + placedSl;
+    const varClass = (actual, takeoff) => {
+      if (takeoff === 0) return '';
+      const pctDiff = Math.abs(actual - takeoff) / takeoff * 100;
+      if (actual > takeoff && pctDiff > 10) return 'bad';
+      if (pctDiff <= 5) return 'ok';
+      return 'warn';
+    };
+    return '<h2>Takeoff vs Actual</h2>'
+      + '<table><tr><th>Mix</th><th>Takeoff CY</th><th>Delivered CY</th><th>Placed (Footings) CY</th><th>Actual CY</th><th>Variance</th></tr>'
+      + '<tr><td style="color:#c53030">8000 PSI</td><td>' + takeoff8k.toFixed(1) + '</td><td>' + del8kR + '</td><td>' + placed8k.toFixed(1) + '</td><td><strong>' + act8k.toFixed(1) + '</strong></td><td class="' + varClass(act8k, takeoff8k) + '"><strong>' + (act8k - takeoff8k > 0 ? '+' : '') + (act8k - takeoff8k).toFixed(1) + '</strong></td></tr>'
+      + '<tr><td style="color:#2b6cb0">5000 PSI</td><td>' + takeoff5k.toFixed(1) + '</td><td>' + del5kR + '</td><td>' + placed5k.toFixed(1) + '</td><td><strong>' + act5k.toFixed(1) + '</strong></td><td class="' + varClass(act5k, takeoff5k) + '"><strong>' + (act5k - takeoff5k > 0 ? '+' : '') + (act5k - takeoff5k).toFixed(1) + '</strong></td></tr>'
+      + '<tr><td style="color:#666">Slurry</td><td>' + takeoffSl.toFixed(1) + '</td><td>' + delSlR + '</td><td>' + placedSl.toFixed(1) + '</td><td><strong>' + actSl.toFixed(1) + '</strong></td><td class="' + varClass(actSl, takeoffSl) + '"><strong>' + (actSl - takeoffSl > 0 ? '+' : '') + (actSl - takeoffSl).toFixed(1) + '</strong></td></tr>'
+      + '<tr style="font-weight:700;border-top:2pt solid #1C2E54"><td>TOTAL</td><td>' + takeoffTotal.toFixed(1) + '</td><td>' + delivered + '</td><td>' + placedTotal.toFixed(1) + '</td><td>' + actTotal.toFixed(1) + '</td><td class="' + varClass(actTotal, takeoffTotal) + '">' + (actTotal - takeoffTotal > 0 ? '+' : '') + (actTotal - takeoffTotal).toFixed(1) + '</td></tr>'
+      + '</table>';
+  })()}
 
   ${(() => {
     const ewf = ftgs.filter(f => f.embeds && f.embeds.length);
@@ -2470,8 +2652,36 @@ function renderPourDay() {
       <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Total Trucks</div>
       <div class="mono text-xl font-bold text-white">${pourTrucks.length} <span class="text-xs text-white/30">of ${expectedTrucks}</span></div>
     </div>
-  </div>
-  <div class="grid grid-cols-3 gap-3 mb-4">
+  </div>`;
+
+  // Footing placement progress
+  const pdMapData = loadFootingMap(pour.id);
+  const pdFtgs = pdMapData?.footings || [];
+  const footingPoured = pdFtgs.reduce((s,f) => s + f.cy * getFootingPct(f.id) / 100, 0);
+  const footingTotal = pdFtgs.reduce((s,f) => s + f.cy, 0);
+  const footingPct = footingTotal > 0 ? Math.round(footingPoured / footingTotal * 100) : 0;
+  const fpColor = footingPct >= 100 ? '#41A447' : footingPct > 50 ? '#FFBF00' : c;
+  // Pour rate
+  const truckTimes = pourTrucks.map(t => new Date(t.timestamp)).filter(d => !isNaN(d)).sort((a,b) => a-b);
+  const pourDurationHrs = truckTimes.length >= 2 ? (truckTimes[truckTimes.length-1] - truckTimes[0]) / 3600000 : 0;
+  const pourRate = pourDurationHrs > 0 ? Math.round(delivered / pourDurationHrs) : 0;
+
+  h += `<div class="grid grid-cols-3 gap-3 mb-3">
+    <div class="p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Placed (Footings)</div>
+      <div class="mono text-xl font-bold" style="color:${fpColor}">${footingPoured.toFixed(0)} <span class="text-xs text-white/30">/ ${footingTotal.toFixed(0)} CY</span></div>
+    </div>
+    <div class="p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Pour Rate</div>
+      <div class="mono text-xl font-bold text-white">${pourRate} <span class="text-xs text-white/30">CY/hr</span></div>
+    </div>
+    <div class="p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Footing Progress</div>
+      <div class="mono text-xl font-bold" style="color:${fpColor}">${footingPct}%</div>
+    </div>
+  </div>`;
+
+  h += `<div class="grid grid-cols-3 gap-3 mb-4">
     <div class="p-2.5 rounded-lg border border-red-500/15 flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <div><div class="text-[8px] font-bold text-red-300/60 uppercase tracking-wider">8000 PSI</div><div class="mono text-xs text-red-300 font-bold">${cy8kDel} CY</div></div>
       <div class="mono text-lg font-bold text-red-400">${trucks8k.length}<span class="text-[9px] text-red-300/40 ml-0.5">trk</span></div>
@@ -2736,7 +2946,7 @@ function renderPourDay() {
         <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Truck Log</span>
         <div class="flex items-center gap-3">
           <span class="text-[10px] mono text-white/20">${pourTrucks.length} arrivals</span>
-          <button onclick="exportPourReport()" class="text-[9px] font-bold px-2 py-1 rounded bg-white/5 text-white/40 hover:text-white border border-white/10 transition-all">Export Report</button>
+          <button onclick="showExportModal()" class="text-[9px] font-bold px-2 py-1 rounded bg-white/5 text-white/40 hover:text-white border border-white/10 transition-all">Export Report</button>
         </div>
       </div>
       <div class="max-h-64 overflow-y-auto">
@@ -3156,6 +3366,35 @@ function renderLive() {
       <div class="text-[8px] font-bold text-gray-300/50 uppercase tracking-wider mb-1">Slurry</div>
       <div class="mono text-lg font-bold text-gray-300">${cySlDel} <span class="text-[10px] text-gray-300/40">CY</span></div>
       <div class="text-[10px] text-white/20 mono">${pourTrucks.filter(t=>t.mix==='slurry').length} trucks</div>
+    </div>
+  </div>`;
+
+  // Footing progress + pour rate + embed status
+  const liveMapData = loadFootingMap(pour.id);
+  const liveFtgs = liveMapData?.footings || [];
+  const liveFootingPoured = liveFtgs.reduce((s,f) => s + f.cy * getFootingPct(f.id) / 100, 0);
+  const liveFootingTotal = liveFtgs.reduce((s,f) => s + f.cy, 0);
+  const liveFootingPct = liveFootingTotal > 0 ? Math.round(liveFootingPoured / liveFootingTotal * 100) : 0;
+  const liveFpColor = liveFootingPct >= 100 ? '#41A447' : liveFootingPct > 50 ? '#FFBF00' : c;
+  const liveTruckTimes = pourTrucks.map(t => new Date(t.timestamp)).filter(d => !isNaN(d)).sort((a,b) => a-b);
+  const livePourDurHrs = liveTruckTimes.length >= 2 ? (liveTruckTimes[liveTruckTimes.length-1] - liveTruckTimes[0]) / 3600000 : 0;
+  const livePourRate = livePourDurHrs > 0 ? Math.round(delivered / livePourDurHrs) : 0;
+  const liveEwf = liveFtgs.filter(f => f.embeds && f.embeds.length);
+  const liveEmbedTotal = liveEwf.reduce((s,f) => s + f.embeds.length, 0);
+  const liveEmbedChecked = liveEwf.reduce((s,f) => s + f.embeds.filter(e => getEmbedChecked(f.id, e.embedId)).length, 0);
+
+  h += `<div class="grid grid-cols-3 gap-3 mb-6">
+    <div class="p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+      <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Placed (Footings)</div>
+      <div class="mono text-lg font-bold" style="color:${liveFpColor}">${liveFootingPoured.toFixed(0)} <span class="text-[10px] text-white/30">/ ${liveFootingTotal.toFixed(0)} CY</span></div>
+    </div>
+    <div class="p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+      <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Pour Rate</div>
+      <div class="mono text-lg font-bold text-white">${livePourRate} <span class="text-[10px] text-white/30">CY/hr</span></div>
+    </div>
+    <div class="p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+      <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Embeds</div>
+      <div class="mono text-lg font-bold ${liveEmbedTotal > 0 && liveEmbedChecked === liveEmbedTotal ? 'text-green-400' : 'text-white'}">${liveEmbedChecked}/${liveEmbedTotal} <span class="text-[10px] text-white/30">verified</span></div>
     </div>
   </div>`;
 
