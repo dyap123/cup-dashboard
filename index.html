@@ -101,12 +101,23 @@
     body.light-mode::after {
       background-image: radial-gradient(circle, rgba(0,0,0,0.04) 1px, transparent 1px);
     }
+    /* Light mode: override ALL dark card backgrounds including inline styles */
+    body.light-mode [style*="background:rgba(6,6,14"],
+    body.light-mode [style*="background:rgba(8,10,18"],
+    body.light-mode [style*="background:#0a0c14"],
+    body.light-mode [style*="background:#0a0e14"],
+    body.light-mode [style*="background:#0c0e16"],
+    body.light-mode [style*="background:#080c14"],
     body.light-mode .pour-card,
     body.light-mode .sec-card {
-      background: rgba(255,255,255,0.85) !important;
+      background: rgba(255,255,255,0.9) !important;
       border-color: rgba(0,0,0,0.08) !important;
       color: #1a1a2e;
-      backdrop-filter: blur(12px);
+    }
+    body.light-mode .rounded-xl[style],
+    body.light-mode .rounded-lg[style] {
+      background: rgba(255,255,255,0.85) !important;
+      border-color: rgba(0,0,0,0.06) !important;
     }
     body.light-mode .text-white { color: #1a1a2e !important; }
     body.light-mode .text-white\/90 { color: #2a2a3e !important; }
@@ -120,15 +131,42 @@
     body.light-mode .text-white\/15 { color: #bbb !important; }
     body.light-mode .mono { color: #2a2a3e; }
     body.light-mode .bg-white\/5 { background: rgba(0,0,0,0.04) !important; }
+    body.light-mode .bg-white\/\[0\.03\] { background: rgba(0,0,0,0.03) !important; }
+    body.light-mode .bg-white\/\[0\.02\] { background: rgba(0,0,0,0.02) !important; }
     body.light-mode .border-white\/5 { border-color: rgba(0,0,0,0.06) !important; }
     body.light-mode .border-white\/10 { border-color: rgba(0,0,0,0.1) !important; }
+    body.light-mode .border-white\/\[0\.03\] { border-color: rgba(0,0,0,0.04) !important; }
     body.light-mode header,
     body.light-mode .sticky {
-      background: rgba(245,246,248,0.9) !important;
+      background: rgba(245,246,248,0.92) !important;
       border-image: linear-gradient(90deg, transparent, rgba(59,130,246,0.15), transparent) 1 !important;
     }
     body.light-mode #footer {
       background: rgba(245,246,248,0.95) !important;
+    }
+    body.light-mode #alfredSidebar {
+      background: rgba(245,246,248,0.95) !important;
+    }
+    body.light-mode #alfredToggle {
+      background: rgba(245,246,248,0.95) !important;
+    }
+    body.light-mode select {
+      background: rgba(0,0,0,0.04) !important;
+      color: #333 !important;
+    }
+    body.light-mode input[type="text"],
+    body.light-mode input[type="number"],
+    body.light-mode input[type="date"] {
+      color: #333 !important;
+    }
+    /* SVG text stays visible */
+    body.light-mode #zoneSvg text { fill: currentColor; }
+    /* Popups/modals */
+    body.light-mode #embedPopup > div > div,
+    body.light-mode #exportModal > div > div {
+      background: rgba(255,255,255,0.95) !important;
+      border-color: rgba(0,0,0,0.1) !important;
+      color: #1a1a2e;
     }
   </style>
 </head>
