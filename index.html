@@ -2420,10 +2420,10 @@ function exportPourReport() {
   const completedCY = ftgs.reduce((s,f) => s + (f.cy * getFootingPct(f.id) / 100), 0);
   const totalCY = ftgs.reduce((s,f) => s+f.cy, 0);
 
-  // Mix breakdown
-  const gbMix = localStorage.getItem('cup_gb_mix') || '8000';
-  const cy8000 = ftgs.filter(f => f.type==='pc' || (f.type==='gb' && gbMix==='8000')).reduce((s,f) => s+f.cy, 0);
-  const cy5000 = ftgs.filter(f => f.type==='ftg' || (f.type==='gb' && gbMix==='5000')).reduce((s,f) => s+f.cy, 0);
+  // Mix breakdown — use each footing's assigned mix
+  const cy8000 = ftgs.filter(f => getFootingMix(f) === '8000').reduce((s,f) => s+f.cy, 0);
+  const cy5000 = ftgs.filter(f => getFootingMix(f) === '5000').reduce((s,f) => s+f.cy, 0);
+  const cySlurry = ftgs.filter(f => getFootingMix(f) === 'slurry').reduce((s,f) => s+f.cy, 0);
 
   const today = new Date().toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'});
 
@@ -2455,9 +2455,10 @@ function exportPourReport() {
   </div>
 
   <h2>Mix Breakdown</h2>
-  <table><tr><th>Mix</th><th>Code</th><th>Required CY</th></tr>
-  <tr><td>8000 PSI</td><td>O80D739K1</td><td><strong>${cy8000.toFixed(1)}</strong> CY (Pile Caps${gbMix==='8000'?' + GB':''})</td></tr>
-  <tr><td>5000 PSI</td><td>O60C649J1</td><td><strong>${cy5000.toFixed(1)}</strong> CY (Footings${gbMix==='5000'?' + GB':''})</td></tr>
+  <table><tr><th>Mix</th><th>Code</th><th>Required CY</th><th>Footings</th></tr>
+  ${cy8000 > 0 ? `<tr><td>8000 PSI</td><td>O80D739K1</td><td><strong>${cy8000.toFixed(1)}</strong> CY</td><td>${ftgs.filter(f=>getFootingMix(f)==='8000').map(f=>f.id).join(', ')}</td></tr>` : ''}
+  ${cy5000 > 0 ? `<tr><td>5000 PSI</td><td>O60C649J1</td><td><strong>${cy5000.toFixed(1)}</strong> CY</td><td>${ftgs.filter(f=>getFootingMix(f)==='5000').map(f=>f.id).join(', ')}</td></tr>` : ''}
+  ${cySlurry > 0 ? `<tr><td>Slurry</td><td>S80S662L2</td><td><strong>${cySlurry.toFixed(1)}</strong> CY</td><td>${ftgs.filter(f=>getFootingMix(f)==='slurry').map(f=>f.id).join(', ')}</td></tr>` : ''}
   </table>
 
   <h2>Timing Metrics</h2>
@@ -2466,8 +2467,8 @@ function exportPourReport() {
   <tr><td>Last Truck</td><td>${fmtTime(lastTruck)}</td></tr>
   <tr><td>Total Duration</td><td>${totalDuration} min (${(totalDuration/60).toFixed(1)} hrs)</td></tr>
   <tr><td>Avg Interval Between Trucks</td><td>${avgInterval} min</td></tr>
-  <tr><td>Expected Trucks</td><td>${pour.trucks || Math.ceil(ordered/9)}</td></tr>
-  <tr><td>Actual Trucks</td><td>${pourTrucks.length} <span class="${pourTrucks.length >= (pour.trucks||Math.ceil(ordered/9)) ? 'ok' : 'warn'}">(${pourTrucks.length >= (pour.trucks||Math.ceil(ordered/9)) ? 'met' : 'under'})</span></td></tr>
+  <tr><td>Total Trucks</td><td>${pourTrucks.length}</td></tr>
+  <tr><td>Avg CY Per Truck</td><td>${pourTrucks.length ? (delivered / pourTrucks.length).toFixed(1) : '—'} CY</td></tr>
   </table>
 
   ${(() => {
