@@ -2290,7 +2290,7 @@ function editTruckEntry(pourId, idx) {
   // CY
   h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1">Quantity (CY)</label>';
   h += '<div class="flex gap-1">';
-  [5,6,7,8,9].forEach(function(cy) {
+  [5,6,7,8,9,10].forEach(function(cy) {
     h += '<button onclick="updateTruckField(\'' + pourId + '\',' + idx + ',\'cy\',' + cy + ')" class="flex-1 py-2 rounded text-xs mono font-bold transition-all ' + (t.cy===cy ? 'bg-white/15 text-white' : 'bg-white/5 text-white/30') + '">' + cy + '</button>';
   });
   h += '</div></div>';
@@ -3180,7 +3180,7 @@ function renderPourDay() {
       </button>
       <div class="flex gap-2 flex-wrap">
         <div class="flex gap-1">
-          ${[5,6,7,8,9].map(cy =>
+          ${[5,6,7,8,9,10].map(cy =>
             `<button onclick="setPourDayCY(${cy})" class="px-3 py-1.5 rounded text-xs mono font-bold transition-all ${pourDay.defaultCY===cy?'bg-white/15 text-white':'bg-white/5 text-white/30 hover:text-white/50'}">${cy}</button>`
           ).join('')}
         </div>
@@ -4034,11 +4034,20 @@ RULES:
 - If you don't know something, say so — don't make it up.
 - Never start with "I'd be happy to help" or similar filler.
 
-You can update pour data. When the user asks to change a quantity or date, respond with a JSON block:
+You can update pour data OR individual truck loads. Respond with a JSON block:
+
+Pour update:
 \`\`\`update
 {"pourId":"A-4","field":"cy8000","value":300}
 \`\`\`
-Valid fields: cy8000, cy5000, slurry, date. Always confirm what you changed with a quip.`;
+Valid pour fields: cy8000, cy5000, slurry, date.
+
+Truck update (change CY, mix, or ticket for a specific truck):
+\`\`\`update
+{"type":"truck","pourId":"A-4","truckNum":3,"field":"cy","value":10}
+\`\`\`
+Valid truck fields: cy (5-10), mix ("8000","5000","slurry"), ticket (string).
+Truck numbers start at 1. Always confirm what you changed with a quip.`;
 
 // MiniMax API (Anthropic-compatible endpoint)
 const ALFRED_API_URL = 'https://api.minimax.io/anthropic/v1/messages';
@@ -4072,6 +4081,11 @@ function buildAlfredContext() {
   const embedLines = [];
   ftgs.forEach(f => { (f.embeds||[]).forEach(e => { embedLines.push(`${f.id}:${e.embedId} ${getEmbedChecked(f.id, e.embedId) ? 'VERIFIED' : 'MISSING'}`); }); });
   if (embedLines.length) { ctx += '\n## Embeds\n' + embedLines.join('\n') + '\n'; }
+  // Truck log for active pour
+  if (pt.length) {
+    ctx += '\n## Trucks (' + pour.id + ')\n';
+    pt.forEach(t => ctx += `#${t.truckNum}: ${t.cy}CY ${t.mix} cum:${t.cumulative}CY${t.ticket?' tkt:'+t.ticket:''}\n`);
+  }
   // Mix designs
   const mixes = getMixDesigns();
   ctx += '\n## Mix Designs\n';
@@ -4146,7 +4160,11 @@ async function sendAlfred() {
     if (updateMatch) {
       try {
         const cmd = JSON.parse(updateMatch[1]);
-        if (cmd.pourId && cmd.field && cmd.value !== undefined) {
+        if (cmd.type === 'truck' && cmd.pourId && cmd.truckNum && cmd.field) {
+          const pt = pourDay.trucks.filter(t => t.pourId === cmd.pourId);
+          const idx = pt.findIndex(t => t.truckNum === cmd.truckNum);
+          if (idx >= 0) { updateTruckField(cmd.pourId, idx, cmd.field, cmd.value); }
+        } else if (cmd.pourId && cmd.field && cmd.value !== undefined) {
           updatePourField(cmd.pourId, cmd.field, cmd.value);
         }
       } catch {}
