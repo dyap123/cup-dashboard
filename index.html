@@ -2079,11 +2079,20 @@ function updateSelectedFooting(section, field, value) {
     f.id = newId;
     if (FTG_PRESETS[value] !== undefined && FTG_PRESETS[value] > 0) f.cy = FTG_PRESETS[value];
   }
-  else if (field === 'cy') f.cy = parseFloat(value) || 0;
+  else if (field === 'cy') {
+    f.cy = parseFloat(value) || 0;
+    // Auto-calc depth from CY if W and H are set
+    const wFt = f.w / PX_PER_FT, hFt = f.h / PX_PER_FT;
+    if (wFt > 0 && hFt > 0 && f.cy > 0) f.d = Math.round(((f.cy * 27) / (wFt * hFt)) * PX_PER_FT);
+  }
   else if (field === 'w') f.w = Math.max(8, Math.round((parseFloat(value) || 2) * PX_PER_FT));
   else if (field === 'h') f.h = Math.max(8, Math.round((parseFloat(value) || 2) * PX_PER_FT));
   else if (field === 'd') f.d = Math.max(0, Math.round((parseFloat(value) || 0) * PX_PER_FT));
   else if (field === 'mix') { if (value) f.mix = value; else delete f.mix; }
+  // Auto-calc CY from W * H * D when all three dimensions are set
+  if (['w','h','d'].includes(field) && f.w > 0 && f.h > 0 && f.d > 0) {
+    f.cy = Math.round(((f.w / PX_PER_FT) * (f.h / PX_PER_FT) * (f.d / PX_PER_FT) / 27) * 100) / 100;
+  }
   saveFootingMap(section, map);
   renderMapSection();
 }
