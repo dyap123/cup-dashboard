@@ -265,58 +265,55 @@
   <span class="text-[8px] font-bold" style="writing-mode:vertical-lr;letter-spacing:2px;color:rgba(34,197,94,0.5)">BJ</span>
 </div>
 <aside id="bjSidebar">
-  <div class="px-3 py-1.5 border-b flex items-center justify-between" style="border-color:rgba(255,255,255,0.06)">
-    <span class="text-[10px] font-bold tracking-widest" style="color:rgba(34,197,94,0.4)">BLACKJACK</span>
-    <button onclick="toggleBlackjack()" class="text-white/15 hover:text-white/40 transition-colors"><span class="material-symbols-outlined text-sm">close</span></button>
-  </div>
-  <div class="flex-1 flex flex-col overflow-hidden">
-    <!-- Chips -->
-    <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color:rgba(255,255,255,0.06);background:rgba(4,6,12,0.8)">
+  <!-- Table felt background -->
+  <div class="flex-1 flex flex-col overflow-hidden" style="background:radial-gradient(ellipse at 50% 40%, #0d3320 0%, #091a12 60%, #06060e 100%)">
+    <!-- Header -->
+    <div class="px-3 py-1.5 flex items-center justify-between" style="border-bottom:1px solid rgba(34,197,94,0.08);background:rgba(0,0,0,0.3)">
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] font-bold tracking-widest" style="color:rgba(34,197,94,0.4)">BLACKJACK</span>
+        <span class="text-[9px] text-white/15 mono" id="bjRecord">0W - 0L - 0P</span>
+      </div>
       <div class="flex items-center gap-2">
         <span class="text-[9px] font-bold text-white/30 uppercase tracking-wider">Chips</span>
         <span id="bjChips" class="mono font-bold text-sm text-green-400">1000</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="text-[9px] font-bold text-white/30 uppercase tracking-wider">Bet</span>
-        <button onclick="bjChangeBet(-25)" class="w-6 h-6 rounded bg-white/5 text-white/40 text-xs font-bold border border-white/10 hover:bg-white/10">-</button>
-        <span id="bjBet" class="mono font-bold text-sm text-yellow-400">50</span>
-        <button onclick="bjChangeBet(25)" class="w-6 h-6 rounded bg-white/5 text-white/40 text-xs font-bold border border-white/10 hover:bg-white/10">+</button>
+        <button onclick="toggleBlackjack()" class="text-white/15 hover:text-white/40 transition-colors ml-2"><span class="material-symbols-outlined text-sm">close</span></button>
       </div>
     </div>
-    <!-- Dealer -->
-    <div class="px-4 pt-4 pb-2">
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-[9px] font-bold text-white/30 uppercase tracking-wider">Dealer</span>
-        <span id="bjDealerScore" class="mono text-xs font-bold text-white/50"></span>
-      </div>
-      <div id="bjDealerCards" class="flex flex-wrap items-center min-h-[78px]"></div>
+    <!-- Alfred (Dealer) -->
+    <div class="flex flex-col items-center pt-4 pb-2">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg mb-1" style="background:rgba(59,130,246,0.15);border:1.5px solid rgba(59,130,246,0.25)">A</div>
+      <span class="text-[9px] font-bold tracking-wider mb-1" style="color:rgba(59,130,246,0.4)">ALFRED</span>
+      <span id="bjDealerScore" class="mono text-xs font-bold text-white/50 mb-2"></span>
+      <div id="bjDealerCards" class="flex flex-wrap items-center justify-center min-h-[78px]"></div>
     </div>
-    <!-- Divider -->
-    <div class="mx-4 border-t" style="border-color:rgba(34,197,94,0.1)"></div>
-    <!-- Player -->
-    <div class="px-4 pt-2 pb-4">
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-[9px] font-bold text-white/30 uppercase tracking-wider">You</span>
-        <span id="bjPlayerScore" class="mono text-xs font-bold text-white/50"></span>
-      </div>
-      <div id="bjPlayerCards" class="flex flex-wrap items-center min-h-[78px]"></div>
-    </div>
-    <!-- Result -->
-    <div id="bjResult" class="px-4 py-2 text-center hidden">
+    <!-- Result (centered between hands) -->
+    <div id="bjResult" class="py-2 text-center hidden">
       <span id="bjResultText" class="mono font-bold text-lg"></span>
     </div>
-    <!-- Actions -->
-    <div class="mt-auto px-4 py-3 flex gap-2 border-t" style="border-color:rgba(255,255,255,0.06);background:rgba(4,6,12,0.8)">
+    <!-- Divider — table center line -->
+    <div class="mx-8 my-1" style="border-top:1px dashed rgba(34,197,94,0.12)"></div>
+    <!-- Player (You) -->
+    <div class="flex-1 flex flex-col items-center pt-2 pb-4">
+      <div id="bjPlayerCards" class="flex flex-wrap items-center justify-center min-h-[78px]"></div>
+      <span id="bjPlayerScore" class="mono text-xs font-bold text-white/50 mt-2"></span>
+      <span class="text-[9px] font-bold tracking-wider mt-1 text-white/20">YOU</span>
+    </div>
+    <!-- Actions + Bet (bottom bar) -->
+    <div class="px-4 py-3 flex items-center gap-2 flex-wrap" style="border-top:1px solid rgba(34,197,94,0.08);background:rgba(0,0,0,0.4)">
+      <div class="flex items-center gap-1.5">
+        <button onclick="bjChangeBet(-25)" class="w-7 h-7 rounded-full bg-white/5 text-white/40 text-xs font-bold border border-white/10 hover:bg-white/10">-</button>
+        <span id="bjBet" class="mono font-bold text-sm text-yellow-400 min-w-[32px] text-center">50</span>
+        <button onclick="bjChangeBet(25)" class="w-7 h-7 rounded-full bg-white/5 text-white/40 text-xs font-bold border border-white/10 hover:bg-white/10">+</button>
+      </div>
       <button id="bjDealBtn" onclick="bjDeal()" class="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all bg-green-500/15 text-green-400 border border-green-500/25 hover:bg-green-500/25">DEAL</button>
       <button id="bjHitBtn" onclick="bjHit()" class="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all bg-blue-500/15 text-blue-400 border border-blue-500/25 hover:bg-blue-500/25 hidden">HIT</button>
       <button id="bjStandBtn" onclick="bjStand()" class="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all bg-yellow-500/15 text-yellow-400 border border-yellow-500/25 hover:bg-yellow-500/25 hidden">STAND</button>
       <button id="bjDoubleBtn" onclick="bjDouble()" class="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all bg-purple-500/15 text-purple-400 border border-purple-500/25 hover:bg-purple-500/25 hidden">2x</button>
       <button id="bjRebuyBtn" onclick="bjRebuy()" class="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all bg-red-500/15 text-red-400 border border-red-500/25 hover:bg-red-500/25 hidden">REBUY 1000</button>
     </div>
-    <!-- Stats -->
-    <div class="px-4 py-2 flex items-center justify-between text-[9px] text-white/20 border-t" style="border-color:rgba(255,255,255,0.04)">
-      <span id="bjRecord">0W - 0L - 0P</span>
-      <button onclick="bjReset()" class="text-white/20 hover:text-red-400 transition-colors uppercase tracking-wider font-bold">Reset</button>
+    <!-- Footer -->
+    <div class="px-4 py-1.5 flex items-center justify-end" style="background:rgba(0,0,0,0.3)">
+      <button onclick="bjReset()" class="text-[9px] text-white/15 hover:text-red-400 transition-colors uppercase tracking-wider font-bold">Reset</button>
     </div>
   </div>
 </aside>
