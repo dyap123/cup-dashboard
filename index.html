@@ -92,6 +92,44 @@
     /* Footer stat countup */
     @keyframes countFade { from { opacity:0; transform:translateY(4px) } to { opacity:1; transform:translateY(0) } }
     .count-in { animation:countFade 0.3s ease both; }
+    /* ── Light Mode ── */
+    body.light-mode {
+      background: #f5f6f8;
+      color: #1a1a2e;
+    }
+    body.light-mode::before { opacity: 0.01; }
+    body.light-mode::after {
+      background-image: radial-gradient(circle, rgba(0,0,0,0.04) 1px, transparent 1px);
+    }
+    body.light-mode .pour-card,
+    body.light-mode .sec-card {
+      background: rgba(255,255,255,0.85) !important;
+      border-color: rgba(0,0,0,0.08) !important;
+      color: #1a1a2e;
+      backdrop-filter: blur(12px);
+    }
+    body.light-mode .text-white { color: #1a1a2e !important; }
+    body.light-mode .text-white\/90 { color: #2a2a3e !important; }
+    body.light-mode .text-white\/80 { color: #3a3a4e !important; }
+    body.light-mode .text-white\/60 { color: #555 !important; }
+    body.light-mode .text-white\/50 { color: #666 !important; }
+    body.light-mode .text-white\/40 { color: #777 !important; }
+    body.light-mode .text-white\/30 { color: #888 !important; }
+    body.light-mode .text-white\/25 { color: #999 !important; }
+    body.light-mode .text-white\/20 { color: #aaa !important; }
+    body.light-mode .text-white\/15 { color: #bbb !important; }
+    body.light-mode .mono { color: #2a2a3e; }
+    body.light-mode .bg-white\/5 { background: rgba(0,0,0,0.04) !important; }
+    body.light-mode .border-white\/5 { border-color: rgba(0,0,0,0.06) !important; }
+    body.light-mode .border-white\/10 { border-color: rgba(0,0,0,0.1) !important; }
+    body.light-mode header,
+    body.light-mode .sticky {
+      background: rgba(245,246,248,0.9) !important;
+      border-image: linear-gradient(90deg, transparent, rgba(59,130,246,0.15), transparent) 1 !important;
+    }
+    body.light-mode #footer {
+      background: rgba(245,246,248,0.95) !important;
+    }
   </style>
 </head>
 <body class="min-h-screen" style="position:relative">
@@ -102,6 +140,9 @@
     <span style="font-family:'Inter',sans-serif;font-weight:300;font-size:12px;letter-spacing:0.25em;color:rgba(140,170,210,0.3)" class="shrink-0">openyap</span>
     <div class="flex-1"></div>
     <div class="flex items-center gap-3 shrink-0">
+      <button onclick="toggleTheme()" id="themeToggle" class="text-xs text-white/40 hover:text-white/60 transition-colors" title="Toggle light/dark mode">
+        <span class="material-symbols-outlined text-sm">light_mode</span>
+      </button>
       <div class="flex items-center gap-1.5">
         <span class="w-2 h-2 rounded-full bg-green-400 pulse"></span>
         <span class="text-xs text-white/50 font-medium">LIVE</span>
@@ -427,6 +468,21 @@ function anyDate(row, idx) {
 
 // ── STATE ────────────────────────────────────────────────────────────────────
 let state = { refs:{}, pours:[], grand:{}, sectionFilter:'ALL', dateFilter:'ALL', sortByDate:false };
+
+// ── THEME TOGGLE ──
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light-mode');
+  localStorage.setItem('cup_theme', isLight ? 'light' : 'dark');
+  const icon = document.getElementById('themeToggle')?.querySelector('.material-symbols-outlined');
+  if (icon) icon.textContent = isLight ? 'dark_mode' : 'light_mode';
+}
+// Restore saved theme
+if (localStorage.getItem('cup_theme') === 'light') {
+  document.body.classList.add('light-mode');
+  const icon = document.getElementById('themeToggle')?.querySelector('.material-symbols-outlined');
+  if (icon) icon.textContent = 'dark_mode';
+}
+
 // ── FETCH & PARSE (formatted sheet with REFERENCE + ORDER SUMMARY sections) ──
 async function fetchData() {
   const res  = await fetch(GViz_URL);
@@ -2318,7 +2374,7 @@ function exportPourReport() {
   }).join('')}
   </table>
 
-  ${ftgs.length ? `<h2>Footing Progress (${doneFtgs}/${totalFtgs} complete — ${completedCY.toFixed(1)}/${totalCY.toFixed(0)} CY)</h2>
+  ${ftgs.length ? `<h2>Pour Progress (${doneFtgs}/${totalFtgs} complete — ${completedCY.toFixed(1)}/${totalCY.toFixed(0)} CY)</h2>
   <table><tr><th>ID</th><th>Type</th><th>CY</th><th>Mix</th><th>Progress</th></tr>
   ${ftgs.filter(f=>f.type!=='gb').map(f => {
     const pct = getFootingPct(f.id);
@@ -2353,7 +2409,7 @@ function exportPourReport() {
       return 'warn';
     };
     return '<h2>Takeoff vs Actual</h2>'
-      + '<table><tr><th>Mix</th><th>Takeoff CY</th><th>Delivered CY</th><th>Placed (Footings) CY</th><th>Actual CY</th><th>Variance</th></tr>'
+      + '<table><tr><th>Mix</th><th>Takeoff CY</th><th>Delivered CY</th><th>Pour Progress CY</th><th>Actual CY</th><th>Variance</th></tr>'
       + '<tr><td style="color:#c53030">8000 PSI</td><td>' + takeoff8k.toFixed(1) + '</td><td>' + del8kR + '</td><td>' + placed8k.toFixed(1) + '</td><td><strong>' + act8k.toFixed(1) + '</strong></td><td class="' + varClass(act8k, takeoff8k) + '"><strong>' + (act8k - takeoff8k > 0 ? '+' : '') + (act8k - takeoff8k).toFixed(1) + '</strong></td></tr>'
       + '<tr><td style="color:#2b6cb0">5000 PSI</td><td>' + takeoff5k.toFixed(1) + '</td><td>' + del5kR + '</td><td>' + placed5k.toFixed(1) + '</td><td><strong>' + act5k.toFixed(1) + '</strong></td><td class="' + varClass(act5k, takeoff5k) + '"><strong>' + (act5k - takeoff5k > 0 ? '+' : '') + (act5k - takeoff5k).toFixed(1) + '</strong></td></tr>'
       + '<tr><td style="color:#666">Slurry</td><td>' + takeoffSl.toFixed(1) + '</td><td>' + delSlR + '</td><td>' + placedSl.toFixed(1) + '</td><td><strong>' + actSl.toFixed(1) + '</strong></td><td class="' + varClass(actSl, takeoffSl) + '"><strong>' + (actSl - takeoffSl > 0 ? '+' : '') + (actSl - takeoffSl).toFixed(1) + '</strong></td></tr>'
@@ -2661,7 +2717,7 @@ function renderPourDay() {
       <div class="mono text-xl font-bold text-white">${ordered} <span class="text-xs text-white/30">CY</span></div>
     </div>
     <div class="p-3 rounded-xl border border-white/5" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Delivered</div>
+      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Truck Deliveries</div>
       <div class="mono text-xl font-bold" style="color:${pctColor}">${delivered} <span class="text-xs text-white/30">CY</span></div>
     </div>
     <div class="p-3 rounded-xl border border-white/5" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
@@ -2686,17 +2742,36 @@ function renderPourDay() {
   const pourDurationHrs = truckTimes.length >= 2 ? (truckTimes[truckTimes.length-1] - truckTimes[0]) / 3600000 : 0;
   const pourRate = pourDurationHrs > 0 ? Math.round(delivered / pourDurationHrs) : 0;
 
-  h += `<div class="grid grid-cols-3 gap-3 mb-3">
-    <div class="p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Placed (Footings)</div>
-      <div class="mono text-xl font-bold" style="color:${fpColor}">${footingPoured.toFixed(0)} <span class="text-xs text-white/30">/ ${footingTotal.toFixed(0)} CY</span></div>
+  // Pour Progress meter bar
+  h += `<div class="mb-3 p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+    <div class="flex items-center justify-between mb-1.5">
+      <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Pour Progress</span>
+      <span class="mono text-sm font-bold" style="color:${fpColor}">${footingPoured.toFixed(0)} / ${footingTotal.toFixed(0)} CY (${footingPct}%)</span>
     </div>
+    <div class="h-3 rounded-full bg-white/5 overflow-hidden">
+      <div class="h-full rounded-full transition-all duration-500" style="width:${footingPct}%;background:${fpColor}"></div>
+    </div>
+  </div>`;
+
+  // Truck Deliveries meter bar
+  h += `<div class="mb-3 p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+    <div class="flex items-center justify-between mb-1.5">
+      <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Truck Deliveries</span>
+      <span class="mono text-sm font-bold" style="color:${pctColor}">${delivered} / ${ordered} CY (${pct}%)</span>
+    </div>
+    <div class="h-3 rounded-full bg-white/5 overflow-hidden">
+      <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:${pctColor}"></div>
+    </div>
+  </div>`;
+
+  // Pour Rate + Remaining cards
+  h += `<div class="grid grid-cols-2 gap-3 mb-3">
     <div class="p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
       <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Pour Rate</div>
       <div class="mono text-xl font-bold text-white">${pourRate} <span class="text-xs text-white/30">CY/hr</span></div>
     </div>
     <div class="p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Footing Progress</div>
+      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Pour Progress</div>
       <div class="mono text-xl font-bold" style="color:${fpColor}">${footingPct}%</div>
     </div>
   </div>`;
@@ -3261,25 +3336,10 @@ function renderLive() {
   const cy5kDel = pourTrucks.filter(t => t.mix === '5000').reduce((s,t) => s+t.cy, 0);
   const cySlDel = pourTrucks.filter(t => t.mix === 'slurry').reduce((s,t) => s+t.cy, 0);
 
-  // SVG donut
-  const radius = 90, stroke = 14;
-  const circumference = 2 * Math.PI * radius;
-  const dashOffset = circumference * (1 - pct / 100);
-
   // Pace stats
   const cyPerHr = elapsed > 0 ? Math.round(delivered / (elapsed / 60) * 10) / 10 : 0;
   const etaMin = cyPerHr > 0 && remaining > 0 ? Math.round(remaining / cyPerHr * 60) : 0;
   const etaStr = etaMin >= 60 ? `${Math.floor(etaMin/60)}h ${etaMin%60}m` : etaMin > 0 ? `${etaMin}m` : '—';
-
-  // Milestone markers for donut
-  const milestones = [25, 50, 75].map(m => {
-    const angle = (m / 100) * 360 - 90;
-    const rad = angle * Math.PI / 180;
-    const mx = 110 + (radius + 12) * Math.cos(rad);
-    const my = 110 + (radius + 12) * Math.sin(rad);
-    const hit = pct >= m;
-    return `<text x="${mx}" y="${my}" text-anchor="middle" dominant-baseline="central" font-family="JetBrains Mono,monospace" font-size="8" font-weight="700" fill="${hit ? pctColor : 'rgba(255,255,255,0.12)'}">${m}</text>`;
-  }).join('');
 
   // Sparkline — truck delivery cadence (CY over time)
   let sparkSvg = '';
@@ -3321,54 +3381,79 @@ function renderLive() {
     </div>
   </div>`;
 
-  // Big donut + stats
-  h += `<div class="flex flex-col sm:flex-row items-center gap-8 mb-8">
-    <div class="relative shrink-0">
-      <svg width="220" height="220" viewBox="0 0 220 220">
-        <circle cx="110" cy="110" r="${radius}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="${stroke}"/>
-        <circle cx="110" cy="110" r="${radius}" fill="none" stroke="${pctColor}" stroke-width="${stroke}"
-          stroke-linecap="round" stroke-dasharray="${circumference}" stroke-dashoffset="${dashOffset}"
-          transform="rotate(-90 110 110)" style="transition:stroke-dashoffset 0.8s ease;filter:drop-shadow(0 0 6px ${pctColor}44)"/>
-        ${milestones}
-      </svg>
-      <div class="absolute inset-0 flex flex-col items-center justify-center">
-        <span class="mono text-4xl font-black" style="color:${pctColor}">${pct}%</span>
-        <span class="text-[10px] text-white/30 font-bold uppercase tracking-wider mt-1">${pct >= 100 ? 'COMPLETE' : 'PROGRESS'}</span>
+  // Footing progress (computed early for pie charts)
+  const liveMapDataEarly = loadFootingMap(pour.id);
+  const liveFtgsEarly = liveMapDataEarly?.footings || [];
+  const liveFootingPouredE = liveFtgsEarly.reduce((s,f) => s + f.cy * getFootingPct(f.id) / 100, 0);
+  const liveFootingTotalE = liveFtgsEarly.reduce((s,f) => s + f.cy, 0);
+  const liveFootingPctE = liveFootingTotalE > 0 ? Math.round(liveFootingPouredE / liveFootingTotalE * 100) : 0;
+  const liveFpColorE = liveFootingPctE >= 100 ? '#41A447' : liveFootingPctE > 50 ? '#FFBF00' : c;
+
+  // Two side-by-side SVG pie charts
+  const pieR = 55, pieStroke = 12;
+  const pieCirc = 2 * Math.PI * pieR;
+  const pieDash1 = pieCirc * (1 - liveFootingPctE / 100);
+  const pieDash2 = pieCirc * (1 - pct / 100);
+
+  h += `<div class="flex justify-center gap-6 mb-8">
+    <div class="text-center">
+      <div class="relative inline-block">
+        <svg width="140" height="140" viewBox="0 0 140 140">
+          <circle cx="70" cy="70" r="${pieR}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="${pieStroke}"/>
+          <circle cx="70" cy="70" r="${pieR}" fill="none" stroke="${liveFpColorE}" stroke-width="${pieStroke}"
+            stroke-linecap="round" stroke-dasharray="${pieCirc}" stroke-dashoffset="${pieDash1}"
+            transform="rotate(-90 70 70)" style="transition:stroke-dashoffset 0.8s ease;filter:drop-shadow(0 0 6px ${liveFpColorE}44)"/>
+        </svg>
+        <div class="absolute inset-0 flex flex-col items-center justify-center">
+          <span class="mono text-2xl font-black" style="color:${liveFpColorE}">${liveFootingPctE}%</span>
+        </div>
       </div>
+      <div class="text-[10px] text-white/40 font-bold uppercase mt-2" style="letter-spacing:0.08em">Pour Progress</div>
+      <div class="text-[10px] text-white/25 mono mt-0.5">${liveFootingPouredE.toFixed(0)} / ${liveFootingTotalE.toFixed(0)} CY</div>
     </div>
-    <div class="flex-1 w-full space-y-3">
-      <div class="grid grid-cols-2 gap-3">
-        <div class="p-4 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-          <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Delivered</div>
-          <div class="mono text-3xl font-black" style="color:${pctColor}">${delivered}</div>
-          <div class="text-xs text-white/30 mono">of ${ordered} CY</div>
-        </div>
-        <div class="p-4 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-          <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Trucks</div>
-          <div class="mono text-3xl font-black text-white">${pourTrucks.length}</div>
-          <div class="text-xs text-white/30 mono">${remaining > 0 ? `~${Math.ceil(remaining/9)} more` : 'done'}</div>
-        </div>
-      </div>
-      <div class="grid grid-cols-2 gap-3">
-        <div class="p-3 rounded-xl flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-          <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider">Pace</div>
-          <div class="mono text-sm font-bold text-white">${cyPerHr} <span class="text-[10px] text-white/30">CY/hr</span></div>
-        </div>
-        <div class="p-3 rounded-xl flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-          <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider">ETA</div>
-          <div class="mono text-sm font-bold ${remaining <= 0 ? 'text-green-400' : 'text-yellow-300'}">${remaining <= 0 ? 'DONE' : etaStr}</div>
+    <div class="text-center">
+      <div class="relative inline-block">
+        <svg width="140" height="140" viewBox="0 0 140 140">
+          <circle cx="70" cy="70" r="${pieR}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="${pieStroke}"/>
+          <circle cx="70" cy="70" r="${pieR}" fill="none" stroke="#34D399" stroke-width="${pieStroke}"
+            stroke-linecap="round" stroke-dasharray="${pieCirc}" stroke-dashoffset="${pieDash2}"
+            transform="rotate(-90 70 70)" style="transition:stroke-dashoffset 0.8s ease;filter:drop-shadow(0 0 6px #34D39944)"/>
+        </svg>
+        <div class="absolute inset-0 flex flex-col items-center justify-center">
+          <span class="mono text-2xl font-black" style="color:#34D399">${delivered}</span>
+          <span class="text-[9px] text-white/30">CY</span>
         </div>
       </div>
-      <div class="p-3 rounded-xl flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-        <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider">Remaining</div>
-        <div class="mono text-xl font-bold ${remaining <= 0 ? 'text-green-400' : 'text-white'}">${remaining} <span class="text-xs text-white/30">CY</span></div>
-      </div>
-      ${sparkSvg ? `<div class="rounded-xl p-3" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-        <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Delivery Cadence</div>
-        ${sparkSvg}
-      </div>` : ''}
+      <div class="text-[10px] text-white/40 font-bold uppercase mt-2" style="letter-spacing:0.08em">Truck Deliveries</div>
+      <div class="text-[10px] text-white/25 mono mt-0.5">${delivered} / ${ordered} CY (${pct}%)</div>
     </div>
   </div>`;
+
+  // Stats cards
+  h += `<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+    <div class="p-3 rounded-xl flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+      <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider">Pace</div>
+      <div class="mono text-sm font-bold text-white">${cyPerHr} <span class="text-[10px] text-white/30">CY/hr</span></div>
+    </div>
+    <div class="p-3 rounded-xl flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+      <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider">Trucks</div>
+      <div class="mono text-sm font-bold text-white">${pourTrucks.length} <span class="text-[10px] text-white/30">${remaining > 0 ? '~'+Math.ceil(remaining/9)+' more' : 'done'}</span></div>
+    </div>
+    <div class="p-3 rounded-xl flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+      <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider">ETA</div>
+      <div class="mono text-sm font-bold ${remaining <= 0 ? 'text-green-400' : 'text-yellow-300'}">${remaining <= 0 ? 'DONE' : etaStr}</div>
+    </div>
+    <div class="p-3 rounded-xl flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+      <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider">Remaining</div>
+      <div class="mono text-sm font-bold ${remaining <= 0 ? 'text-green-400' : 'text-white'}">${remaining} <span class="text-[10px] text-white/30">CY</span></div>
+    </div>
+  </div>`;
+  if (sparkSvg) {
+    h += `<div class="rounded-xl p-3 mb-6" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+      <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Delivery Cadence</div>
+      ${sparkSvg}
+    </div>`;
+  }
 
   // Mix breakdown strip
   h += `<div class="grid grid-cols-3 gap-3 mb-6">
@@ -3405,7 +3490,7 @@ function renderLive() {
 
   h += `<div class="grid grid-cols-3 gap-3 mb-6">
     <div class="p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-      <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Placed (Footings)</div>
+      <div class="text-[9px] font-bold text-white/25 uppercase tracking-wider mb-1">Pour Progress</div>
       <div class="mono text-lg font-bold" style="color:${liveFpColor}">${liveFootingPoured.toFixed(0)} <span class="text-[10px] text-white/30">/ ${liveFootingTotal.toFixed(0)} CY</span></div>
     </div>
     <div class="p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
@@ -3806,7 +3891,7 @@ function buildAlfredContext() {
   ctx += '## All Pours\n';
   state.pours.forEach(p => ctx += `${p.id}: Sec ${p.section} | ${p.date||'TBD'} | 8k:${p.cy8000} 5k:${p.cy5000} slr:${p.slurry} = ${p.total}CY\n`);
   const ftgEntries = Object.entries(pourDay.footingStatus).filter(([,v])=>v);
-  if (ftgEntries.length) { ctx += '\n## Footing Progress\n'; ftgEntries.forEach(([id,s]) => ctx += `${id}: ${s==='DONE'?'100%':s+'%'}\n`); }
+  if (ftgEntries.length) { ctx += '\n## Pour Progress\n'; ftgEntries.forEach(([id,s]) => ctx += `${id}: ${s==='DONE'?'100%':s+'%'}\n`); }
   // Embed status
   const map = loadFootingMap(pour?.id);
   const ftgs = map?.footings || [];
