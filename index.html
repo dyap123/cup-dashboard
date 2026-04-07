@@ -105,8 +105,8 @@
     .bj-card.hidden-card .bj-face { visibility:hidden; }
     @keyframes bjSlideIn { 0% { opacity:0; transform:translateX(-160px) translateY(-50px) scale(0.6) rotate(-20deg); } 50% { opacity:0.8; } 75% { transform:translateX(6px) translateY(2px) scale(1.04) rotate(1.5deg); } 100% { opacity:1; transform:translateX(0) translateY(0) scale(1) rotate(0); } }
     @keyframes bjFlipReveal { 0% { transform:rotateY(180deg) scale(0.95); } 50% { transform:rotateY(90deg) scale(1.05); } 100% { transform:rotateY(0deg) scale(1); } }
-    .bj-slide { animation:bjSlideIn 0.7s cubic-bezier(.22,1,.36,1) both; }
-    .bj-flip { animation:bjFlipReveal 0.8s cubic-bezier(.4,0,.2,1) both; }
+    .bj-slide { animation:bjSlideIn 0.85s cubic-bezier(.22,1,.36,1) both; }
+    .bj-flip { animation:bjFlipReveal 0.9s cubic-bezier(.4,0,.2,1) both; }
     @keyframes bjBust { 0% { filter:none; } 50% { filter:brightness(1.5) saturate(0.3); transform:scale(1.05); } 100% { filter:brightness(0.6) saturate(0.2); transform:scale(0.97); } }
     .bj-bust { animation:bjBust 0.4s ease both; }
     @keyframes bjWinGlow { 0%,100% { box-shadow:0 3px 12px rgba(0,0,0,0.5); } 50% { box-shadow:0 0 24px rgba(34,197,94,0.5), 0 0 48px rgba(34,197,94,0.2); } }
@@ -4210,7 +4210,7 @@ function initBjBrain() {
   for (let i = 0; i < 10; i++) {
     const angle = (i / 10) * Math.PI * 2;
     const r = 16 + Math.random() * 18;
-    bjBrainNodes.push({ angle, r, speed: 0.004 + Math.random() * 0.006, size: 1.5 + Math.random() * 2, color: colors[i % colors.length] });
+    bjBrainNodes.push({ angle, r, speed: 0.004 + Math.random() * 0.006, size: 1.5 + Math.random() * 2, color: colors[i % colors.length], glow: 0 });
   }
 }
 
@@ -4234,8 +4234,16 @@ function bjBrainLoop() {
         ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
       }
     }
-    ctx.fillStyle = a.color + '88';
-    ctx.beginPath(); ctx.arc(ax, ay, a.size, 0, Math.PI*2); ctx.fill();
+    if (a.glow > 0) {
+      a.glow -= 0.008;
+      ctx.shadowBlur = 14; ctx.shadowColor = a.color;
+      ctx.fillStyle = a.color;
+      ctx.beginPath(); ctx.arc(ax, ay, a.size * (1 + a.glow * 0.8), 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+    } else {
+      ctx.fillStyle = a.color + '88';
+      ctx.beginPath(); ctx.arc(ax, ay, a.size, 0, Math.PI*2); ctx.fill();
+    }
   }
   const g = ctx.createRadialGradient(cx,cy,0,cx,cy,8);
   g.addColorStop(0,'rgba(59,130,246,0.15)'); g.addColorStop(1,'transparent');
@@ -4292,9 +4300,15 @@ function bjChangeBet(delta) {
   document.getElementById('bjBet').textContent = bjBet;
 }
 
+function bjFlashBrain() {
+  bjBrainNodes.forEach((n, i) => { n.glow = 1; n.speed = 0.015 + Math.random() * 0.01; });
+  setTimeout(() => bjBrainNodes.forEach(n => { n.speed = 0.004 + Math.random() * 0.006; }), 2000);
+}
+
 function bjDeal() {
   if (!bjGameOver) return;
   if (bjDeck.length < 20) bjDeck = bjMakeDeck();
+  bjFlashBrain();
   bjPlayerHand = [bjDeck.pop(), bjDeck.pop()];
   bjDealerHand = [bjDeck.pop(), bjDeck.pop()];
   bjGameOver = false;
@@ -4320,6 +4334,7 @@ function bjHit() {
 
 function bjStand() {
   if (bjGameOver) return;
+  bjFlashBrain();
   // Disable buttons during dealer draw
   document.getElementById('bjHitBtn').classList.add('hidden');
   document.getElementById('bjStandBtn').classList.add('hidden');
@@ -4333,7 +4348,7 @@ function bjStand() {
   while (bjHandVal(simHand) < 17) { const c = bjDeck.pop(); simHand.push(c); drawCards.push(c); }
   bjDealerHand = simHand;
   // Animate each draw card one at a time
-  let delay = 700; // initial delay for hole card flip
+  let delay = 900; // initial delay for hole card flip
   drawCards.forEach((c, i) => {
     setTimeout(() => {
       const container = document.getElementById('bjDealerCards');
@@ -4343,7 +4358,7 @@ function bjStand() {
       wrap.innerHTML = '<div class="bj-card ' + cls + '"><div class="bj-face">' + c.rank + '<span style="font-size:11px;margin-top:-2px">' + c.suit + '</span></div><div class="bj-back"></div></div>';
       container.appendChild(wrap);
       document.getElementById('bjDealerScore').textContent = bjHandVal(bjDealerHand.slice(0, 2 + i + 1));
-    }, delay + i * 600);
+    }, delay + i * 750);
   });
   // Resolve after all draws
   setTimeout(() => {
@@ -4352,7 +4367,7 @@ function bjStand() {
     else if (pv > dv) bjEnd('win');
     else if (pv < dv) bjEnd('lose');
     else bjEnd('push');
-  }, delay + drawCards.length * 600 + 400);
+  }, delay + drawCards.length * 750 + 500);
 }
 
 function bjDouble() {
@@ -4433,12 +4448,12 @@ function bjUpdateUI() {
   const showDealer = bjGameOver;
   let dCards = '';
   bjDealerHand.forEach((c, i) => {
-    dCards += bjRenderCard(c, !showDealer && i === 1, i * 300);
+    dCards += bjRenderCard(c, !showDealer && i === 1, i * 500);
   });
   document.getElementById('bjDealerCards').innerHTML = dCards;
   document.getElementById('bjDealerScore').textContent = bjDealerHand.length ? (showDealer ? bjHandVal(bjDealerHand) : bjCardVal(bjDealerHand[0]) + ' + ?') : '';
   let pCards = '';
-  bjPlayerHand.forEach((c, i) => { pCards += bjRenderCard(c, false, i * 300); });
+  bjPlayerHand.forEach((c, i) => { pCards += bjRenderCard(c, false, i * 500); });
   document.getElementById('bjPlayerCards').innerHTML = pCards;
   document.getElementById('bjPlayerScore').textContent = bjPlayerHand.length ? bjHandVal(bjPlayerHand) : '';
   // Chips color — red when negative
