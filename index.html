@@ -4151,7 +4151,7 @@ let bjDeck = [];
 let bjPlayerHand = [];
 let bjDealerHand = [];
 let bjChips = parseInt(localStorage.getItem('cup_bj_chips')) || 1000;
-let bjBet = 50;
+let bjBet = parseInt(localStorage.getItem('cup_bj_bet')) || 50;
 let bjGameOver = true;
 let bjWins = parseInt(localStorage.getItem('cup_bj_wins')) || 0;
 let bjLosses = parseInt(localStorage.getItem('cup_bj_losses')) || 0;
@@ -4215,6 +4215,7 @@ function bjRenderCard(card, hidden, delay, extraClass) {
 function bjChangeBet(delta) {
   if (!bjGameOver) return;
   bjBet = Math.max(25, bjBet + delta);
+  localStorage.setItem('cup_bj_bet', bjBet);
   document.getElementById('bjBet').textContent = bjBet;
 }
 
@@ -4337,6 +4338,7 @@ function bjShowResult(msg, color) {
 
 function bjSaveStats() {
   localStorage.setItem('cup_bj_chips', bjChips);
+  localStorage.setItem('cup_bj_bet', bjBet);
   localStorage.setItem('cup_bj_wins', bjWins);
   localStorage.setItem('cup_bj_losses', bjLosses);
   localStorage.setItem('cup_bj_pushes', bjPushes);
