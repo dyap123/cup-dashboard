@@ -525,7 +525,17 @@ function attachFirebaseListeners() {
     if (val) { pourDay.footingStatus = val; renderMapSection(); renderLive(); }
   });
   fbListen('checklist', (val) => {
-    if (val) { localStorage.setItem('cup_checklist', JSON.stringify(val)); }
+    if (!val) return;
+    // Sanitize incoming keys (older snapshots may contain unsanitized item names)
+    const clean = {};
+    for (const k of Object.keys(val)) {
+      const parts = k.split('__');
+      const pourId = parts[0];
+      const item = parts.slice(1).join('__');
+      const safe = parts.length >= 2 ? `${pourId}__${safeKeyPart(item)}` : k;
+      clean[safe] = val[k];
+    }
+    localStorage.setItem('cup_checklist', JSON.stringify(clean));
   });
   fbListen('feed', (val) => {
     if (!val) { pourDay.feed = []; return; }
@@ -996,7 +1006,11 @@ function renderPourCards(pours) {
         <div class="flex items-center gap-2">
           ${isManagerView
             ? `<span class="text-xs mono text-white/40">${p.date || '—'}</span>`
-            : `<input type="date" value="${p.date ? '2026-' + p.date.split('/').map(n=>String(n).padStart(2,'0')).join('-') : ''}" class="w-28 bg-transparent border-b border-dashed border-white/10 text-xs mono text-white/40 text-center focus:outline-none focus:border-white/30" onchange="if(this.value){const d=this.value.split('-');updatePourField('${p.id}','date',parseInt(d[1])+'/'+parseInt(d[2]))}">`
+            : `<span class="pour-date-btn relative inline-flex items-center gap-1 px-2.5 py-1 rounded-md border ${p.date?'border-blue-400/30 bg-blue-500/10 text-blue-300':'border-white/15 bg-white/5 text-white/40 border-dashed'} text-xs mono font-semibold cursor-pointer hover:brightness-125 transition-all" title="Click to change date">
+                <span class="material-symbols-outlined" style="font-size:11px">calendar_month</span>
+                <span>${p.date || 'Set date'}</span>
+                <input type="date" value="${p.date ? '2026-' + p.date.split('/').map(n=>String(n).padStart(2,'0')).join('-') : ''}" class="absolute inset-0 opacity-0 cursor-pointer" style="color-scheme:dark" onchange="if(this.value){const d=this.value.split('-');updatePourField('${p.id}','date',parseInt(d[1])+'/'+parseInt(d[2]))}">
+              </span>`
           }
           <button onclick="cyclePourStatus('${p.id}')" class="text-[10px] font-bold px-2.5 py-1 rounded-full transition-all ${pourStat==='COMPLETE'?'bg-blue-500/20 text-blue-400 border border-blue-500/30':pourStat==='ORDERED'?'bg-green-500/20 text-green-400 border border-green-500/30':'bg-white/5 text-white/30 border border-white/10 hover:bg-white/10'}">${pourStat}</button>
         </div>
@@ -1013,6 +1027,26 @@ function renderPourCards(pours) {
         <div class="flex justify-between text-xs mb-1"><span class="text-white/40">Slurry</span><span class="mono text-gray-300 font-semibold ${isManagerView ? '' : 'cursor-pointer" onclick="let v=prompt(\'Slurry CY:\',\''+p.slurry+'\');if(v!==null)updatePourField(\''+p.id+'\',\'slurry\',+v)'}">${p.slurry} CY</span></div>
         <div class="h-1 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-gray-500 to-gray-400 bar-animate" style="width:${Math.round((p.slurry/Math.max(...pours.map(x=>x.slurry),1))*100)}%"></div></div>
       </div>` : ''}
+      ${(() => {
+        const insp = getInspectionStatus(p.id);
+        // Debug: if checklist hasn't loaded yet, kick a fetch + re-render
+        if (!insp.ready && !window._inspRetried) { window._inspRetried = true; fetchChecklist().then(()=>render()).catch(()=>{}); }
+        if (!insp.ready || !insp.total) return '';
+        const pctI = Math.round(insp.done / insp.total * 100);
+        const clrI = pctI === 100 ? '#41A447' : pctI > 0 ? '#FFBF00' : '#ef4444';
+        let out = '<div class="mb-2 p-2 rounded-lg cursor-pointer hover:brightness-125 transition-all" onclick="jumpToInspections(\'' + p.id + '\')" style="background:' + clrI + '0a;border:1px solid ' + clrI + '44">';
+        out += '<div class="flex items-center justify-between mb-1.5">';
+        out += '<span class="text-[9px] font-bold uppercase tracking-wider flex items-center gap-1" style="color:' + clrI + '"><span class="material-symbols-outlined" style="font-size:11px">assignment_turned_in</span>Inspections ' + insp.done + '/' + insp.total + '</span>';
+        out += '<span class="text-[9px] mono font-bold" style="color:' + clrI + '">' + pctI + '%</span></div>';
+        out += '<div class="h-1 rounded-full bg-white/5 overflow-hidden mb-1.5"><div class="h-full rounded-full" style="width:' + pctI + '%;background:' + clrI + '"></div></div>';
+        out += '<div class="flex flex-wrap gap-1">';
+        insp.items.forEach(it => {
+          const short = it.what.length > 22 ? it.what.slice(0, 20) + '…' : it.what;
+          out += '<span title="' + it.what.replace(/"/g, '&quot;') + '" class="text-[8px] mono px-1.5 py-0.5 rounded ' + (it.done ? 'bg-green-500/15 text-green-400' : 'bg-white/5 text-white/35') + '">' + short + (it.done ? ' \u2713' : '') + '</span>';
+        });
+        out += '</div></div>';
+        return out;
+      })()}
       ${(() => {
         const map = loadFootingMap(p.id);
         const ftgs = map?.footings || [];
@@ -1226,21 +1260,80 @@ function getNextPour() {
   return upcoming.find(p => p.dateObj >= today) || upcoming[upcoming.length - 1];
 }
 
-function checkKey(pourId, itemKey) { return `${pourId}__${itemKey}`; }
+// Firebase keys can't contain . # $ [ ] / — sanitize item names so check state survives a Firebase round-trip
+function safeKeyPart(s) { return String(s).replace(/[.#$\[\]\/]/g, '_'); }
+function checkKey(pourId, itemKey) { return `${pourId}__${safeKeyPart(itemKey)}`; }
 function getCheckState() {
   try { return JSON.parse(localStorage.getItem('cup_checklist') || '{}'); } catch { return {}; }
+}
+// One-time migration: rewrite any legacy keys (with /, ., #, $, [, ]) to the sanitized form
+function migrateCheckState() {
+  const s = getCheckState();
+  let dirty = false;
+  for (const k of Object.keys(s)) {
+    const parts = k.split('__');
+    if (parts.length < 2) continue;
+    const pourId = parts[0];
+    const item = parts.slice(1).join('__');
+    const safe = `${pourId}__${safeKeyPart(item)}`;
+    if (safe !== k) {
+      s[safe] = s[safe] || s[k];
+      delete s[k];
+      dirty = true;
+    }
+  }
+  if (dirty) localStorage.setItem('cup_checklist', JSON.stringify(s));
+}
+migrateCheckState();
+// Inspection-only roll-up for a pour: pulls items from CHECKLIST_ITEMS where phaseKey === 'INSPECTIONS'
+function getInspectionStatus(pourId) {
+  const group = CHECKLIST_ITEMS.find(g => g.phaseKey === 'INSPECTIONS');
+  if (!group) return { items: [], done: 0, total: 0, ready: false };
+  const checks = getCheckState();
+  const items = group.items.map(it => ({
+    what: it.what,
+    who: it.who,
+    done: !!checks[checkKey(pourId, it.what)],
+  }));
+  return {
+    items,
+    done: items.filter(i => i.done).length,
+    total: items.length,
+    ready: true,
+  };
+}
+function jumpToInspections(pourId) {
+  switchTab('checklist');
+  selectChecklistPour(pourId);
+  setTimeout(() => {
+    const el = document.querySelector('#checklistContent [data-phase="INSPECTIONS"]');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 80);
 }
 async function loadChecklistFromFirebase() {
   const state = await fbGet('checklist');
   if (state && typeof state === 'object' && Object.keys(state).length > 0) {
+    // Sanitize incoming keys (older snapshots may contain unsanitized item names)
+    const cleanRemote = {};
+    for (const k of Object.keys(state)) {
+      const parts = k.split('__');
+      const safe = parts.length >= 2 ? `${parts[0]}__${safeKeyPart(parts.slice(1).join('__'))}` : k;
+      cleanRemote[safe] = state[k];
+    }
     const local = getCheckState();
-    const merged = { ...local, ...state };
+    const merged = { ...local, ...cleanRemote };
     localStorage.setItem('cup_checklist', JSON.stringify(merged));
   }
 }
 function saveCheckState(s) {
   localStorage.setItem('cup_checklist', JSON.stringify(s));
-  fbSet('checklist', s);
+  // Firebase set() can throw synchronously on invalid keys — never let that block local state
+  try {
+    const p = fbSet('checklist', s);
+    if (p && typeof p.catch === 'function') p.catch(err => console.warn('fb checklist set failed:', err));
+  } catch (err) {
+    console.warn('fb checklist set threw:', err);
+  }
 }
 function toggleCheck(key) {
   const s = getCheckState();
@@ -1332,7 +1425,7 @@ function renderChecklist() {
     const icon = getPhaseIcon(group);
     const groupDone = group.items.filter(it => checks[checkKey(pid, it.what)]).length;
 
-    html += `<div class="mb-4">
+    html += `<div class="mb-4" data-phase="${group.phaseKey || group.phase}">
       <div class="flex items-center gap-2 mb-2 px-1">
         <span class="material-symbols-outlined text-sm" style="color:${c}">${icon}</span>
         <span class="text-[11px] font-black uppercase tracking-widest" style="color:${c}">${group.phase}</span>
