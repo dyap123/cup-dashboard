@@ -1034,10 +1034,14 @@ function renderPourCards(pours) {
         if (!insp.ready || !insp.total) return '';
         const pctI = Math.round(insp.done / insp.total * 100);
         const clrI = pctI === 100 ? '#41A447' : pctI > 0 ? '#FFBF00' : '#ef4444';
-        let out = '<div class="mb-2 p-2 rounded-lg cursor-pointer hover:brightness-125 transition-all" onclick="jumpToInspections(\'' + p.id + '\')" style="background:' + clrI + '0a;border:1px solid ' + clrI + '44">';
+        let out = '<div class="mb-2 p-2 rounded-lg transition-all" style="background:' + clrI + '0a;border:1px solid ' + clrI + '44">';
         out += '<div class="flex items-center justify-between mb-1.5">';
-        out += '<span class="text-[9px] font-bold uppercase tracking-wider flex items-center gap-1" style="color:' + clrI + '"><span class="material-symbols-outlined" style="font-size:11px">assignment_turned_in</span>Inspections ' + insp.done + '/' + insp.total + '</span>';
-        out += '<span class="text-[9px] mono font-bold" style="color:' + clrI + '">' + pctI + '%</span></div>';
+        out += '<span class="text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer hover:brightness-125" onclick="jumpToInspections(\'' + p.id + '\')" style="color:' + clrI + '"><span class="material-symbols-outlined" style="font-size:11px">assignment_turned_in</span>Inspections ' + insp.done + '/' + insp.total + '</span>';
+        out += '<div class="flex items-center gap-1.5">';
+        if (pctI < 100 && !isManagerView) {
+          out += '<button onclick="event.stopPropagation();markAllInspectionsPassed(\'' + p.id + '\')" class="text-[8px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/25 hover:bg-green-500/25 transition-all uppercase tracking-wider">All ✓</button>';
+        }
+        out += '<span class="text-[9px] mono font-bold" style="color:' + clrI + '">' + pctI + '%</span></div></div>';
         out += '<div class="h-1 rounded-full bg-white/5 overflow-hidden mb-1.5"><div class="h-full rounded-full" style="width:' + pctI + '%;background:' + clrI + '"></div></div>';
         out += '<div class="flex flex-wrap gap-1">';
         insp.items.forEach(it => {
@@ -1340,6 +1344,7 @@ function toggleCheck(key) {
   s[key] = !s[key];
   saveCheckState(s);
   renderChecklist();
+  render(); // re-render dashboard pour cards (inspection roll-up)
 }
 function resetChecklist() {
   if (!activeChecklistPour) return;
@@ -1348,6 +1353,18 @@ function resetChecklist() {
   Object.keys(s).forEach(k => { if (k.startsWith(activeChecklistPour.id + '__')) delete s[k]; });
   saveCheckState(s);
   renderChecklist();
+  render();
+}
+// Mark all inspections passed for a specific pour (called from dashboard or checklist)
+function markAllInspectionsPassed(pourId) {
+  if (!pourId) return;
+  const group = CHECKLIST_ITEMS.find(g => g.phaseKey === 'INSPECTIONS');
+  if (!group) return;
+  const s = getCheckState();
+  group.items.forEach(it => { s[checkKey(pourId, it.what)] = true; });
+  saveCheckState(s);
+  if (typeof renderChecklist === 'function') renderChecklist();
+  render();
 }
 function selectChecklistPour(pourId) {
   const all = getUpcomingPours();
@@ -1430,6 +1447,7 @@ function renderChecklist() {
         <span class="material-symbols-outlined text-sm" style="color:${c}">${icon}</span>
         <span class="text-[11px] font-black uppercase tracking-widest" style="color:${c}">${group.phase}</span>
         <span class="text-[10px] mono text-white/30 ml-auto">${groupDone}/${group.items.length}</span>
+        ${group.phaseKey==='INSPECTIONS' && groupDone<group.items.length && !isManagerView ? `<button onclick="markAllInspectionsPassed('${pid}')" class="text-[9px] font-bold px-2 py-1 rounded bg-green-500/15 text-green-400 border border-green-500/25 hover:bg-green-500/25 transition-all uppercase tracking-wider">All Passed ✓</button>` : ''}
       </div>`;
 
     group.items.forEach(item => {
