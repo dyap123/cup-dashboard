@@ -4007,6 +4007,17 @@ function toggleAlfred() {
     el.style.right = pad;
   });
   if (alfredOpen && !brainInit) initBrain();
+  // Tap/click outside the sidebar to close
+  if (alfredOpen) {
+    setTimeout(() => document.addEventListener('pointerdown', alfredOutsideClick), 0);
+  } else {
+    document.removeEventListener('pointerdown', alfredOutsideClick);
+  }
+}
+function alfredOutsideClick(e) {
+  const sb = document.getElementById('alfredSidebar');
+  const tg = document.getElementById('alfredToggle');
+  if (sb && !sb.contains(e.target) && tg && !tg.contains(e.target)) toggleAlfred();
 }
 
 // Swipe to open/close on touch devices
