@@ -605,6 +605,7 @@ function attachFirebaseListeners() {
     render();
   });
   fbListen('pour-area', (val) => { pourAreaCache = val || {}; });
+  attachEmbedListener();
 }
 
 // ── CONFIG ──────────────────────────────────────────────────────────────────
@@ -1644,51 +1645,60 @@ function getEmbedMeta(embedId) {
   return embedTypes.find(e => e.embedId === embedId) || null;
 }
 
-// ── DETAILED TRACKER (Embeds tab) ──────────────────────────────────────────
-// Cached rows from the Detailed Tracker sheet, fetched via Apps Script.
-// Row shape: { rowIdx, area, section, embedId, description, plate, bolts,
-//              length, weight, depth, installed, status, drawingRef, notes,
-//              lastUpdate }
+// ── EMBEDS (Firebase-backed) ───────────────────────────────────────────────
+// Embed assignments live entirely in Firebase under `cup-embeds/{pushKey}`.
+// The user updates the spreadsheet's Detailed Tracker tab manually when they
+// want — the dashboard never writes to it. Record shape:
+//   { id, area, section, embedId, installed, status, drawingRef, notes,
+//     pourId?, footingId?, createdAt, updatedAt }
 let detailedEmbeds = [];
 let embedsTabFilter = { area: null, section: null }; // null = use active pour's area/section
-let embedsLoading = false;
-const EMBEDS_API_URL = 'https://script.google.com/macros/s/AKfycbwNOYItk1zZdQbVktGTND9TIloio1Su4FFIuccoX2hG22FpKug9M-3C3h5zgtkNFmks/exec';
+let embedsLoaded = false;
 
-async function loadDetailedEmbeds() {
-  embedsLoading = true;
-  try {
-    const res = await fetch(EMBEDS_API_URL, {
-      method: 'POST',
-      // text/plain avoids the CORS preflight that Apps Script can't handle
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'getDetailedEmbeds' }),
-    });
-    const json = await res.json();
-    if (json && json.ok) detailedEmbeds = json.rows || [];
-  } catch (e) {
-    console.warn('detailed embeds fetch failed', e);
+function attachEmbedListener() {
+  if (!db) return;
+  fbListen('cup-embeds', val => {
+    embedsLoaded = true;
+    detailedEmbeds = val ? Object.entries(val).map(([id, row]) => ({ ...row, rowIdx: id, id })) : [];
+    if (document.getElementById('embedsView') && !document.getElementById('embedsView').classList.contains('hidden')) {
+      renderEmbedsTab();
+    }
+  });
+}
+
+// Wrapper kept so existing call sites stay short — just ensures listener is attached
+function loadDetailedEmbeds() {
+  if (!embedsLoaded) attachEmbedListener();
+  return Promise.resolve();
+}
+
+function upsertDetailedEmbed(row, existingId) {
+  const now = new Date().toISOString();
+  const payload = {
+    area: String(row.area || '0'),
+    section: row.section || 'A',
+    embedId: row.embedId || '',
+    installed: row.installed === true,
+    status: row.status || 'Planned',
+    drawingRef: row.drawingRef || '',
+    notes: row.notes || '',
+    pourId: row.pourId || '',
+    footingId: row.footingId || '',
+    updatedAt: now,
+  };
+  if (existingId) {
+    fbSet('cup-embeds/' + existingId, { ...payload, createdAt: row.createdAt || now });
+  } else {
+    payload.createdAt = now;
+    fbPush('cup-embeds', payload);
   }
-  embedsLoading = false;
+  return Promise.resolve();
 }
 
-async function upsertDetailedEmbed(row, rowIdx) {
-  try {
-    await fetch(EMBEDS_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'upsertDetailedEmbed', row, rowIdx: rowIdx || null }),
-    });
-  } catch (e) { console.warn('upsert failed', e); }
-}
-
-async function deleteDetailedEmbed(rowIdx) {
-  try {
-    await fetch(EMBEDS_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'deleteDetailedEmbed', rowIdx }),
-    });
-  } catch (e) { console.warn('delete failed', e); }
+function deleteDetailedEmbed(id) {
+  if (!id) return Promise.resolve();
+  fbSet('cup-embeds/' + id, null);
+  return Promise.resolve();
 }
 
 // Section colors that match the sheet's conditional formatting
@@ -1735,7 +1745,7 @@ function renderEmbedsTab() {
   });
   h += '</select></div>';
   h += '<div class="flex-1"></div>';
-  h += '<button onclick="loadDetailedEmbeds().then(renderEmbedsTab)" class="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80 border border-white/10 transition-all"><span class="material-symbols-outlined text-xs align-middle">refresh</span> Refresh</button>';
+  h += '<button onclick="exportEmbedSummary()" class="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80 border border-white/10 transition-all"><span class="material-symbols-outlined text-xs align-middle">print</span> Export</button>';
   if (!isManagerView) {
     h += '<button onclick="openAddEmbedModal()" class="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 border border-blue-500/30 transition-all"><span class="material-symbols-outlined text-xs align-middle">add</span> Add Embed</button>';
   }
@@ -1752,7 +1762,7 @@ function renderEmbedsTab() {
   h += '</div>';
 
   // ─── Loading / empty state ───
-  if (embedsLoading && !detailedEmbeds.length) {
+  if (!embedsLoaded && !detailedEmbeds.length) {
     h += '<div class="text-center py-16 text-white/30">Loading embeds…</div>';
   } else if (!grandTotal) {
     h += '<div class="text-center py-16 text-white/30 italic">No embeds for Area ' + area + (sectionFilter ? ' / Section ' + sectionFilter : '') + '. ';
@@ -1780,7 +1790,7 @@ function renderEmbedsTab() {
       // Checkbox
       const ckColor = r.installed ? col.text : 'transparent';
       const ckBorder = r.installed ? col.text : 'rgba(255,255,255,0.25)';
-      h += '<div onclick="toggleEmbedInstalled(' + r.rowIdx + ')" class="w-7 h-7 rounded flex items-center justify-center shrink-0 cursor-pointer transition-all" style="background:' + ckColor + ';border:2px solid ' + ckBorder + '">';
+      h += '<div onclick="toggleEmbedInstalled(\'' + r.id + '\')" class="w-7 h-7 rounded flex items-center justify-center shrink-0 cursor-pointer transition-all" style="background:' + ckColor + ';border:2px solid ' + ckBorder + '">';
       if (r.installed) h += '<svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M3 7l3 3 5-6" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       h += '</div>';
       // Embed ID + meta
@@ -1796,8 +1806,8 @@ function renderEmbedsTab() {
       h += '</div>';
       // Notes input
       if (!isManagerView) {
-        h += '<input type="text" value="' + (r.notes || '').replace(/"/g, '&quot;') + '" placeholder="notes…" onblur="updateEmbedNotes(' + r.rowIdx + ',this.value)" class="w-32 bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/30" />';
-        h += '<button onclick="confirmDeleteEmbed(' + r.rowIdx + ')" class="text-white/20 hover:text-red-400 transition-colors p-1"><span class="material-symbols-outlined text-base">close</span></button>';
+        h += '<input type="text" value="' + (r.notes || '').replace(/"/g, '&quot;') + '" placeholder="notes…" onblur="updateEmbedNotes(\'' + r.id + '\',this.value)" class="w-32 bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/30" />';
+        h += '<button onclick="confirmDeleteEmbed(\'' + r.id + '\')" class="text-white/20 hover:text-red-400 transition-colors p-1"><span class="material-symbols-outlined text-base">close</span></button>';
       } else {
         h += '<div class="text-[10px] text-white/40 italic max-w-[140px] truncate">' + (r.notes || '') + '</div>';
       }
@@ -1809,28 +1819,26 @@ function renderEmbedsTab() {
   view.innerHTML = h;
 }
 
-async function toggleEmbedInstalled(rowIdx) {
-  const r = detailedEmbeds.find(x => x.rowIdx === rowIdx);
+function toggleEmbedInstalled(id) {
+  const r = detailedEmbeds.find(x => x.id === id);
   if (!r) return;
   r.installed = !r.installed;
-  renderEmbedsTab(); // optimistic
-  await upsertDetailedEmbed(r, rowIdx);
+  renderEmbedsTab(); // optimistic — Firebase echo will reconcile
+  upsertDetailedEmbed(r, id);
 }
 
-async function updateEmbedNotes(rowIdx, notes) {
-  const r = detailedEmbeds.find(x => x.rowIdx === rowIdx);
+function updateEmbedNotes(id, notes) {
+  const r = detailedEmbeds.find(x => x.id === id);
   if (!r || (r.notes || '') === notes) return;
   r.notes = notes;
-  await upsertDetailedEmbed(r, rowIdx);
+  upsertDetailedEmbed(r, id);
 }
 
-async function confirmDeleteEmbed(rowIdx) {
-  const r = detailedEmbeds.find(x => x.rowIdx === rowIdx);
+function confirmDeleteEmbed(id) {
+  const r = detailedEmbeds.find(x => x.id === id);
   if (!r) return;
   if (!confirm('Delete embed ' + r.embedId + ' from ' + r.area + ' / ' + r.section + '?')) return;
-  await deleteDetailedEmbed(rowIdx);
-  await loadDetailedEmbeds();
-  renderEmbedsTab();
+  deleteDetailedEmbed(id);
 }
 
 function openAddEmbedModal() {
@@ -1885,19 +1893,161 @@ function openAddEmbedModal() {
   document.body.insertAdjacentHTML('beforeend', h);
 }
 
-async function submitAddEmbed() {
+function submitAddEmbed() {
   const area = document.getElementById('addEmbedArea').value;
   const section = document.getElementById('addEmbedSection').value;
   const embedId = document.getElementById('addEmbedId').value;
   const drawingRef = document.getElementById('addEmbedDrawing').value.trim();
   const notes = document.getElementById('addEmbedNotes').value.trim();
   if (!embedId) { alert('Pick an embed ID'); return; }
-  await upsertDetailedEmbed({
+  upsertDetailedEmbed({
     area, section, embedId, installed: false, status: 'Planned', drawingRef, notes,
   });
   document.getElementById('addEmbedModal')?.remove();
-  await loadDetailedEmbeds();
-  renderEmbedsTab();
+  // Firebase listener will re-render automatically
+}
+
+// ── EMBED SUMMARY EXPORT ───────────────────────────────────────────────────
+// Generates a printable one-pager for the current Embeds-tab filter (Area + optional Section)
+// Mirrors the foreman PDF style: section blocks with totals, grouped by Embed ID.
+function exportEmbedSummary() {
+  const activePour = getActivePour();
+  const area = embedsTabFilter.area ?? (activePour ? getPourArea(activePour.id) : '0');
+  const sectionFilter = embedsTabFilter.section;
+  let rows = detailedEmbeds.filter(r => String(r.area) === String(area));
+  if (sectionFilter) rows = rows.filter(r => r.section === sectionFilter);
+
+  // Group by section, then by embedId for counts
+  const SEC_COL = {
+    'A': '#7FBE83',
+    'B': '#E69F4F',
+    'C': '#5B8FE0',
+    'D': '#9876C9',
+  };
+  const bySec = {};
+  rows.forEach(r => {
+    if (!bySec[r.section]) bySec[r.section] = {};
+    if (!bySec[r.section][r.embedId]) {
+      const meta = getEmbedMeta(r.embedId) || {};
+      bySec[r.section][r.embedId] = {
+        embedId: r.embedId,
+        description: meta.description || '',
+        plate: meta.plate || '',
+        bolts: meta.bolts || '',
+        length: meta.length || '',
+        drawings: new Set(),
+        count: 0,
+        installed: 0,
+      };
+    }
+    const g = bySec[r.section][r.embedId];
+    g.count++;
+    if (r.installed) g.installed++;
+    if (r.drawingRef) g.drawings.add(r.drawingRef);
+  });
+
+  const totalEmbeds = rows.length;
+  const totalInstalled = rows.filter(r => r.installed).length;
+  const now = new Date();
+  const today = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const generated = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const sectionsToRender = ['A','B','C','D'].filter(s => bySec[s] && Object.keys(bySec[s]).length);
+
+  let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Area ' + area + ' — Embed Summary</title>';
+  html += '<style>';
+  html += '@page{size:letter portrait;margin:.5in .55in .45in .55in}';
+  html += '*{box-sizing:border-box}';
+  html += 'body{font-family:Helvetica,Arial,sans-serif;color:#111;margin:0;padding:0;-webkit-font-smoothing:antialiased}';
+  html += '.title-block{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:10pt;margin-bottom:14pt;border-bottom:.8pt solid #111}';
+  html += '.title-block h1{font-size:18pt;font-weight:800;margin:0;letter-spacing:-.5pt;line-height:1.1}';
+  html += '.title-block .subtitle{font-size:8.5pt;color:#666;margin-top:3pt}';
+  html += '.title-meta{text-align:right;font-size:8pt;color:#555;line-height:1.5}';
+  html += '.title-meta .date{font-size:11pt;font-weight:800;color:#111}';
+  html += '.title-meta .gen{color:#888;font-size:7.5pt;margin-top:1pt}';
+  html += '.summary{display:flex;gap:12pt;margin:0 0 16pt}';
+  html += '.summary div{flex:1;text-align:center;padding:9pt 6pt;border:.6pt solid #ccc;border-radius:3pt;background:#fafafa}';
+  html += '.summary .label{font-size:7pt;text-transform:uppercase;letter-spacing:1.2pt;color:#888;font-weight:600;margin-bottom:2pt}';
+  html += '.summary .value{font-size:18pt;font-weight:800;color:#111;line-height:1;letter-spacing:-.5pt}';
+  html += '.section{margin-bottom:12pt;page-break-inside:avoid}';
+  html += '.section-header{font-size:10pt;font-weight:800;padding:5pt 10pt;color:#fff;letter-spacing:.8pt;text-transform:uppercase;border-radius:3pt 3pt 0 0;display:flex;justify-content:space-between}';
+  html += '.section-header .stats{font-weight:600;font-size:8.5pt;letter-spacing:.4pt;opacity:.92}';
+  html += 'table{width:100%;border-collapse:collapse;font-size:8.5pt;border:.6pt solid #d0d0d0;border-top:none}';
+  html += 'thead th{background:#f3f3f3;border-bottom:.6pt solid #d0d0d0;border-right:.4pt solid #e5e5e5;padding:5pt 6pt;font-weight:700;text-align:left;font-size:7.5pt;text-transform:uppercase;letter-spacing:.4pt;color:#555}';
+  html += 'thead th:last-child{border-right:none}';
+  html += 'thead th.center{text-align:center}';
+  html += 'tbody td{border-bottom:.4pt solid #ececec;border-right:.4pt solid #ececec;padding:4pt 6pt;font-variant-numeric:tabular-nums}';
+  html += 'tbody td:last-child{border-right:none}';
+  html += 'tbody td.center{text-align:center}';
+  html += 'tbody td.right{text-align:right;font-weight:700}';
+  html += '.section-total{background:#f8f8f8;font-weight:700}';
+  html += '.section-total td{border-top:.8pt solid #aaa;border-bottom:none}';
+  html += '.signoff{margin-top:18pt;padding-top:10pt;border-top:.6pt solid #ccc;font-size:7.5pt;display:flex;gap:28pt;color:#777;text-transform:uppercase;letter-spacing:.8pt}';
+  html += '.signoff div{flex:1}';
+  html += '.signoff .line{border-bottom:.5pt solid #888;height:16pt;margin-top:3pt}';
+  html += '#shareBar{position:fixed;top:0;left:0;right:0;z-index:999;background:#1C2E54;padding:8pt 16pt;display:flex;align-items:center;justify-content:space-between;gap:8pt;font-family:Arial,sans-serif}';
+  html += '#shareBar button{background:#fff2;color:#fff;border:1px solid #fff3;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer}';
+  html += '@media print{#shareBar{display:none!important}body{padding-top:0!important}}';
+  html += '</style></head><body style="padding:.5in .55in .45in;padding-top:60pt">';
+
+  html += '<div id="shareBar">';
+  html += '<span style="color:#fff;font-size:10pt;font-weight:700">Area ' + area + ' Embed Summary</span>';
+  html += '<div style="display:flex;gap:6pt">';
+  html += '<button onclick="window.print()">Print / PDF</button>';
+  html += '<button onclick="window.close()">Close</button>';
+  html += '</div></div>';
+
+  html += '<div class="title-block">';
+  html += '<div><h1>Area ' + area + ' — Embed Summary</h1>';
+  html += '<div class="subtitle">LACC CUP Modernization · Webcor Concrete · Job #11088.70' + (sectionFilter ? ' · Section ' + sectionFilter : '') + '</div></div>';
+  html += '<div class="title-meta"><div class="date">' + today + '</div><div class="gen">Generated ' + generated + '</div></div>';
+  html += '</div>';
+
+  html += '<div class="summary">';
+  html += '<div><div class="label">Total</div><div class="value">' + totalEmbeds + '</div></div>';
+  html += '<div><div class="label">Sections</div><div class="value">' + sectionsToRender.length + '</div></div>';
+  html += '<div><div class="label">Installed</div><div class="value">' + totalInstalled + '</div></div>';
+  html += '<div><div class="label">Remaining</div><div class="value">' + (totalEmbeds - totalInstalled) + '</div></div>';
+  html += '</div>';
+
+  if (!totalEmbeds) {
+    html += '<div style="text-align:center;padding:60pt 0;color:#999;font-style:italic">No embeds for Area ' + area + (sectionFilter ? ' / Section ' + sectionFilter : '') + '.</div>';
+  }
+
+  sectionsToRender.forEach(sec => {
+    const items = bySec[sec];
+    const sortedIds = Object.keys(items).sort((a, b) => (a.length - b.length) || a.localeCompare(b));
+    const secTotal = sortedIds.reduce((s, id) => s + items[id].count, 0);
+    const secInstalled = sortedIds.reduce((s, id) => s + items[id].installed, 0);
+    const color = SEC_COL[sec] || '#000';
+
+    html += '<div class="section">';
+    html += '<div class="section-header" style="background:' + color + '"><span>Section ' + sec + '</span><span class="stats">' + secTotal + ' total · ' + secInstalled + ' done · ' + (secTotal - secInstalled) + ' left</span></div>';
+    html += '<table><thead><tr><th>Embed ID</th><th>Description</th><th class="center">Plate</th><th class="center">Bolts</th><th class="center">Length</th><th class="center">Drawings</th><th class="center">Total</th><th class="center">Done</th><th class="center">Left</th></tr></thead><tbody>';
+    sortedIds.forEach(id => {
+      const g = items[id];
+      const drawings = g.drawings.size ? Array.from(g.drawings).sort().join(', ') : '—';
+      html += '<tr>';
+      html += '<td><strong>' + g.embedId + '</strong></td>';
+      html += '<td>' + (g.description || '') + '</td>';
+      html += '<td class="center">' + (g.plate || '—') + '</td>';
+      html += '<td class="center">' + (g.bolts || '') + '</td>';
+      html += '<td class="center">' + (g.length || '') + '</td>';
+      html += '<td class="center" style="font-size:7pt">' + drawings + '</td>';
+      html += '<td class="right">' + g.count + '</td>';
+      html += '<td class="right">' + g.installed + '</td>';
+      html += '<td class="right">' + (g.count - g.installed) + '</td>';
+      html += '</tr>';
+    });
+    html += '<tr class="section-total"><td colspan="6" class="right">SECTION ' + sec + ' TOTAL</td><td class="right">' + secTotal + '</td><td class="right">' + secInstalled + '</td><td class="right">' + (secTotal - secInstalled) + '</td></tr>';
+    html += '</tbody></table></div>';
+  });
+
+  html += '<div class="signoff"><div>Foreman:<div class="line"></div></div><div>Date:<div class="line"></div></div><div>Inspector:<div class="line"></div></div></div>';
+  html += '</body></html>';
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
 }
 
 // Mix design reference
@@ -2255,18 +2405,15 @@ function addEmbedToFooting(pourId, embedId) {
   if (f.embeds.find(e => e.embedId === embedId)) return;
   f.embeds.push({ embedId, qty: 1 });
   saveFootingMap(pourId, map);
-  // Existing embed map sync (Apps Script keeps the legacy embed map)
-  fetch(API_URL, { method:'POST', mode:'no-cors', body:JSON.stringify({
-    action:'updateEmbeds', pourId, footingId: f.id, ftype: f.ftype, embeds: f.embeds
-  })}).catch(()=>{});
-  // ALSO append a row to the Detailed Tracker scoped to this pour's area + section
+  // Append a Firebase embed record scoped to this pour's area + section
   const pour = state.pours.find(p => p.id === pourId);
   const area = pour ? getPourArea(pour.id) : '0';
   const section = pour?.section || 'A';
   upsertDetailedEmbed({
     area, section, embedId, installed: false, status: 'Planned',
     drawingRef: '', notes: pourId + ' — ' + f.id,
-  }).catch(()=>{});
+    pourId, footingId: f.id,
+  });
   renderMapSection();
 }
 function removeEmbedFromFooting(pourId, idx) {
@@ -2277,19 +2424,11 @@ function removeEmbedFromFooting(pourId, idx) {
   const removed = f.embeds[idx];
   f.embeds.splice(idx, 1);
   saveFootingMap(pourId, map);
-  fetch(API_URL, { method:'POST', mode:'no-cors', body:JSON.stringify({
-    action:'updateEmbeds', pourId, footingId: f.id, ftype: f.ftype, embeds: f.embeds
-  })}).catch(()=>{});
-  // Try to delete the matching Detailed Tracker row if we have it cached
+  // Delete the matching Firebase embed record (matched by pourId + footingId + embedId)
   if (removed && detailedEmbeds.length) {
-    const pour = state.pours.find(p => p.id === pourId);
-    const area = pour ? getPourArea(pour.id) : '0';
-    const section = pour?.section || 'A';
-    const noteKey = pourId + ' — ' + f.id;
     const match = detailedEmbeds.find(r =>
-      r.area === area && r.section === section && r.embedId === removed.embedId &&
-      (r.notes || '').includes(noteKey));
-    if (match) deleteDetailedEmbed(match.rowIdx).catch(()=>{});
+      r.pourId === pourId && r.footingId === f.id && r.embedId === removed.embedId);
+    if (match) deleteDetailedEmbed(match.id);
   }
   renderMapSection();
 }
@@ -3103,18 +3242,54 @@ function exportPourReport() {
   })()}
 
   ${(() => {
+    // Footing-level embed verification (legacy per-footing embed list on the map)
     const ewf = ftgs.filter(f => f.embeds && f.embeds.length);
-    if (!ewf.length) return '';
-    const totalE = ewf.reduce((s,f) => s + f.embeds.length, 0);
-    const checkedE = ewf.reduce((s,f) => s + f.embeds.filter(e => getEmbedChecked(f.id, e.embedId)).length, 0);
-    return `<h2>Embed Verification (${checkedE}/${totalE} checked)</h2>
-    <table><tr><th>Footing</th><th>Type</th><th>Embed</th><th>Bolts</th><th>Plate</th><th>Status</th></tr>
-    ${ewf.map(f => f.embeds.map(e => {
-      const info = getEmbedMeta(e.embedId);
-      const ck = getEmbedChecked(f.id, e.embedId);
-      return `<tr><td>${f.id}</td><td>${f.ftype}</td><td>${e.embedId}</td><td>${info?.bolts||''}</td><td>${info?.plate||''}</td><td class="${ck?'ok':'bad'}"><strong>${ck?'VERIFIED':'MISSING'}</strong></td></tr>`;
-    }).join('')).join('')}
-    </table>`;
+    let h = '';
+    if (ewf.length) {
+      const totalE = ewf.reduce((s,f) => s + f.embeds.length, 0);
+      const checkedE = ewf.reduce((s,f) => s + f.embeds.filter(e => getEmbedChecked(f.id, e.embedId)).length, 0);
+      h += `<h2>Footing Embed Verification (${checkedE}/${totalE} checked)</h2>
+      <table><tr><th>Footing</th><th>Type</th><th>Embed</th><th>Bolts</th><th>Plate</th><th>Status</th></tr>
+      ${ewf.map(f => f.embeds.map(e => {
+        const info = getEmbedMeta(e.embedId);
+        const ck = getEmbedChecked(f.id, e.embedId);
+        return `<tr><td>${f.id}</td><td>${f.ftype}</td><td>${e.embedId}</td><td>${info?.bolts||''}</td><td>${info?.plate||''}</td><td class="${ck?'ok':'bad'}"><strong>${ck?'VERIFIED':'MISSING'}</strong></td></tr>`;
+      }).join('')).join('')}
+      </table>`;
+    }
+    // Detailed Tracker embeds for this pour's area + section (Firebase-backed)
+    const pourArea = getPourArea(pour.id);
+    const trackerRows = detailedEmbeds.filter(r => String(r.area) === String(pourArea) && r.section === pour.section);
+    if (trackerRows.length) {
+      const installedCount = trackerRows.filter(r => r.installed).length;
+      // Group by embed ID for compact display
+      const grouped = {};
+      trackerRows.forEach(r => {
+        if (!grouped[r.embedId]) {
+          const meta = getEmbedMeta(r.embedId) || {};
+          grouped[r.embedId] = {
+            embedId: r.embedId,
+            description: meta.description || '',
+            plate: meta.plate || '',
+            bolts: meta.bolts || '',
+            length: meta.length || '',
+            count: 0, installed: 0,
+          };
+        }
+        grouped[r.embedId].count++;
+        if (r.installed) grouped[r.embedId].installed++;
+      });
+      const ids = Object.keys(grouped).sort((a,b) => (a.length-b.length) || a.localeCompare(b));
+      h += `<h2>Detailed Tracker — Area ${pourArea} / Section ${pour.section} (${installedCount}/${trackerRows.length} installed)</h2>`;
+      h += '<table><tr><th>Embed ID</th><th>Description</th><th>Plate</th><th>Bolts</th><th>Length</th><th>Total</th><th>Installed</th><th>Remaining</th></tr>';
+      ids.forEach(id => {
+        const g = grouped[id];
+        h += `<tr><td><strong>${g.embedId}</strong></td><td>${g.description}</td><td>${g.plate}</td><td>${g.bolts}</td><td>${g.length}</td><td>${g.count}</td><td class="${g.installed>=g.count?'ok':'warn'}">${g.installed}</td><td>${g.count - g.installed}</td></tr>`;
+      });
+      h += `<tr style="font-weight:700;border-top:2pt solid #1C2E54"><td colspan="5">TOTAL</td><td>${trackerRows.length}</td><td>${installedCount}</td><td>${trackerRows.length - installedCount}</td></tr>`;
+      h += '</table>';
+    }
+    return h;
   })()}
 
   <div style="margin-top:20pt;font-size:7pt;color:#999;border-top:0.5pt solid #ccc;padding-top:4pt">
