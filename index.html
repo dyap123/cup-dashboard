@@ -277,6 +277,7 @@
       <button onclick="switchTab('pourday')" id="tabPour" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Pour Day</button>
       <button onclick="switchTab('live')" id="tabLive" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Live Pour</button>
       <button onclick="switchTab('checklist')" id="tabCheck" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Checklist</button>
+      <button onclick="switchTab('embeds')" id="tabEmbeds" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Embeds</button>
       <span id="managerBadge" class="hidden text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full text-blue-400/70" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2)">Read Only</span>
     </div>
     <div id="sectionFilters" class="flex gap-1.5 shrink-0">
@@ -300,6 +301,11 @@
 <!-- LIVE POUR VIEW -->
 <div id="liveView" class="hidden max-w-3xl mx-auto px-4 py-6 pb-20" style="position:relative;z-index:1">
   <div id="liveContent"></div>
+</div>
+
+<!-- EMBEDS VIEW -->
+<div id="embedsView" class="hidden max-w-5xl mx-auto px-4 py-5 pb-20" style="position:relative;z-index:1">
+  <div id="embedsContent"></div>
 </div>
 
 <div id="checklistView" class="hidden max-w-4xl mx-auto px-4 py-6" style="position:relative;z-index:1">
@@ -598,6 +604,7 @@ function attachFirebaseListeners() {
     applyOverrides();
     render();
   });
+  fbListen('pour-area', (val) => { pourAreaCache = val || {}; });
 }
 
 // ── CONFIG ──────────────────────────────────────────────────────────────────
@@ -615,6 +622,23 @@ const SEC_DIM    = { A:'#142218', B:'#2a1c0e', C:'#14222e', D:'#1e1a2e' };
 // Editable pour labels (persisted in localStorage)
 function getPourLabel(id) { return localStorage.getItem('cup_label_'+id) || ''; }
 function setPourLabel(id, val) { if (isManagerView) return; localStorage.setItem('cup_label_'+id, val); }
+
+// Pour ↔ embed-tracker area mapping (each pour belongs to a sequence area like '0', '1-1', etc.)
+// Defaults to '0' (CUP) since we're still in CUP phase. Persisted to localStorage + Firebase.
+const POUR_AREA_KEY = 'cup_area_';
+const AREA_OPTIONS = ['0','0.5-1','0.5-2','1-1','1-5','1-6','2-7','2-9','3-3','3-4','3-8'];
+let pourAreaCache = {};
+function getPourArea(id) { return localStorage.getItem(POUR_AREA_KEY + id) || pourAreaCache[id] || '0'; }
+function setPourArea(id, val) {
+  if (isManagerView) return;
+  localStorage.setItem(POUR_AREA_KEY + id, val);
+  pourAreaCache[id] = val;
+  fbSet('pour-area/' + id, val);
+  if (typeof renderMapSection === 'function') renderMapSection();
+  if (typeof renderEmbedsTab === 'function' && document.getElementById('embedsView') && !document.getElementById('embedsView').classList.contains('hidden')) {
+    renderEmbedsTab();
+  }
+}
 
 // Ordered status — writes to sheet via Apps Script
 const API_URL = 'https://script.google.com/macros/s/AKfycbwNOYItk1zZdQbVktGTND9TIloio1Su4FFIuccoX2hG22FpKug9M-3C3h5zgtkNFmks/exec';
@@ -1518,8 +1542,8 @@ function switchTab(tab) {
   // Manager can see dashboard + live, and pourday if any pour is COMPLETE
   if (isManagerView && tab === 'checklist') return;
   if (isManagerView && tab === 'pourday' && !state.pours.some(p => getPourStatus(p.id) === 'COMPLETE')) return;
-  const views = { dashboard:'dashboardView', checklist:'checklistView', pourday:'pourdayView', live:'liveView' };
-  const tabs = { dashboard:'tabDash', checklist:'tabCheck', pourday:'tabPour', live:'tabLive' };
+  const views = { dashboard:'dashboardView', checklist:'checklistView', pourday:'pourdayView', live:'liveView', embeds:'embedsView' };
+  const tabs = { dashboard:'tabDash', checklist:'tabCheck', pourday:'tabPour', live:'tabLive', embeds:'tabEmbeds' };
   const active = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white';
   const inactive = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60';
 
@@ -1540,6 +1564,7 @@ function switchTab(tab) {
   if (tab === 'checklist') renderChecklist();
   if (tab === 'pourday') renderPourDay();
   if (tab === 'live') renderLive();
+  if (tab === 'embeds') { loadDetailedEmbeds().then(renderEmbedsTab); }
 }
 
 // ── POUR DAY COMMAND CENTER ─────────────────────────────────────────────────
@@ -1556,19 +1581,324 @@ const FTG_PRESETS = {
   'GB':0,
 };
 
-// CUP embed types (anchor rods + embed post)
-const CUP_EMBEDS = [
-  { embedId:'51A', label:'CUP Anchor Rod', bolts:4,  sp:'SP-13' },
-  { embedId:'55A', label:'CUP Anchor Rod', bolts:4,  sp:'SP-14' },
-  { embedId:'56A', label:'CUP Anchor Rod', bolts:4,  sp:'SP-15' },
-  { embedId:'60A', label:'CUP Anchor Rod', bolts:4,  sp:'SP-15' },
-  { embedId:'65A', label:'CUP Anchor Rod', bolts:4,  sp:'SP-16' },
-  { embedId:'70A', label:'CUP Anchor Rod', bolts:6,  sp:'SP-17' },
-  { embedId:'80A', label:'CUP Anchor Rod', bolts:8,  sp:'SP-18' },
-  { embedId:'85A', label:'CUP Anchor Rod', bolts:8,  sp:'SP-19' },
-  { embedId:'86A', label:'CUP Anchor Rod', bolts:4,  sp:'SP-20' },
-  { embedId:'90A', label:'CUP Embed Post (W14X605)', bolts:30, sp:'SP-20' },
-];
+// Live embed types loaded from the LACC Embed Tracker sheet (Embed Types tab).
+// Replaces the old hardcoded CUP_EMBEDS. Each entry:
+// { embedId, sequence, description, plate, bolts, length, weight, depth, drawingRef }
+const EMBED_TRACKER_SHEET_ID = '14fCiEDynFl1d1Z84jX9qGCzz4utS4J-PhqiKJA2Y59E';
+let embedTypes = [];
+
+async function loadEmbedTypes() {
+  // Hydrate from cache first so the UI works offline / before fetch resolves
+  const cached = localStorage.getItem('cup_embed_types');
+  if (cached) try { embedTypes = JSON.parse(cached); } catch {}
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${EMBED_TRACKER_SHEET_ID}/gviz/tq?tqx=out:json&sheet=Embed%20Types`;
+    const res = await fetch(url);
+    const txt = await res.text();
+    // gviz wraps response in google.visualization.Query.setResponse(...)
+    const m = txt.match(/setResponse\(([\s\S]*)\)/);
+    if (!m) throw new Error('bad gviz response');
+    const json = JSON.parse(m[1]);
+    let currentSeq = '0';
+    const out = [];
+    json.table.rows.forEach(row => {
+      const cells = row.c.map(c => c?.v ?? '');
+      const id = String(cells[0] || '').trim();
+      const desc = String(cells[1] || '').trim();
+      // Section header rows live in col A (e.g. "SEQUENCE 0 — CUP", "SEQUENCE 1")
+      if (id.startsWith('SEQUENCE')) {
+        const m2 = id.match(/SEQUENCE\s+(\S+)/i);
+        if (m2) currentSeq = m2[1];
+        return;
+      }
+      // Data rows have a non-empty embed ID
+      if (!id) return;
+      out.push({
+        embedId: id,
+        sequence: currentSeq,
+        description: desc,
+        qty: cells[2] || '',
+        bolts: cells[3] || '',
+        length: cells[4] || '',
+        width: cells[5] || '',
+        weight: cells[6] || '',
+        depth: cells[7] || '',
+        plate: String(cells[8] || ''),
+        area: String(cells[9] || ''),
+        drawingRef: String(cells[10] || ''),
+        embedment: cells[11] || '',
+        status: String(cells[12] || ''),
+      });
+    });
+    if (out.length) {
+      embedTypes = out;
+      localStorage.setItem('cup_embed_types', JSON.stringify(embedTypes));
+    }
+  } catch (e) {
+    console.warn('embed types fetch failed', e);
+  }
+}
+
+// Lookup helper used by footing map / popup / Embeds tab
+function getEmbedMeta(embedId) {
+  return embedTypes.find(e => e.embedId === embedId) || null;
+}
+
+// ── DETAILED TRACKER (Embeds tab) ──────────────────────────────────────────
+// Cached rows from the Detailed Tracker sheet, fetched via Apps Script.
+// Row shape: { rowIdx, area, section, embedId, description, plate, bolts,
+//              length, weight, depth, installed, status, drawingRef, notes,
+//              lastUpdate }
+let detailedEmbeds = [];
+let embedsTabFilter = { area: null, section: null }; // null = use active pour's area/section
+let embedsLoading = false;
+const EMBEDS_API_URL = 'https://script.google.com/macros/s/AKfycbwNOYItk1zZdQbVktGTND9TIloio1Su4FFIuccoX2hG22FpKug9M-3C3h5zgtkNFmks/exec';
+
+async function loadDetailedEmbeds() {
+  embedsLoading = true;
+  try {
+    const res = await fetch(EMBEDS_API_URL, {
+      method: 'POST',
+      // text/plain avoids the CORS preflight that Apps Script can't handle
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'getDetailedEmbeds' }),
+    });
+    const json = await res.json();
+    if (json && json.ok) detailedEmbeds = json.rows || [];
+  } catch (e) {
+    console.warn('detailed embeds fetch failed', e);
+  }
+  embedsLoading = false;
+}
+
+async function upsertDetailedEmbed(row, rowIdx) {
+  try {
+    await fetch(EMBEDS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'upsertDetailedEmbed', row, rowIdx: rowIdx || null }),
+    });
+  } catch (e) { console.warn('upsert failed', e); }
+}
+
+async function deleteDetailedEmbed(rowIdx) {
+  try {
+    await fetch(EMBEDS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'deleteDetailedEmbed', rowIdx }),
+    });
+  } catch (e) { console.warn('delete failed', e); }
+}
+
+// Section colors that match the sheet's conditional formatting
+const SECTION_COLORS_FULL = {
+  'A': { bg: 'rgba(127,190,131,0.18)', border: 'rgba(127,190,131,0.45)', text: '#7FBE83' },
+  'B': { bg: 'rgba(230,159,79,0.18)',  border: 'rgba(230,159,79,0.45)',  text: '#E69F4F' },
+  'C': { bg: 'rgba(91,143,224,0.18)',  border: 'rgba(91,143,224,0.45)',  text: '#5B8FE0' },
+  'D': { bg: 'rgba(152,118,201,0.18)', border: 'rgba(152,118,201,0.45)', text: '#9876C9' },
+};
+
+function renderEmbedsTab() {
+  const view = document.getElementById('embedsContent');
+  if (!view) return;
+  const activePour = getActivePour();
+  const defaultArea = activePour ? getPourArea(activePour.id) : '0';
+  const area = embedsTabFilter.area ?? defaultArea;
+  const sectionFilter = embedsTabFilter.section; // null = all sections
+  let rows = detailedEmbeds.filter(r => String(r.area) === String(area));
+  if (sectionFilter) rows = rows.filter(r => r.section === sectionFilter);
+
+  // Group by section for the card list
+  const bySec = { A: [], B: [], C: [], D: [] };
+  rows.forEach(r => { if (bySec[r.section]) bySec[r.section].push(r); });
+  const sectionTotals = Object.fromEntries(Object.entries(bySec).map(([s, arr]) => [s, {
+    total: arr.length,
+    installed: arr.filter(r => r.installed).length,
+  }]));
+  const grandTotal = rows.length;
+  const grandInstalled = rows.filter(r => r.installed).length;
+
+  // ─── Header: filters + actions ───
+  let h = '<div class="flex flex-wrap items-center gap-3 mb-4">';
+  h += '<div><div class="text-[8px] font-bold text-white/30 uppercase tracking-wider mb-1">Area</div>';
+  h += '<select onchange="embedsTabFilter.area=this.value;renderEmbedsTab()" class="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs mono font-bold text-white/80 focus:outline-none cursor-pointer">';
+  AREA_OPTIONS.forEach(a => {
+    h += '<option value="' + a + '" ' + (area === a ? 'selected' : '') + ' style="background:#1a1a1a">Area ' + a + '</option>';
+  });
+  h += '</select></div>';
+  h += '<div><div class="text-[8px] font-bold text-white/30 uppercase tracking-wider mb-1">Section</div>';
+  h += '<select onchange="embedsTabFilter.section=this.value||null;renderEmbedsTab()" class="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs mono font-bold text-white/80 focus:outline-none cursor-pointer">';
+  h += '<option value="" ' + (!sectionFilter ? 'selected' : '') + ' style="background:#1a1a1a">All</option>';
+  ['A','B','C','D'].forEach(s => {
+    h += '<option value="' + s + '" ' + (sectionFilter === s ? 'selected' : '') + ' style="background:#1a1a1a">Section ' + s + '</option>';
+  });
+  h += '</select></div>';
+  h += '<div class="flex-1"></div>';
+  h += '<button onclick="loadDetailedEmbeds().then(renderEmbedsTab)" class="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80 border border-white/10 transition-all"><span class="material-symbols-outlined text-xs align-middle">refresh</span> Refresh</button>';
+  if (!isManagerView) {
+    h += '<button onclick="openAddEmbedModal()" class="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 border border-blue-500/30 transition-all"><span class="material-symbols-outlined text-xs align-middle">add</span> Add Embed</button>';
+  }
+  h += '</div>';
+
+  // ─── Summary card ───
+  const pct = grandTotal ? Math.round(grandInstalled / grandTotal * 100) : 0;
+  h += '<div class="p-4 rounded-xl border mb-4 grid grid-cols-2 md:grid-cols-5 gap-3" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);border:1px solid rgba(74,142,255,0.18)">';
+  h += '<div><div class="text-[8px] font-bold text-white/30 uppercase tracking-wider">Area</div><div class="text-2xl font-black mono text-white">' + area + '</div></div>';
+  h += '<div><div class="text-[8px] font-bold text-white/30 uppercase tracking-wider">Total</div><div class="text-2xl font-black text-white">' + grandTotal + '</div></div>';
+  h += '<div><div class="text-[8px] font-bold text-white/30 uppercase tracking-wider">Installed</div><div class="text-2xl font-black text-green-400">' + grandInstalled + '</div></div>';
+  h += '<div><div class="text-[8px] font-bold text-white/30 uppercase tracking-wider">Remaining</div><div class="text-2xl font-black text-amber-400">' + (grandTotal - grandInstalled) + '</div></div>';
+  h += '<div><div class="text-[8px] font-bold text-white/30 uppercase tracking-wider">% Complete</div><div class="text-2xl font-black mono ' + (pct >= 100 ? 'text-green-400' : 'text-blue-400') + '">' + pct + '%</div></div>';
+  h += '</div>';
+
+  // ─── Loading / empty state ───
+  if (embedsLoading && !detailedEmbeds.length) {
+    h += '<div class="text-center py-16 text-white/30">Loading embeds…</div>';
+  } else if (!grandTotal) {
+    h += '<div class="text-center py-16 text-white/30 italic">No embeds for Area ' + area + (sectionFilter ? ' / Section ' + sectionFilter : '') + '. ';
+    if (!isManagerView) h += '<a class="text-blue-400 cursor-pointer underline" onclick="openAddEmbedModal()">Add the first one</a>';
+    h += '</div>';
+  }
+
+  // ─── Section blocks ───
+  ['A','B','C','D'].forEach(sec => {
+    if (!bySec[sec].length) return;
+    const col = SECTION_COLORS_FULL[sec];
+    h += '<div class="mb-5">';
+    h += '<div class="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg" style="background:' + col.bg + ';border:1px solid ' + col.border + '">';
+    h += '<span class="text-sm font-black uppercase tracking-wider" style="color:' + col.text + '">Section ' + sec + '</span>';
+    h += '<span class="text-[10px] font-bold text-white/50">' + sectionTotals[sec].total + ' embeds · ' + sectionTotals[sec].installed + ' done · ' + (sectionTotals[sec].total - sectionTotals[sec].installed) + ' left</span>';
+    h += '</div>';
+    h += '<div class="space-y-1.5">';
+    bySec[sec].forEach(r => {
+      const meta = getEmbedMeta(r.embedId);
+      const desc = r.description || meta?.description || '';
+      const plate = r.plate || meta?.plate || '';
+      const bolts = r.bolts || meta?.bolts || '';
+      const length = r.length || meta?.length || '';
+      h += '<div class="flex items-center gap-3 p-3 rounded-lg border" style="background:' + col.bg + ';border-color:' + col.border + '">';
+      // Checkbox
+      const ckColor = r.installed ? col.text : 'transparent';
+      const ckBorder = r.installed ? col.text : 'rgba(255,255,255,0.25)';
+      h += '<div onclick="toggleEmbedInstalled(' + r.rowIdx + ')" class="w-7 h-7 rounded flex items-center justify-center shrink-0 cursor-pointer transition-all" style="background:' + ckColor + ';border:2px solid ' + ckBorder + '">';
+      if (r.installed) h += '<svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M3 7l3 3 5-6" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      h += '</div>';
+      // Embed ID + meta
+      h += '<div class="flex-1 min-w-0">';
+      h += '<div class="flex items-baseline gap-2"><span class="text-base font-black mono ' + (r.installed ? 'text-white/40 line-through' : 'text-white') + '">' + r.embedId + '</span>';
+      h += '<span class="text-[10px] text-white/40 truncate">' + desc + '</span></div>';
+      h += '<div class="flex flex-wrap items-center gap-1.5 mt-1">';
+      if (plate) h += '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/5 text-white/60">' + plate + '</span>';
+      if (bolts) h += '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/5 text-white/60">' + bolts + ' bolts</span>';
+      if (length) h += '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/5 text-white/60">' + length + '"</span>';
+      if (r.drawingRef) h += '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/5 text-white/60">' + r.drawingRef + '</span>';
+      h += '</div>';
+      h += '</div>';
+      // Notes input
+      if (!isManagerView) {
+        h += '<input type="text" value="' + (r.notes || '').replace(/"/g, '&quot;') + '" placeholder="notes…" onblur="updateEmbedNotes(' + r.rowIdx + ',this.value)" class="w-32 bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/30" />';
+        h += '<button onclick="confirmDeleteEmbed(' + r.rowIdx + ')" class="text-white/20 hover:text-red-400 transition-colors p-1"><span class="material-symbols-outlined text-base">close</span></button>';
+      } else {
+        h += '<div class="text-[10px] text-white/40 italic max-w-[140px] truncate">' + (r.notes || '') + '</div>';
+      }
+      h += '</div>';
+    });
+    h += '</div></div>';
+  });
+
+  view.innerHTML = h;
+}
+
+async function toggleEmbedInstalled(rowIdx) {
+  const r = detailedEmbeds.find(x => x.rowIdx === rowIdx);
+  if (!r) return;
+  r.installed = !r.installed;
+  renderEmbedsTab(); // optimistic
+  await upsertDetailedEmbed(r, rowIdx);
+}
+
+async function updateEmbedNotes(rowIdx, notes) {
+  const r = detailedEmbeds.find(x => x.rowIdx === rowIdx);
+  if (!r || (r.notes || '') === notes) return;
+  r.notes = notes;
+  await upsertDetailedEmbed(r, rowIdx);
+}
+
+async function confirmDeleteEmbed(rowIdx) {
+  const r = detailedEmbeds.find(x => x.rowIdx === rowIdx);
+  if (!r) return;
+  if (!confirm('Delete embed ' + r.embedId + ' from ' + r.area + ' / ' + r.section + '?')) return;
+  await deleteDetailedEmbed(rowIdx);
+  await loadDetailedEmbeds();
+  renderEmbedsTab();
+}
+
+function openAddEmbedModal() {
+  document.getElementById('addEmbedModal')?.remove();
+  const activePour = getActivePour();
+  const defaultArea = embedsTabFilter.area ?? (activePour ? getPourArea(activePour.id) : '0');
+  const defaultSection = embedsTabFilter.section || (activePour?.section) || 'A';
+
+  const grouped = embedTypes.reduce((acc, e) => {
+    (acc[e.sequence] = acc[e.sequence] || []).push(e); return acc;
+  }, {});
+
+  let h = '<div id="addEmbedModal" class="fixed inset-0 z-[200] flex items-center justify-center" style="background:rgba(0,0,0,0.65);backdrop-filter:blur(6px)" onclick="if(event.target===this)this.remove()">';
+  h += '<div class="bg-card rounded-2xl border border-white/10 p-5 w-[400px] max-w-[92vw]" style="background:rgba(15,15,25,0.96)">';
+  h += '<div class="flex items-center justify-between mb-4"><div class="text-base font-bold text-white">Add Embed</div>';
+  h += '<button onclick="document.getElementById(\'addEmbedModal\').remove()" class="text-white/30 hover:text-white"><span class="material-symbols-outlined text-base">close</span></button></div>';
+
+  h += '<div class="space-y-3">';
+  h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider">Area</label>';
+  h += '<select id="addEmbedArea" class="w-full mt-1 bg-white/5 border border-white/10 rounded px-3 py-2 text-sm mono text-white focus:outline-none focus:border-blue-400/50">';
+  AREA_OPTIONS.forEach(a => { h += '<option value="' + a + '" ' + (a === defaultArea ? 'selected' : '') + ' style="background:#1a1a1a">Area ' + a + '</option>'; });
+  h += '</select></div>';
+
+  h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider">Section</label>';
+  h += '<select id="addEmbedSection" class="w-full mt-1 bg-white/5 border border-white/10 rounded px-3 py-2 text-sm mono text-white focus:outline-none focus:border-blue-400/50">';
+  ['A','B','C','D'].forEach(s => { h += '<option value="' + s + '" ' + (s === defaultSection ? 'selected' : '') + ' style="background:#1a1a1a">Section ' + s + '</option>'; });
+  h += '</select></div>';
+
+  h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider">Embed ID</label>';
+  h += '<select id="addEmbedId" class="w-full mt-1 bg-white/5 border border-white/10 rounded px-3 py-2 text-sm mono text-white focus:outline-none focus:border-blue-400/50">';
+  h += '<option value="" style="background:#1a1a1a">— pick an embed —</option>';
+  Object.keys(grouped).sort().forEach(seq => {
+    h += '<optgroup label="Sequence ' + seq + '" style="background:#0a0a14">';
+    grouped[seq].forEach(e => {
+      h += '<option value="' + e.embedId + '" style="background:#1a1a1a">' + e.embedId + (e.description ? ' — ' + e.description.slice(0,28) : '') + '</option>';
+    });
+    h += '</optgroup>';
+  });
+  h += '</select></div>';
+
+  h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider">Drawing Ref (optional)</label>';
+  h += '<input id="addEmbedDrawing" type="text" placeholder="e.g. AB21" class="w-full mt-1 bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-400/50" /></div>';
+
+  h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider">Notes (optional)</label>';
+  h += '<input id="addEmbedNotes" type="text" placeholder="…" class="w-full mt-1 bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-400/50" /></div>';
+
+  h += '</div>';
+  h += '<div class="flex gap-2 mt-5">';
+  h += '<button onclick="document.getElementById(\'addEmbedModal\').remove()" class="flex-1 px-4 py-2 rounded-lg bg-white/5 text-white/60 text-sm font-bold hover:bg-white/10">Cancel</button>';
+  h += '<button onclick="submitAddEmbed()" class="flex-1 px-4 py-2 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/30 text-sm font-bold hover:bg-blue-500/30">Add</button>';
+  h += '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', h);
+}
+
+async function submitAddEmbed() {
+  const area = document.getElementById('addEmbedArea').value;
+  const section = document.getElementById('addEmbedSection').value;
+  const embedId = document.getElementById('addEmbedId').value;
+  const drawingRef = document.getElementById('addEmbedDrawing').value.trim();
+  const notes = document.getElementById('addEmbedNotes').value.trim();
+  if (!embedId) { alert('Pick an embed ID'); return; }
+  await upsertDetailedEmbed({
+    area, section, embedId, installed: false, status: 'Planned', drawingRef, notes,
+  });
+  document.getElementById('addEmbedModal')?.remove();
+  await loadDetailedEmbeds();
+  renderEmbedsTab();
+}
 
 // Mix design reference
 const MIX_DESIGNS = {
@@ -1925,10 +2255,18 @@ function addEmbedToFooting(pourId, embedId) {
   if (f.embeds.find(e => e.embedId === embedId)) return;
   f.embeds.push({ embedId, qty: 1 });
   saveFootingMap(pourId, map);
-  // Write to sheet
+  // Existing embed map sync (Apps Script keeps the legacy embed map)
   fetch(API_URL, { method:'POST', mode:'no-cors', body:JSON.stringify({
     action:'updateEmbeds', pourId, footingId: f.id, ftype: f.ftype, embeds: f.embeds
   })}).catch(()=>{});
+  // ALSO append a row to the Detailed Tracker scoped to this pour's area + section
+  const pour = state.pours.find(p => p.id === pourId);
+  const area = pour ? getPourArea(pour.id) : '0';
+  const section = pour?.section || 'A';
+  upsertDetailedEmbed({
+    area, section, embedId, installed: false, status: 'Planned',
+    drawingRef: '', notes: pourId + ' — ' + f.id,
+  }).catch(()=>{});
   renderMapSection();
 }
 function removeEmbedFromFooting(pourId, idx) {
@@ -1936,11 +2274,23 @@ function removeEmbedFromFooting(pourId, idx) {
   const map = loadFootingMap(pourId);
   const f = map?.footings.find(ft => ft.id === mapSelected[0]);
   if (!f || !f.embeds) return;
+  const removed = f.embeds[idx];
   f.embeds.splice(idx, 1);
   saveFootingMap(pourId, map);
   fetch(API_URL, { method:'POST', mode:'no-cors', body:JSON.stringify({
     action:'updateEmbeds', pourId, footingId: f.id, ftype: f.ftype, embeds: f.embeds
   })}).catch(()=>{});
+  // Try to delete the matching Detailed Tracker row if we have it cached
+  if (removed && detailedEmbeds.length) {
+    const pour = state.pours.find(p => p.id === pourId);
+    const area = pour ? getPourArea(pour.id) : '0';
+    const section = pour?.section || 'A';
+    const noteKey = pourId + ' — ' + f.id;
+    const match = detailedEmbeds.find(r =>
+      r.area === area && r.section === section && r.embedId === removed.embedId &&
+      (r.notes || '').includes(noteKey));
+    if (match) deleteDetailedEmbed(match.rowIdx).catch(()=>{});
+  }
   renderMapSection();
 }
 
@@ -1983,8 +2333,8 @@ function showEmbedPopup(footingId, pourIdOverride) {
   h += '<div class="p-3 space-y-1">';
   f.embeds.forEach(e => {
     const checked = getEmbedChecked(f.id, e.embedId);
-    const info = CUP_EMBEDS.find(c => c.embedId === e.embedId);
-    const detail = info ? info.bolts + ' bolts &middot; ' + info.sp : '';
+    const info = getEmbedMeta(e.embedId);
+    const detail = info ? (info.bolts ? info.bolts + ' bolts &middot; ' : '') + (info.plate || '') : '';
     const clickAttr = isManagerView ? '' : 'onclick="setEmbedChecked(\'' + f.id + '\',\'' + e.embedId + '\',' + !checked + ')"';
     h += '<div ' + clickAttr + ' class="flex items-center gap-3 p-2.5 rounded-lg ' + (isManagerView ? '' : 'cursor-pointer ') + 'transition-all ' + (checked ? 'bg-green-500/5' : 'bg-white/[0.03]' + (isManagerView ? '' : ' hover:bg-white/[0.06]')) + '">';
     h += '<div class="w-6 h-6 rounded flex items-center justify-center shrink-0" style="background:' + (checked ? '#41A447' : 'transparent') + ';border:2px solid ' + (checked ? '#41A447' : 'rgba(255,255,255,0.15)') + '">';
@@ -2194,9 +2544,22 @@ function renderMapEditToolbar(pourId) {
     });
     tb += '<select onchange="addEmbedToFooting(\'' + pourId + '\',this.value);this.value=\'\'" class="bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-[9px] mono text-white/50 focus:outline-none cursor-pointer">';
     tb += '<option value="">+ embed</option>';
-    CUP_EMBEDS.forEach(function(e) {
-      tb += '<option value="' + e.embedId + '" style="background:#1a1a1a">' + e.embedId + ' (' + e.bolts + ' bolts, ' + e.sp + ')</option>';
+    // Render embed types grouped by sequence (Sequence 0 = CUP, Sequence 1 = 200-series, etc.)
+    const groupedEmbeds = embedTypes.reduce(function(acc, e) {
+      (acc[e.sequence] = acc[e.sequence] || []).push(e); return acc;
+    }, {});
+    Object.keys(groupedEmbeds).sort().forEach(function(seq) {
+      tb += '<optgroup label="Sequence ' + seq + '" style="background:#0a0a14">';
+      groupedEmbeds[seq].forEach(function(e) {
+        const bolts = e.bolts ? e.bolts + ' bolts, ' : '';
+        const plate = e.plate || '—';
+        tb += '<option value="' + e.embedId + '" style="background:#1a1a1a">' + e.embedId + ' (' + bolts + plate + ')</option>';
+      });
+      tb += '</optgroup>';
     });
+    if (!embedTypes.length) {
+      tb += '<option value="" disabled style="background:#1a1a1a">Loading\u2026</option>';
+    }
     tb += '</select>';
     if (!curEmbeds.length) tb += '<span class="text-[8px] text-white/15 italic">No embeds assigned</span>';
     tb += '</div>';
@@ -2747,9 +3110,9 @@ function exportPourReport() {
     return `<h2>Embed Verification (${checkedE}/${totalE} checked)</h2>
     <table><tr><th>Footing</th><th>Type</th><th>Embed</th><th>Bolts</th><th>Plate</th><th>Status</th></tr>
     ${ewf.map(f => f.embeds.map(e => {
-      const info = CUP_EMBEDS.find(c => c.embedId === e.embedId);
+      const info = getEmbedMeta(e.embedId);
       const ck = getEmbedChecked(f.id, e.embedId);
-      return `<tr><td>${f.id}</td><td>${f.ftype}</td><td>${e.embedId}</td><td>${info?.bolts||''}</td><td>${info?.sp||''}</td><td class="${ck?'ok':'bad'}"><strong>${ck?'VERIFIED':'MISSING'}</strong></td></tr>`;
+      return `<tr><td>${f.id}</td><td>${f.ftype}</td><td>${e.embedId}</td><td>${info?.bolts||''}</td><td>${info?.plate||''}</td><td class="${ck?'ok':'bad'}"><strong>${ck?'VERIFIED':'MISSING'}</strong></td></tr>`;
     }).join('')).join('')}
     </table>`;
   })()}
@@ -3020,6 +3383,12 @@ function renderPourDay() {
       <div class="flex-1">
         <div class="text-base font-bold text-white">${pour.id} — ${typeDesc}</div>
         <div class="text-xs text-white/40 mono">${pour.date} · ${ordered} CY ordered · ${expectedTrucks} trucks expected</div>
+      </div>
+      <div class="flex flex-col items-end gap-1">
+        <span class="text-[8px] font-bold text-white/30 uppercase tracking-wider">Area</span>
+        <select onchange="setPourArea('${pour.id}',this.value)" class="bg-white/5 border border-white/10 rounded px-2 py-1 text-[11px] mono font-bold text-white/80 focus:outline-none cursor-pointer" ${isManagerView?'disabled':''}>
+          ${AREA_OPTIONS.map(a => `<option value="${a}" ${getPourArea(pour.id)===a?'selected':''} style="background:#1a1a1a">${a}</option>`).join('')}
+        </select>
       </div>
       ${!isManagerView ? (isLive
         ? `<button onclick="endLivePour()" class="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 border border-red-500/25 transition-all hover:bg-red-500/25"><span class="w-2 h-2 rounded-full bg-red-400 pulse"></span>LIVE — END</button>`
@@ -4847,6 +5216,8 @@ document.addEventListener('touchend', e => {
 // Init Firebase synchronously, listeners attach after state is populated in init()
 initFirebase();
 init();
+// Load embed types from the LACC Embed Tracker sheet (live, cached)
+loadEmbedTypes();
 
 setInterval(async () => {
   try {
