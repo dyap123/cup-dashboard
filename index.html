@@ -6,7 +6,7 @@
   <title>CUP Pour Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -72,8 +72,50 @@
     .alfred-msg { padding:8px 12px; margin:4px 0; border-radius:10px; font-size:12px; line-height:1.6; word-wrap:break-word; white-space:pre-wrap; animation:alfredMsgIn 0.25s ease both; }
     @keyframes alfredMsgIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
     .alfred-msg.user { background:rgba(59,130,246,0.1); color:rgba(255,255,255,0.7); max-width:75%; margin-left:auto; display:inline-block; float:right; clear:both; border:1px solid rgba(59,130,246,0.15); }
-    .alfred-msg.ai { color:rgba(200,215,235,0.7); clear:both; }
-    .alfred-msg.ai.streaming { border-left:2px solid rgba(59,130,246,0.4); padding-left:10px; }
+    /* Alfred AI — plain text, futuristic font, no bubble */
+    .alfred-msg.ai {
+      clear:both;
+      color:rgba(235,243,255,0.92);
+      font-family:'Space Grotesk','Inter',-apple-system,sans-serif;
+      font-weight:400;
+      font-size:13px;
+      line-height:1.6;
+      letter-spacing:-0.1px;
+      background:none;
+      border:none;
+      padding:6px 4px 10px;
+      white-space:normal;
+    }
+    .alfred-msg.ai p { margin:0 0 6px; }
+    .alfred-msg.ai p:last-child { margin-bottom:0; }
+    .alfred-msg.ai strong { color:#fff; font-weight:700; letter-spacing:-0.2px; }
+    .alfred-msg.ai em { color:#7CA7FF; font-style:italic; }
+    .alfred-msg.ai code { font-family:'JetBrains Mono','SF Mono',monospace; font-size:11px; color:#7CA7FF; background:rgba(74,142,255,0.08); padding:1px 5px; border-radius:4px; }
+    .alfred-msg.ai pre { font-family:'JetBrains Mono','SF Mono',monospace; font-size:11px; color:rgba(235,243,255,0.92); background:rgba(0,0,0,0.32); border-left:2px solid #4A8EFF; padding:8px 10px; margin:6px 0; overflow-x:auto; border-radius:4px; white-space:pre; }
+    .alfred-msg.ai pre code { background:none; padding:0; color:inherit; }
+    .alfred-msg.ai ul, .alfred-msg.ai ol { margin:4px 0 6px 18px; padding:0; }
+    .alfred-msg.ai li { margin:2px 0; }
+    .alfred-msg.ai ul li { list-style:disc; }
+    .alfred-msg.ai ol li { list-style:decimal; }
+    .alfred-msg.ai ul li::marker, .alfred-msg.ai ol li::marker { color:#4A8EFF; }
+    .alfred-msg.ai h3, .alfred-msg.ai h4 { color:#fff; font-weight:700; font-size:14px; margin:8px 0 4px; letter-spacing:-0.3px; }
+    .alfred-msg.ai h3:first-child, .alfred-msg.ai h4:first-child { margin-top:0; }
+    .alfred-msg.ai a { color:#7CA7FF; text-decoration:none; border-bottom:1px solid rgba(74,142,255,0.25); }
+    .alfred-msg.ai a:hover { border-bottom-color:#4A8EFF; }
+    .alfred-msg.ai hr { border:none; border-top:1px solid rgba(74,142,255,0.15); margin:8px 0; }
+    /* Word-by-word reveal animation (opacity+transform only — cheap on software rendering) */
+    .alf-word { display:inline-block; white-space:pre; }
+    .alf-word.reveal { animation:alfWord 0.55s cubic-bezier(0.16,1,0.3,1) both; }
+    @keyframes alfWord { 0% { opacity:0; transform:translate3d(0,5px,0); } 100% { opacity:1; transform:translate3d(0,0,0); } }
+    /* Streaming caret */
+    .alfred-msg.ai .alf-caret { display:inline-block; width:2px; height:1em; margin-left:2px; background:#4A8EFF; vertical-align:text-bottom; animation:alfCaret 1s ease-in-out infinite; border-radius:1px; box-shadow:0 0 8px #4A8EFF; }
+    @keyframes alfCaret { 0%,100%{opacity:0.15} 50%{opacity:1} }
+    /* Thinking dots — shown before first token */
+    .alf-dots { display:inline-flex; gap:5px; align-items:center; padding:3px 2px; }
+    .alf-dots span { width:6px; height:6px; border-radius:50%; background:#4A8EFF; box-shadow:0 0 8px rgba(74,142,255,0.3); animation:alfDot 1.3s ease-in-out infinite; }
+    .alf-dots span:nth-child(2) { animation-delay:0.15s; }
+    .alf-dots span:nth-child(3) { animation-delay:0.3s; }
+    @keyframes alfDot { 0%,70%,100% { opacity:0.25; transform:translateY(0) scale(0.8); } 35% { opacity:1; transform:translateY(-5px) scale(1); } }
     @keyframes alfredPulse { 0%,100%{box-shadow:0 0 0 rgba(59,130,246,0)} 50%{box-shadow:0 0 20px rgba(59,130,246,0.08)} }
     #alfredSidebar.thinking { animation:alfredPulse 1.2s ease-in-out infinite; }
     /* Blackjack Sidebar */
@@ -4280,7 +4322,19 @@ async function sendAlfred() {
     const decoder = new TextDecoder();
     let full = '';
     const el = appendAlfredMsg('ai', '');
+    // Thinking dots until first token arrives
+    el.innerHTML = '<span class="alf-dots"><span></span><span></span><span></span></span>';
     el.classList.add('streaming');
+    let firstToken = true, prevWords = 0;
+    // rAF-throttled render so rapid token deltas coalesce into one DOM walk per frame
+    let pendingVisible = null, pendingRaf = 0;
+    const flushRender = () => {
+      pendingRaf = 0;
+      if (pendingVisible === null) return;
+      prevWords = renderAlfStreaming(el, pendingVisible, prevWords, true);
+      pendingVisible = null;
+      scrollAlfredMessages();
+    };
     let buf = '';
     while (true) {
       const {done, value} = await reader.read();
@@ -4296,14 +4350,19 @@ async function sendAlfred() {
           const evt = JSON.parse(d);
           // Only show text deltas, skip thinking deltas
           if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta' && evt.delta?.text) {
+            if (firstToken) { firstToken = false; el.innerHTML = ''; }
             full += evt.delta.text;
-            el.textContent = full;
-            scrollAlfredMessages();
+            pendingVisible = full.replace(/```update\s*\n[\s\S]*?\n```/g, '');
+            if (!pendingRaf) pendingRaf = requestAnimationFrame(flushRender);
           }
         } catch{}
       }
     }
+    if (pendingRaf) { cancelAnimationFrame(pendingRaf); flushRender(); }
     el.classList.remove('streaming');
+    // Final render without caret, without update blocks
+    const finalVisible = full.replace(/```update\s*\n[\s\S]*?\n```/g, '').trim();
+    renderAlfStreaming(el, finalVisible, prevWords, false);
     alfredHistory.push({role:'assistant',content:full});
     VAULT_NOTES.forEach(n => { if (full.includes(n.name)) highlightBrainNode(n.name); });
     // Parse update commands from Alfred
@@ -4330,10 +4389,82 @@ function appendAlfredMsg(type, text) {
   const container = document.getElementById('alfredMessages');
   const div = document.createElement('div');
   div.className = 'alfred-msg ' + (type === 'user' ? 'user' : 'ai');
-  div.textContent = text;
+  if (type === 'user') div.textContent = text;
+  else div.innerHTML = text ? formatAlfMd(text) : '';
   container.appendChild(div);
   scrollAlfredMessages();
   return div;
+}
+
+// Render streaming text with word-level reveal animation.
+// Walks the formatted markdown DOM, wraps each word in a .alf-word span,
+// applies .reveal (fade+translate-in animation) only to words beyond `prevWords`.
+function renderAlfStreaming(el, text, prevWords, showCaret) {
+  el.innerHTML = formatAlfMd(text);
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const textNodes = []; let n;
+  while ((n = walker.nextNode())) textNodes.push(n);
+  let wordIdx = 0;
+  textNodes.forEach(node => {
+    const parts = node.textContent.split(/(\s+)/);
+    const frag = document.createDocumentFragment();
+    parts.forEach(part => {
+      if (!part) return;
+      if (!/\S/.test(part)) { frag.appendChild(document.createTextNode(part)); return; }
+      const span = document.createElement('span');
+      span.className = 'alf-word';
+      span.textContent = part;
+      if (wordIdx >= prevWords) {
+        span.classList.add('reveal');
+        span.style.animationDelay = Math.min((wordIdx - prevWords) * 55, 900) + 'ms';
+      }
+      frag.appendChild(span);
+      wordIdx++;
+    });
+    node.parentNode.replaceChild(frag, node);
+  });
+  if (showCaret) {
+    const caret = document.createElement('span');
+    caret.className = 'alf-caret';
+    el.appendChild(caret);
+  }
+  return wordIdx;
+}
+
+// Minimal markdown → HTML for Alfred's replies.
+// Supports: **bold**, *italic*, `code`, ```fenced code```, ### headings,
+// - and 1. lists, [links](url), ---, paragraphs, line breaks.
+function formatAlfMd(text) {
+  if (!text) return '';
+  let h = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // Fenced code blocks
+  h = h.replace(/```([a-z]*)\n?([\s\S]*?)```/g, (m,lang,code) => '<pre><code>'+code.trim()+'</code></pre>');
+  // Inline code
+  h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  // Headings
+  h = h.replace(/^###\s+(.+)$/gm, '<h4>$1</h4>');
+  h = h.replace(/^##\s+(.+)$/gm, '<h3>$1</h3>');
+  // Bold
+  h = h.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  // Italic
+  h = h.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+  // Links
+  h = h.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // List items
+  h = h.replace(/^(?:-|\*)\s+(.+)$/gm, '<li class="ul">$1</li>');
+  h = h.replace(/^\d+\.\s+(.+)$/gm, '<li class="ol">$1</li>');
+  h = h.replace(/(?:<li class="ul">[\s\S]*?<\/li>\n?)+/g, m => '<ul>'+m.replace(/ class="ul"/g,'')+'</ul>');
+  h = h.replace(/(?:<li class="ol">[\s\S]*?<\/li>\n?)+/g, m => '<ol>'+m.replace(/ class="ol"/g,'')+'</ol>');
+  // Horizontal rule
+  h = h.replace(/^---+$/gm, '<hr>');
+  // Paragraphs
+  h = h.split(/\n{2,}/).map(chunk => {
+    const c = chunk.trim();
+    if (!c) return '';
+    if (/^<(h3|h4|ul|ol|pre|hr)/.test(c)) return c;
+    return '<p>'+c.replace(/\n/g,'<br>')+'</p>';
+  }).join('');
+  return h;
 }
 function scrollAlfredMessages() {
   const c = document.getElementById('alfredMessages');
