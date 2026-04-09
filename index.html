@@ -4014,10 +4014,14 @@ function toggleAlfred() {
     document.removeEventListener('pointerdown', alfredOutsideClick);
   }
 }
+let alfredLastOutsideTap = 0;
 function alfredOutsideClick(e) {
   const sb = document.getElementById('alfredSidebar');
   const tg = document.getElementById('alfredToggle');
-  if (sb && !sb.contains(e.target) && tg && !tg.contains(e.target)) toggleAlfred();
+  if (!sb || sb.contains(e.target) || (tg && tg.contains(e.target))) return;
+  const now = Date.now();
+  if (now - alfredLastOutsideTap < 450) { alfredLastOutsideTap = 0; toggleAlfred(); }
+  else alfredLastOutsideTap = now;
 }
 
 // Swipe to open/close on touch devices
