@@ -3712,6 +3712,35 @@ function renderLive() {
     </div>
   </div>`;
 
+  // Inspection status banner — pulled from Pour Checklist sheet (INSPECTIONS phase)
+  (() => {
+    const insp = getInspectionStatus(pour.id);
+    if (!insp.ready || !insp.total) return;
+    const pctI = Math.round(insp.done / insp.total * 100);
+    const clrI = pctI === 100 ? '#41A447' : pctI > 0 ? '#FFBF00' : '#ef4444';
+    const clickAttr = isManagerView ? '' : `onclick="jumpToInspections('${pour.id}')"`;
+    const cursorCls = isManagerView ? '' : 'cursor-pointer hover:brightness-125';
+    h += `<div class="mb-6 p-4 rounded-2xl ${cursorCls} transition-all" ${clickAttr} style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid ${clrI}33">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined" style="font-size:16px;color:${clrI}">assignment_turned_in</span>
+          <span class="text-[10px] font-black uppercase tracking-widest" style="color:${clrI}">Inspections</span>
+          <span class="mono text-[11px] font-bold" style="color:${clrI}">${insp.done}/${insp.total}</span>
+        </div>
+        <span class="mono text-xs font-black" style="color:${clrI}">${pctI}%</span>
+      </div>
+      <div class="h-1.5 rounded-full bg-white/5 overflow-hidden mb-3">
+        <div class="h-full rounded-full transition-all duration-500" style="width:${pctI}%;background:${clrI};box-shadow:0 0 8px ${clrI}66"></div>
+      </div>
+      <div class="flex flex-wrap gap-1.5">
+        ${insp.items.map(it => {
+          const short = it.what.length > 24 ? it.what.slice(0, 22) + '…' : it.what;
+          return `<span title="${it.what.replace(/"/g, '&quot;')} (${it.who})" class="text-[9px] mono px-2 py-1 rounded-md ${it.done ? 'bg-green-500/15 text-green-300' : 'bg-white/[0.04] text-white/40'}">${short}${it.done ? ' \u2713' : ''}</span>`;
+        }).join('')}
+      </div>
+    </div>`;
+  })();
+
   // Stats cards
   h += `<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
     <div class="p-3 rounded-xl flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
