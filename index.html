@@ -2931,9 +2931,22 @@ function initMapDrag() {
   svg.addEventListener('pointerdown', e => {
     if (!mapEditMode) return;
     const el = e.target.closest('[data-ftg-id]');
-    if (!el) { mapSelected = []; renderMapSection(); return; }
+    if (!el) {
+      // Clicked empty space → clear ALL selection
+      mapSelected = [];
+      renderMapSection();
+      return;
+    }
     const id = el.dataset.ftgId;
-    if (!mapSelected.includes(id)) mapSelected = [id];
+    if (e.shiftKey) {
+      // Shift+click → toggle in/out of multi-selection
+      const idx = mapSelected.indexOf(id);
+      if (idx >= 0) mapSelected.splice(idx, 1); else mapSelected.push(id);
+      renderMapSection();
+      return; // don't start drag on shift-click
+    }
+    // Normal click → select ONLY this one (break any multi-selection)
+    mapSelected = [id];
     const pourId = getActivePour()?.id;
     const map = loadFootingMap(pourId);
     const f = map?.footings.find(ft => ft.id === id);
