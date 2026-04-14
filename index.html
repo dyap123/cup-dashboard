@@ -2935,35 +2935,42 @@ function snapToGrid(val, gridPositions, threshold) {
 
 function initMapDrag() {
   const svg = document.querySelector('#mapSection svg');
-  if (!svg) return;
+  if (!svg || svg._dragBound) return;
+  svg._dragBound = true; // prevent duplicate bindings
+
+  function getSvgPoint(e) {
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX; pt.y = e.clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  }
 
   svg.addEventListener('pointerdown', e => {
     if (!mapEditMode) return;
+    const svgP = getSvgPoint(e);
+    const pourId = getActivePour()?.id;
+    if (!pourId) return;
 
-    // Check if clicking a grid line handle
+    // Grid column drag
     const gridColEl = e.target.closest('[data-grid-col]');
-    const gridRowEl = e.target.closest('[data-grid-row]');
-    if (gridColEl || gridRowEl) {
-      const pourId = getActivePour()?.id;
-      const pt = svg.createSVGPoint();
-      pt.x = e.clientX; pt.y = e.clientY;
-      const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
-      if (gridColEl) {
-        const ci = parseInt(gridColEl.dataset.gridCol);
-        const map = loadFootingMap(pourId);
-        const origX = map.gridCols[ci].x;
-        mapDragging = { type:'gridCol', pourId, colIdx: ci, startX: svgP.x, origX };
-      } else {
-        const ri = parseInt(gridRowEl.dataset.gridRow);
-        const map = loadFootingMap(pourId);
-        const origY = map.gridRows[ri].y;
-        mapDragging = { type:'gridRow', pourId, rowIdx: ri, startY: svgP.y, origY };
-      }
+    if (gridColEl) {
+      const ci = parseInt(gridColEl.dataset.gridCol);
+      const map = loadFootingMap(pourId);
+      mapDragging = { type:'gridCol', pourId, colIdx: ci, startX: svgP.x, origX: map.gridCols[ci].x, moved: false };
       svg.setPointerCapture(e.pointerId);
       e.preventDefault();
       return;
     }
-
+    // Grid row drag
+    const gridRowEl = e.target.closest('[data-grid-row]');
+    if (gridRowEl) {
+      const ri = parseInt(gridRowEl.dataset.gridRow);
+      const map = loadFootingMap(pourId);
+      mapDragging = { type:'gridRow', pourId, rowIdx: ri, startY: svgP.y, origY: map.gridRows[ri].y, moved: false };
+      svg.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      return;
+    }
+    // Footing drag
     const el = e.target.closest('[data-ftg-id]');
     if (!el) {
       mapSelected = [];
@@ -2978,77 +2985,82 @@ function initMapDrag() {
       return;
     }
     mapSelected = [id];
-    const pourId = getActivePour()?.id;
     const map = loadFootingMap(pourId);
     const f = map?.footings.find(ft => ft.id === id);
     if (!f) return;
-
-    const pt = svg.createSVGPoint();
-    pt.x = e.clientX; pt.y = e.clientY;
-    const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
-
-    mapDragging = { type:'footing', id, pourId, startX: svgP.x, startY: svgP.y, origX: f.x, origY: f.y };
+    mapDragging = { type:'footing', id, pourId, startX: svgP.x, startY: svgP.y, origX: f.x, origY: f.y, moved: false };
     svg.setPointerCapture(e.pointerId);
     e.preventDefault();
   });
 
   svg.addEventListener('pointermove', e => {
     if (!mapDragging) return;
-    const pt = svg.createSVGPoint();
-    pt.x = e.clientX; pt.y = e.clientY;
-    const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const svgP = getSvgPoint(e);
     const map = loadFootingMap(mapDragging.pourId);
     if (!map) return;
 
     if (mapDragging.type === 'gridCol') {
-      // Drag grid column
       const dx = svgP.x - mapDragging.startX;
+      if (Math.abs(dx) < 3 && !mapDragging.moved) return; // dead zone
+      mapDragging.moved = true;
       const newX = Math.max(10, Math.round(mapDragging.origX + dx));
+      // Live update the SVG line + label + hit area without full re-render
+      const colLine = svg.querySelector('line[x1="' + map.gridCols[mapDragging.colIdx].x + '"]');
+      const colHandle = svg.querySelector('[data-grid-col="' + mapDragging.colIdx + '"]');
       map.gridCols[mapDragging.colIdx].x = newX;
-      saveFootingMap(mapDragging.pourId, map);
-      renderMapSection();
-      requestAnimationFrame(initMapDrag); // re-bind after re-render
+      if (colLine) { colLine.setAttribute('x1', newX); colLine.setAttribute('x2', newX); }
+      if (colHandle) colHandle.setAttribute('x', newX - 8);
+      // Update label text position
+      const texts = svg.querySelectorAll('text');
+      // We'll do a full re-render on pointerup instead
+
     } else if (mapDragging.type === 'gridRow') {
-      // Drag grid row
       const dy = svgP.y - mapDragging.startY;
+      if (Math.abs(dy) < 3 && !mapDragging.moved) return;
+      mapDragging.moved = true;
       const newY = Math.max(10, Math.round(mapDragging.origY + dy));
       map.gridRows[mapDragging.rowIdx].y = newY;
-      saveFootingMap(mapDragging.pourId, map);
-      renderMapSection();
-      requestAnimationFrame(initMapDrag);
+
     } else if (mapDragging.type === 'footing') {
-      // Drag footing with snap-to-grid
       const dx = svgP.x - mapDragging.startX;
       const dy = svgP.y - mapDragging.startY;
+      if (Math.abs(dx) < 3 && Math.abs(dy) < 3 && !mapDragging.moved) return; // dead zone
+      mapDragging.moved = true;
       const f = map.footings.find(ft => ft.id === mapDragging.id);
       if (!f) return;
       var rawX = Math.max(0, Math.round(mapDragging.origX + dx));
       var rawY = Math.max(0, Math.round(mapDragging.origY + dy));
-      // Snap footing edges to grid lines
+      // Snap to grid
       var colXs = (map.gridCols || []).map(function(g) { return g.x; });
       var rowYs = (map.gridRows || []).map(function(g) { return g.y; });
-      // Snap left edge OR center to column
-      var snappedX = snapToGrid(rawX, colXs, 12);
-      if (snappedX === rawX) snappedX = snapToGrid(rawX + f.w / 2, colXs, 12) - f.w / 2;
-      // Snap top edge OR center to row
-      var snappedY = snapToGrid(rawY, rowYs, 12);
-      if (snappedY === rawY) snappedY = snapToGrid(rawY + f.h / 2, rowYs, 12) - f.h / 2;
+      var snappedX = snapToGrid(rawX, colXs, 14);
+      if (snappedX === rawX) snappedX = snapToGrid(rawX + f.w / 2, colXs, 14) - f.w / 2;
+      var snappedY = snapToGrid(rawY, rowYs, 14);
+      if (snappedY === rawY) snappedY = snapToGrid(rawY + f.h / 2, rowYs, 14) - f.h / 2;
       f.x = Math.max(0, Math.round(snappedX));
       f.y = Math.max(0, Math.round(snappedY));
-      // Live update SVG positions
-      const els = svg.querySelectorAll('[data-ftg-id="' + mapDragging.id + '"]');
-      els.forEach(el => { el.setAttribute('x', f.x); el.setAttribute('y', f.y); });
+      // Move the entire footing group — no re-render during drag
+      // Use a transform on the footing's SVG elements for smooth dragging
+      const movedDx = f.x - mapDragging.origX;
+      const movedDy = f.y - mapDragging.origY;
+      // Find all elements for this footing and translate them
+      svg.querySelectorAll('[data-ftg-id="' + mapDragging.id + '"]').forEach(el => {
+        el.setAttribute('x', f.x);
+        el.setAttribute('y', f.y);
+      });
     }
   });
 
   svg.addEventListener('pointerup', e => {
     if (!mapDragging) return;
-    if (mapDragging.type === 'footing') {
+    const wasMoved = mapDragging.moved;
+    if (wasMoved) {
+      // Save + full re-render to update labels, connections, viewBox
       const map = loadFootingMap(mapDragging.pourId);
       saveFootingMap(mapDragging.pourId, map);
     }
     mapDragging = null;
-    renderMapSection();
+    if (wasMoved) renderMapSection();
   });
 }
 
