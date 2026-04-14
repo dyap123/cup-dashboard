@@ -2924,28 +2924,59 @@ function deleteSelectedFooting(pourId) {
 }
 
 // SVG drag support for edit mode
+// Snap a value to the nearest grid line position (within threshold)
+function snapToGrid(val, gridPositions, threshold) {
+  threshold = threshold || 15;
+  for (var i = 0; i < gridPositions.length; i++) {
+    if (Math.abs(val - gridPositions[i]) < threshold) return gridPositions[i];
+  }
+  return val;
+}
+
 function initMapDrag() {
   const svg = document.querySelector('#mapSection svg');
   if (!svg) return;
 
   svg.addEventListener('pointerdown', e => {
     if (!mapEditMode) return;
+
+    // Check if clicking a grid line handle
+    const gridColEl = e.target.closest('[data-grid-col]');
+    const gridRowEl = e.target.closest('[data-grid-row]');
+    if (gridColEl || gridRowEl) {
+      const pourId = getActivePour()?.id;
+      const pt = svg.createSVGPoint();
+      pt.x = e.clientX; pt.y = e.clientY;
+      const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+      if (gridColEl) {
+        const ci = parseInt(gridColEl.dataset.gridCol);
+        const map = loadFootingMap(pourId);
+        const origX = map.gridCols[ci].x;
+        mapDragging = { type:'gridCol', pourId, colIdx: ci, startX: svgP.x, origX };
+      } else {
+        const ri = parseInt(gridRowEl.dataset.gridRow);
+        const map = loadFootingMap(pourId);
+        const origY = map.gridRows[ri].y;
+        mapDragging = { type:'gridRow', pourId, rowIdx: ri, startY: svgP.y, origY };
+      }
+      svg.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      return;
+    }
+
     const el = e.target.closest('[data-ftg-id]');
     if (!el) {
-      // Clicked empty space → clear ALL selection
       mapSelected = [];
       renderMapSection();
       return;
     }
     const id = el.dataset.ftgId;
     if (e.shiftKey) {
-      // Shift+click → toggle in/out of multi-selection
       const idx = mapSelected.indexOf(id);
       if (idx >= 0) mapSelected.splice(idx, 1); else mapSelected.push(id);
       renderMapSection();
-      return; // don't start drag on shift-click
+      return;
     }
-    // Normal click → select ONLY this one (break any multi-selection)
     mapSelected = [id];
     const pourId = getActivePour()?.id;
     const map = loadFootingMap(pourId);
@@ -2956,7 +2987,7 @@ function initMapDrag() {
     pt.x = e.clientX; pt.y = e.clientY;
     const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
 
-    mapDragging = { id, pourId, startX: svgP.x, startY: svgP.y, origX: f.x, origY: f.y };
+    mapDragging = { type:'footing', id, pourId, startX: svgP.x, startY: svgP.y, origX: f.x, origY: f.y };
     svg.setPointerCapture(e.pointerId);
     e.preventDefault();
   });
@@ -2966,25 +2997,56 @@ function initMapDrag() {
     const pt = svg.createSVGPoint();
     pt.x = e.clientX; pt.y = e.clientY;
     const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
-
-    const dx = svgP.x - mapDragging.startX;
-    const dy = svgP.y - mapDragging.startY;
-
     const map = loadFootingMap(mapDragging.pourId);
-    const f = map?.footings.find(ft => ft.id === mapDragging.id);
-    if (!f) return;
-    f.x = Math.max(0, Math.round(mapDragging.origX + dx));
-    f.y = Math.max(0, Math.round(mapDragging.origY + dy));
+    if (!map) return;
 
-    // Live update all SVG elements for this footing (rect + texts)
-    const els = svg.querySelectorAll(`[data-ftg-id="${mapDragging.id}"]`);
-    els.forEach(el => { el.setAttribute('x', f.x); el.setAttribute('y', f.y); });
+    if (mapDragging.type === 'gridCol') {
+      // Drag grid column
+      const dx = svgP.x - mapDragging.startX;
+      const newX = Math.max(10, Math.round(mapDragging.origX + dx));
+      map.gridCols[mapDragging.colIdx].x = newX;
+      saveFootingMap(mapDragging.pourId, map);
+      renderMapSection();
+      requestAnimationFrame(initMapDrag); // re-bind after re-render
+    } else if (mapDragging.type === 'gridRow') {
+      // Drag grid row
+      const dy = svgP.y - mapDragging.startY;
+      const newY = Math.max(10, Math.round(mapDragging.origY + dy));
+      map.gridRows[mapDragging.rowIdx].y = newY;
+      saveFootingMap(mapDragging.pourId, map);
+      renderMapSection();
+      requestAnimationFrame(initMapDrag);
+    } else if (mapDragging.type === 'footing') {
+      // Drag footing with snap-to-grid
+      const dx = svgP.x - mapDragging.startX;
+      const dy = svgP.y - mapDragging.startY;
+      const f = map.footings.find(ft => ft.id === mapDragging.id);
+      if (!f) return;
+      var rawX = Math.max(0, Math.round(mapDragging.origX + dx));
+      var rawY = Math.max(0, Math.round(mapDragging.origY + dy));
+      // Snap footing edges to grid lines
+      var colXs = (map.gridCols || []).map(function(g) { return g.x; });
+      var rowYs = (map.gridRows || []).map(function(g) { return g.y; });
+      // Snap left edge OR center to column
+      var snappedX = snapToGrid(rawX, colXs, 12);
+      if (snappedX === rawX) snappedX = snapToGrid(rawX + f.w / 2, colXs, 12) - f.w / 2;
+      // Snap top edge OR center to row
+      var snappedY = snapToGrid(rawY, rowYs, 12);
+      if (snappedY === rawY) snappedY = snapToGrid(rawY + f.h / 2, rowYs, 12) - f.h / 2;
+      f.x = Math.max(0, Math.round(snappedX));
+      f.y = Math.max(0, Math.round(snappedY));
+      // Live update SVG positions
+      const els = svg.querySelectorAll('[data-ftg-id="' + mapDragging.id + '"]');
+      els.forEach(el => { el.setAttribute('x', f.x); el.setAttribute('y', f.y); });
+    }
   });
 
   svg.addEventListener('pointerup', e => {
     if (!mapDragging) return;
-    const map = loadFootingMap(mapDragging.pourId);
-    saveFootingMap(mapDragging.pourId, map);
+    if (mapDragging.type === 'footing') {
+      const map = loadFootingMap(mapDragging.pourId);
+      saveFootingMap(mapDragging.pourId, map);
+    }
     mapDragging = null;
     renderMapSection();
   });
@@ -3635,9 +3697,24 @@ function renderMapSection() {
       saveFootingMap(pour.id, mapData);
     }
 
-    // Now build grid lines using the computed bounds
-    var gridColsSvg = (mapData.gridCols||[]).map(function(g){ return '<line x1="'+g.x+'" y1="15" x2="'+g.x+'" y2="'+(maxY-10)+'" stroke="rgba(255,255,255,0.08)" stroke-width="1"/><text x="'+g.x+'" y="12" text-anchor="middle" font-size="11" font-family="JetBrains Mono" fill="rgba(255,255,255,0.30)" font-weight="700">'+g.label+'</text>'; }).join('');
-    var gridRowsSvg = (mapData.gridRows||[]).map(function(g){ return '<line x1="5" y1="'+g.y+'" x2="'+(maxX-5)+'" y2="'+g.y+'" stroke="rgba(255,255,255,0.06)" stroke-width="1"/><text x="4" y="'+(g.y+4)+'" font-size="10" font-family="JetBrains Mono" fill="rgba(255,255,255,0.25)" font-weight="700">'+g.label+'</text>'; }).join('');
+    // Build grid lines — in edit mode, add invisible wider hit areas + data attributes for dragging
+    var gridColsSvg = (mapData.gridCols||[]).map(function(g, ci){
+      var s = '<line x1="'+g.x+'" y1="15" x2="'+g.x+'" y2="'+(maxY-10)+'" stroke="rgba(255,255,255,0.08)" stroke-width="1" pointer-events="none"/>';
+      s += '<text x="'+g.x+'" y="12" text-anchor="middle" font-size="11" font-family="JetBrains Mono" fill="rgba(255,255,255,0.30)" font-weight="700" pointer-events="none">'+g.label+'</text>';
+      if (mapEditMode) {
+        // Wide invisible drag handle over the column line
+        s += '<rect data-grid-col="'+ci+'" x="'+(g.x-8)+'" y="0" width="16" height="'+maxY+'" fill="transparent" style="cursor:ew-resize" />';
+      }
+      return s;
+    }).join('');
+    var gridRowsSvg = (mapData.gridRows||[]).map(function(g, ri){
+      var s = '<line x1="5" y1="'+g.y+'" x2="'+(maxX-5)+'" y2="'+g.y+'" stroke="rgba(255,255,255,0.06)" stroke-width="1" pointer-events="none"/>';
+      s += '<text x="4" y="'+(g.y+4)+'" font-size="10" font-family="JetBrains Mono" fill="rgba(255,255,255,0.25)" font-weight="700" pointer-events="none">'+g.label+'</text>';
+      if (mapEditMode) {
+        s += '<rect data-grid-row="'+ri+'" x="0" y="'+(g.y-8)+'" width="'+maxX+'" height="16" fill="transparent" style="cursor:ns-resize" />';
+      }
+      return s;
+    }).join('');
 
     // SVG container — scrollable, min-height scales with content
     var svgMinH = Math.max(maxY * 0.8, 500);
