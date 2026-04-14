@@ -628,12 +628,23 @@ const SEC_DIM    = { A:'#142218', B:'#2a1c0e', C:'#14222e', D:'#1e1a2e' };
 function getPourLabel(id) { return localStorage.getItem('cup_label_'+id) || ''; }
 function setPourLabel(id, val) { if (isManagerView) return; localStorage.setItem('cup_label_'+id, val); }
 
-// Pour ↔ embed-tracker area mapping (each pour belongs to a sequence area like '0', '1-1', etc.)
-// Defaults to '0' (CUP) since we're still in CUP phase. Persisted to localStorage + Firebase.
+// Pour ↔ embed-tracker area mapping.
+// LACC areas: 0 has sub-areas A/B/C/D (CUP phase), then sequences 1, 2, 3.
+// Defaults to '0A' since we're still in CUP phase. Persisted to localStorage + Firebase.
 const POUR_AREA_KEY = 'cup_area_';
-const AREA_OPTIONS = ['0','0.5-1','0.5-2','1-1','1-5','1-6','2-7','2-9','3-3','3-4','3-8'];
+const AREA_OPTIONS = ['0A','0B','0C','0D','1','2','3'];
+// Legacy values that predate the A/B/C/D split; migrated on read so old pours don't show blank.
+const LEGACY_AREA_MAP = {
+  '0': '0A', '0.5-1': '0A', '0.5-2': '0B',
+  '1-1': '1', '1-5': '1', '1-6': '1',
+  '2-7': '2', '2-9': '2',
+  '3-3': '3', '3-4': '3', '3-8': '3',
+};
 let pourAreaCache = {};
-function getPourArea(id) { return localStorage.getItem(POUR_AREA_KEY + id) || pourAreaCache[id] || '0'; }
+function getPourArea(id) {
+  const raw = localStorage.getItem(POUR_AREA_KEY + id) || pourAreaCache[id] || '0A';
+  return LEGACY_AREA_MAP[raw] || raw;
+}
 function setPourArea(id, val) {
   if (isManagerView) return;
   localStorage.setItem(POUR_AREA_KEY + id, val);
@@ -1767,7 +1778,7 @@ function loadDetailedEmbeds() {
 function upsertDetailedEmbed(row, existingId) {
   const now = new Date().toISOString();
   const payload = {
-    area: String(row.area || '0'),
+    area: String(row.area || '0A'),
     section: row.section || 'A',
     embedId: row.embedId || '',
     installed: row.installed === true,
@@ -1936,7 +1947,7 @@ function confirmDeleteEmbed(id) {
 function openAddEmbedModal() {
   document.getElementById('addEmbedModal')?.remove();
   const activePour = getActivePour();
-  const defaultArea = embedsTabFilter.area ?? (activePour ? getPourArea(activePour.id) : '0');
+  const defaultArea = embedsTabFilter.area ?? (activePour ? getPourArea(activePour.id) : '0A');
   const defaultSection = embedsTabFilter.section || (activePour?.section) || 'A';
 
   const grouped = embedTypes.reduce((acc, e) => {
@@ -2004,7 +2015,7 @@ function submitAddEmbed() {
 // Mirrors the foreman PDF style: section blocks with totals, grouped by Embed ID.
 function exportEmbedSummary() {
   const activePour = getActivePour();
-  const area = embedsTabFilter.area ?? (activePour ? getPourArea(activePour.id) : '0');
+  const area = embedsTabFilter.area ?? (activePour ? getPourArea(activePour.id) : '0A');
   const sectionFilter = embedsTabFilter.section;
   let rows = detailedEmbeds.filter(r => String(r.area) === String(area));
   if (sectionFilter) rows = rows.filter(r => r.section === sectionFilter);
@@ -2499,7 +2510,7 @@ function addEmbedToFooting(pourId, embedId) {
   saveFootingMap(pourId, map);
   // Append a Firebase embed record scoped to this pour's area + section
   const pour = state.pours.find(p => p.id === pourId);
-  const area = pour ? getPourArea(pour.id) : '0';
+  const area = pour ? getPourArea(pour.id) : '0A';
   const section = pour?.section || 'A';
   upsertDetailedEmbed({
     area, section, embedId, installed: false, status: 'Planned',
