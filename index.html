@@ -2828,10 +2828,29 @@ function addFootingToMap(section, type) {
   const defaultType = type==='gb'?'GB':type==='pc'?'PC2K':'F8';
   const id = `${defaultType}-${num}`;
   const cy = FTG_PRESETS[defaultType] || 0;
-  map.footings.push({ id, x:350, y:250, w:d.w, h:d.h, cy, type, ftype:defaultType });
+  // Smart placement: find an open spot near existing footings or center of visible area
+  let px = 350, py = 250;
+  if (map.footings.length > 0) {
+    // Place to the right of the rightmost footing, or below if too far right
+    const vb = (map.viewBox || '0 0 1200 500').split(' ').map(Number);
+    const maxFtg = map.footings.reduce((best, f) => f.x + f.w > best.x + best.w ? f : best, map.footings[0]);
+    px = maxFtg.x + maxFtg.w + 20;
+    py = maxFtg.y;
+    // Wrap to next row if off-screen
+    if (px + d.w > vb[2] - 20) {
+      px = 40;
+      py = map.footings.reduce((max, f) => Math.max(max, f.y + f.h), 0) + 30;
+    }
+  }
+  map.footings.push({ id, x:px, y:py, w:d.w, h:d.h, cy, type, ftype:defaultType });
   saveFootingMap(section, map);
   mapSelected = [id];
   renderMapSection();
+  // Scroll the new footing into view
+  setTimeout(() => {
+    const el = document.querySelector('[data-ftg-id="'+id+'"]');
+    if (el) el.scrollIntoView({ behavior:'smooth', block:'center' });
+  }, 100);
 }
 
 // Live inline editor — updates map in real-time as user types
@@ -3586,14 +3605,33 @@ function renderMapSection() {
         if (embSt === 'missing') ftgSvg += '<circle cx="'+dx+'" cy="'+dy+'" r="5" fill="none" stroke="'+embClr+'" stroke-width="1" opacity="0.5" pointer-events="none"><animate attributeName="r" from="5" to="11" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" from="0.5" to="0" dur="1.5s" repeatCount="indefinite"/></circle>';
       }
     }
-    var gridColsSvg = (mapData.gridCols||[]).map(function(g){ return '<line x1="'+g.x+'" y1="15" x2="'+g.x+'" y2="490" stroke="rgba(255,255,255,0.08)" stroke-width="1"/><text x="'+g.x+'" y="12" text-anchor="middle" font-size="11" font-family="JetBrains Mono" fill="rgba(255,255,255,0.30)" font-weight="700">'+g.label+'</text>'; }).join('');
-    var gridRowsSvg = (mapData.gridRows||[]).map(function(g){ return '<line x1="5" y1="'+g.y+'" x2="1195" y2="'+g.y+'" stroke="rgba(255,255,255,0.06)" stroke-width="1"/><text x="4" y="'+(g.y+4)+'" font-size="10" font-family="JetBrains Mono" fill="rgba(255,255,255,0.25)" font-weight="700">'+g.label+'</text>'; }).join('');
+    var gridW = Math.max(maxX, 1200);
+    var gridH = Math.max(maxY, 500);
+    var gridColsSvg = (mapData.gridCols||[]).map(function(g){ return '<line x1="'+g.x+'" y1="15" x2="'+g.x+'" y2="'+(gridH-10)+'" stroke="rgba(255,255,255,0.08)" stroke-width="1"/><text x="'+g.x+'" y="12" text-anchor="middle" font-size="11" font-family="JetBrains Mono" fill="rgba(255,255,255,0.30)" font-weight="700">'+g.label+'</text>'; }).join('');
+    var gridRowsSvg = (mapData.gridRows||[]).map(function(g){ return '<line x1="5" y1="'+g.y+'" x2="'+(gridW-5)+'" y2="'+g.y+'" stroke="rgba(255,255,255,0.06)" stroke-width="1"/><text x="4" y="'+(g.y+4)+'" font-size="10" font-family="JetBrains Mono" fill="rgba(255,255,255,0.25)" font-weight="700">'+g.label+'</text>'; }).join('');
 
-    mh += '<div style="height:75vh;min-height:500px;overflow:auto">'
-      + '<svg viewBox="' + mapData.viewBox + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:800px">'
-      + '<rect width="1200" height="500" fill="#080c14"/>'
+    // Auto-extend viewBox to fit all footings (expand if anything is off-screen)
+    var vb = (mapData.viewBox || '0 0 1200 500').split(' ').map(Number);
+    var maxX = vb[2], maxY = vb[3];
+    ftgs.forEach(function(f) {
+      if (f.x + f.w + 40 > maxX) maxX = f.x + f.w + 80;
+      if (f.y + f.h + 40 > maxY) maxY = f.y + f.h + 80;
+    });
+    // Also extend for grid labels
+    (mapData.gridCols||[]).forEach(function(g) { if (g.x + 40 > maxX) maxX = g.x + 80; });
+    (mapData.gridRows||[]).forEach(function(g) { if (g.y + 30 > maxY) maxY = g.y + 60; });
+    var dynViewBox = '0 0 ' + Math.max(maxX, 1200) + ' ' + Math.max(maxY, 500);
+    // Save back if expanded
+    if (maxX > vb[2] || maxY > vb[3]) {
+      mapData.viewBox = dynViewBox;
+      saveFootingMap(pour.id, mapData);
+    }
+
+    mh += '<div style="height:75vh;min-height:500px;overflow:auto;-webkit-overflow-scrolling:touch">'
+      + '<svg id="mapSvg" viewBox="' + dynViewBox + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:800px;min-height:500px">'
+      + '<rect width="' + Math.max(maxX,1200) + '" height="' + Math.max(maxY,500) + '" fill="#080c14"/>'
       + '<defs><pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.6" fill="rgba(255,255,255,0.06)"/></pattern></defs>'
-      + '<rect width="1200" height="500" fill="url(#fgrid)"/>'
+      + '<rect width="' + Math.max(maxX,1200) + '" height="' + Math.max(maxY,500) + '" fill="url(#fgrid)"/>'
       + gridColsSvg + gridRowsSvg + ftgSvg
       + '</svg></div>';
     // Legend
