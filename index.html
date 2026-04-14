@@ -3605,33 +3605,34 @@ function renderMapSection() {
         if (embSt === 'missing') ftgSvg += '<circle cx="'+dx+'" cy="'+dy+'" r="5" fill="none" stroke="'+embClr+'" stroke-width="1" opacity="0.5" pointer-events="none"><animate attributeName="r" from="5" to="11" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" from="0.5" to="0" dur="1.5s" repeatCount="indefinite"/></circle>';
       }
     }
-    var gridW = Math.max(maxX, 1200);
-    var gridH = Math.max(maxY, 500);
-    var gridColsSvg = (mapData.gridCols||[]).map(function(g){ return '<line x1="'+g.x+'" y1="15" x2="'+g.x+'" y2="'+(gridH-10)+'" stroke="rgba(255,255,255,0.08)" stroke-width="1"/><text x="'+g.x+'" y="12" text-anchor="middle" font-size="11" font-family="JetBrains Mono" fill="rgba(255,255,255,0.30)" font-weight="700">'+g.label+'</text>'; }).join('');
-    var gridRowsSvg = (mapData.gridRows||[]).map(function(g){ return '<line x1="5" y1="'+g.y+'" x2="'+(gridW-5)+'" y2="'+g.y+'" stroke="rgba(255,255,255,0.06)" stroke-width="1"/><text x="4" y="'+(g.y+4)+'" font-size="10" font-family="JetBrains Mono" fill="rgba(255,255,255,0.25)" font-weight="700">'+g.label+'</text>'; }).join('');
-
-    // Auto-extend viewBox to fit all footings (expand if anything is off-screen)
+    // Auto-extend viewBox FIRST — compute the bounds before building grid SVG
     var vb = (mapData.viewBox || '0 0 1200 500').split(' ').map(Number);
     var maxX = vb[2], maxY = vb[3];
     ftgs.forEach(function(f) {
       if (f.x + f.w + 40 > maxX) maxX = f.x + f.w + 80;
       if (f.y + f.h + 40 > maxY) maxY = f.y + f.h + 80;
     });
-    // Also extend for grid labels
-    (mapData.gridCols||[]).forEach(function(g) { if (g.x + 40 > maxX) maxX = g.x + 80; });
-    (mapData.gridRows||[]).forEach(function(g) { if (g.y + 30 > maxY) maxY = g.y + 60; });
-    var dynViewBox = '0 0 ' + Math.max(maxX, 1200) + ' ' + Math.max(maxY, 500);
-    // Save back if expanded
+    (mapData.gridCols||[]).forEach(function(g) { if (g.x + 60 > maxX) maxX = g.x + 100; });
+    (mapData.gridRows||[]).forEach(function(g) { if (g.y + 50 > maxY) maxY = g.y + 80; });
+    maxX = Math.max(maxX, 1200);
+    maxY = Math.max(maxY, 500);
+    var dynViewBox = '0 0 ' + maxX + ' ' + maxY;
     if (maxX > vb[2] || maxY > vb[3]) {
       mapData.viewBox = dynViewBox;
       saveFootingMap(pour.id, mapData);
     }
 
-    mh += '<div style="height:75vh;min-height:500px;overflow:auto;-webkit-overflow-scrolling:touch">'
-      + '<svg id="mapSvg" viewBox="' + dynViewBox + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:800px;min-height:500px">'
-      + '<rect width="' + Math.max(maxX,1200) + '" height="' + Math.max(maxY,500) + '" fill="#080c14"/>'
+    // Now build grid lines using the computed bounds
+    var gridColsSvg = (mapData.gridCols||[]).map(function(g){ return '<line x1="'+g.x+'" y1="15" x2="'+g.x+'" y2="'+(maxY-10)+'" stroke="rgba(255,255,255,0.08)" stroke-width="1"/><text x="'+g.x+'" y="12" text-anchor="middle" font-size="11" font-family="JetBrains Mono" fill="rgba(255,255,255,0.30)" font-weight="700">'+g.label+'</text>'; }).join('');
+    var gridRowsSvg = (mapData.gridRows||[]).map(function(g){ return '<line x1="5" y1="'+g.y+'" x2="'+(maxX-5)+'" y2="'+g.y+'" stroke="rgba(255,255,255,0.06)" stroke-width="1"/><text x="4" y="'+(g.y+4)+'" font-size="10" font-family="JetBrains Mono" fill="rgba(255,255,255,0.25)" font-weight="700">'+g.label+'</text>'; }).join('');
+
+    // SVG container — scrollable, min-height scales with content
+    var svgMinH = Math.max(maxY * 0.8, 500);
+    mh += '<div style="height:80vh;min-height:' + svgMinH + 'px;overflow:auto;-webkit-overflow-scrolling:touch">'
+      + '<svg id="mapSvg" viewBox="' + dynViewBox + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:800px;min-height:' + svgMinH + 'px">'
+      + '<rect width="' + maxX + '" height="' + maxY + '" fill="#080c14"/>'
       + '<defs><pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.6" fill="rgba(255,255,255,0.06)"/></pattern></defs>'
-      + '<rect width="' + Math.max(maxX,1200) + '" height="' + Math.max(maxY,500) + '" fill="url(#fgrid)"/>'
+      + '<rect width="' + maxX + '" height="' + maxY + '" fill="url(#fgrid)"/>'
       + gridColsSvg + gridRowsSvg + ftgSvg
       + '</svg></div>';
     // Legend
