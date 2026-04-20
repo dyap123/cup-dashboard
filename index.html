@@ -1587,10 +1587,22 @@ async function init() {
       fetchPourDayData().catch(()=>{}),
       loadChecklistFromFirebase().catch(()=>{}),
       loadConcreteOrderFromFirebase().catch(()=>{}),
+      // Directly fetch Firebase-side pours so first render includes them
+      // without waiting for the realtime listener (which attaches later in Phase B).
+      (db ? fbGet('pours-user') : Promise.resolve(null)).catch(err => { console.error('pours-user preload failed:', err); return null; }),
+      (db ? fbGet('pours-deleted') : Promise.resolve(null)).catch(()=>null),
+      (db ? fbGet('sheet-snapshot') : Promise.resolve(null)).catch(()=>null),
     ]);
     if (results[0]) pourData = results[0];
+    if (results[5]) userPours = results[5];
+    if (results[6]) deletedPours = results[6];
+    // If sheet failed but we have a cached snapshot from a prior migration, use its refs/grand
+    if (sheetFailed && results[7]) {
+      if (results[7].refs) pourData.refs = results[7].refs;
+      if (results[7].grand) pourData.grand = results[7].grand;
+      console.log('Using cached sheet snapshot from Firebase.');
+    }
   } catch (err) {
-    // Promise.all itself shouldn't reject given all inner catches, but guard anyway
     sheetFailed = true;
     console.error('Data fetch error:', err);
   }
@@ -1598,6 +1610,7 @@ async function init() {
   state.refs  = pourData.refs  || {};
   state.pours = pourData.pours || [];
   state.grand = pourData.grand || { cy8000:0, cy5000:0, slurry:0, total:0, trucks:0 };
+  console.log('[init] sheet pours:', state.pours.length, '· firebase userPours:', Object.keys(userPours || {}).length, '· sheetFailed:', sheetFailed);
 
   // ── Phase B: DOM setup — guarded so one missing element doesn't blow everything up ──
   const hide = (id) => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); };
