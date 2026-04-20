@@ -242,22 +242,21 @@
 
     /* iOS/Safari default form styling gives inputs a white background that
        overrides Tailwind's bg-transparent. Strip it so inline-edit inputs
-       (e.g. "+ label" on pour cards) don't show up as a blank white box. */
-    input[type="text"],
-    input[type="number"],
-    input[type="date"],
-    input[type="search"],
-    select, textarea {
+       don't show up as a blank white box. */
+    input, select, textarea {
       -webkit-appearance: none;
       appearance: none;
       background-clip: padding-box;
       color-scheme: dark;
     }
+    /* Inputs in dark cards should default to transparent background unless
+       explicitly given a bg-* class */
+    .pour-card input:not([class*="bg-"]):not([class*="bg-white"]):not([class*="bg-black"]),
+    input.bg-transparent {
+      background-color: transparent !important;
+    }
     /* Restore light-mode behavior where intended */
-    body.light-mode input[type="text"],
-    body.light-mode input[type="number"],
-    body.light-mode input[type="date"],
-    body.light-mode input[type="search"] {
+    body.light-mode input, body.light-mode select, body.light-mode textarea {
       color-scheme: light;
     }
     /* Popups/modals */
@@ -695,6 +694,14 @@ const SEC_DIM    = { A:'#142218', B:'#2a1c0e', C:'#14222e', D:'#1e1a2e' };
 // Editable pour labels (persisted in localStorage)
 function getPourLabel(id) { return localStorage.getItem('cup_label_'+id) || ''; }
 function setPourLabel(id, val) { if (isManagerView) return; localStorage.setItem('cup_label_'+id, val); }
+function promptPourLabel(id) {
+  if (isManagerView) return;
+  const cur = getPourLabel(id) || '';
+  const val = prompt('Label for ' + id + ':', cur);
+  if (val === null) return;
+  setPourLabel(id, val.trim());
+  if (typeof render === 'function') render();
+}
 
 // Pour ↔ embed-tracker area mapping.
 // LACC areas: 0 has sub-areas A/B/C/D (CUP phase), then sequences 1, 2, 3.
@@ -1426,7 +1433,7 @@ function renderOnePourCard(p, idx, maxCy8000, maxCy5000, maxSlurry) {
           <span class="text-xs font-bold px-2 py-0.5 rounded" style="background:${c}22;color:${c}">${p.section}</span>
           <span class="mono font-bold text-sm text-white/90">${p.id}</span>
           <span class="text-xs text-white/40 italic">${p.label || getPourLabel(p.id) || ''}</span>
-          ${!isManagerView && !p.label && !getPourLabel(p.id) ? `<input type="text" class="bg-transparent border-b border-dashed border-white/15 text-xs text-white/50 w-20 px-1 py-0.5 focus:border-white/40 focus:outline-none placeholder:text-white/15 placeholder:italic" placeholder="+ label" onchange="setPourLabel('${p.id}',this.value);render()"/>` : ''}
+          ${!isManagerView && !p.label && !getPourLabel(p.id) ? `<button type="button" class="text-[10px] text-white/25 hover:text-white/60 italic px-1.5 py-0.5 rounded border border-dashed border-white/10 hover:border-white/25 transition-colors" onclick="promptPourLabel('${p.id}')">+ label</button>` : ''}
         </div>
         <div class="flex items-center gap-2">
           ${state.sortByDate
