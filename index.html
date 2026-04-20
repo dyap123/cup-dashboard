@@ -4344,28 +4344,31 @@ function renderPourDay() {
   });
   const sortedDates = Object.keys(datedGroups).sort((a,b) => dateSortVal(a) - dateSortVal(b));
   h += '<div class="mb-4"><div class="text-[10px] font-bold text-white/30 uppercase tracking-wider mb-2">Select Pour</div>';
-  h += '<div class="space-y-2">';
+  // Horizontal: dates as columns, pour pills stacked under each
+  h += '<div class="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 snap-x">';
   sortedDates.forEach(d => {
-    h += '<div class="flex flex-wrap items-center gap-2">';
-    h += '<span class="mono text-[10px] font-bold text-blue-300/80 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 min-w-[48px] text-center">' + d + '</span>';
+    h += '<div class="flex-none min-w-[84px] snap-start">';
+    h += '<div class="mono text-[10px] font-bold text-blue-300/80 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-center mb-1.5 sticky top-0">' + d + '</div>';
+    h += '<div class="flex flex-col gap-1">';
     datedGroups[d].forEach(p => {
       const pc = SEC_COLORS[p.section] || '#888';
       const active = p.id === pour.id;
       const tag = p.userAdded ? ' <span class="text-amber-400/70">+</span>' : '';
-      h += '<button onclick="selectPourDay(\'' + p.id + '\')" class="px-2.5 py-1 rounded text-[10px] mono font-bold transition-all ' + (active?'text-white':'text-white/40 hover:text-white/70') + '" style="' + (active?'background:'+pc+'33;border:1px solid '+pc+'55':'background:'+pc+'10;border:1px solid '+pc+'22') + '">' + p.id + tag + '</button>';
+      h += '<button onclick="selectPourDay(\'' + p.id + '\')" class="w-full px-2 py-1 rounded text-[10px] mono font-bold transition-all ' + (active?'text-white':'text-white/40 hover:text-white/70') + '" style="' + (active?'background:'+pc+'33;border:1px solid '+pc+'55':'background:'+pc+'10;border:1px solid '+pc+'22') + '">' + p.id + tag + '</button>';
     });
-    h += '</div>';
+    h += '</div></div>';
   });
   if (undatedPours.length) {
-    h += '<div class="flex flex-wrap items-center gap-2 pt-1">';
-    h += '<span class="mono text-[10px] font-bold text-white/30 px-2 py-1 rounded bg-white/5 border border-white/10 min-w-[48px] text-center italic">No date</span>';
+    h += '<div class="flex-none min-w-[84px] snap-start">';
+    h += '<div class="mono text-[10px] font-bold text-white/30 px-2 py-1 rounded bg-white/5 border border-white/10 text-center mb-1.5 italic sticky top-0">No date</div>';
+    h += '<div class="flex flex-col gap-1">';
     undatedPours.forEach(p => {
       const pc = SEC_COLORS[p.section] || '#888';
       const active = p.id === pour.id;
       const tag = p.userAdded ? ' <span class="text-amber-400/70">+</span>' : '';
-      h += '<button onclick="selectPourDay(\'' + p.id + '\')" class="px-2.5 py-1 rounded text-[10px] mono font-bold transition-all ' + (active?'text-white':'text-white/30 hover:text-white/60') + '" style="' + (active?'background:'+pc+'33;border:1px solid '+pc+'55':'background:'+pc+'10;border:1px solid '+pc+'22') + '">' + p.id + tag + '</button>';
+      h += '<button onclick="selectPourDay(\'' + p.id + '\')" class="w-full px-2 py-1 rounded text-[10px] mono font-bold transition-all ' + (active?'text-white':'text-white/30 hover:text-white/60') + '" style="' + (active?'background:'+pc+'33;border:1px solid '+pc+'55':'background:'+pc+'10;border:1px solid '+pc+'22') + '">' + p.id + tag + '</button>';
     });
-    h += '</div>';
+    h += '</div></div>';
   }
   h += '</div></div>';
 
