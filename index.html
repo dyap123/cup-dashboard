@@ -504,6 +504,10 @@
         <span class="material-symbols-outlined text-base">sort</span>
         <span id="sortDateToolbarLabel">Sort: Off</span>
       </button>
+      <button id="migrateBtn" onclick="migrateSheetToFirebase()" style="touch-action:manipulation" class="text-xs font-bold px-3 py-2 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/30 flex items-center gap-1.5" title="Pull all pours from the Google Sheet into Firebase">
+        <span class="material-symbols-outlined text-base">cloud_sync</span>
+        <span>Migrate Sheet</span>
+      </button>
       <button id="addPourBtn" onclick="showAddPourModal()" style="touch-action:manipulation" class="text-xs font-bold px-4 py-2 rounded-lg bg-green-500/20 text-green-300 border border-green-500/40 hover:bg-green-500/30 flex items-center gap-1.5">
         <span class="material-symbols-outlined text-base">add_circle</span>
         <span>Add Pour</span>
@@ -953,6 +957,62 @@ function submitAddPour() {
   document.getElementById('addPourModal')?.remove();
 }
 
+// ── SHEET → FIREBASE MIGRATION ───────────────────────────────────────────────
+// One-shot pull of every pour currently in the Google Sheet into Firebase's
+// `pours-user/` path so the dashboard can run entirely from Firebase.
+// Skips pours that already exist in Firebase (keeps any edits you've made).
+async function migrateSheetToFirebase() {
+  const btn = document.getElementById('migrateBtn');
+  if (!db) { alert('Firebase isn\'t connected — check network or try again.'); return; }
+  if (btn) {
+    if (btn._busy) return;
+    btn._busy = true;
+    btn.dataset._label = btn.querySelector('span:last-child')?.textContent || 'Migrate Sheet';
+    btn.querySelector('span:last-child').textContent = 'Migrating…';
+    btn.classList.add('opacity-60');
+  }
+  try {
+    const { pours: sheetPours, refs, grand } = await fetchData();
+    if (!sheetPours || !sheetPours.length) {
+      alert('No pours found in the sheet. Check the sheet link or its share settings.');
+      return;
+    }
+    const existing = (await fbGet('pours-user')) || {};
+    const tombstoned = (await fbGet('pours-deleted')) || {};
+    let pushed = 0, skipped = 0, restored = 0;
+    const updates = {};
+    for (const p of sheetPours) {
+      if (existing[p.id]) { skipped++; continue; }
+      updates['pours-user/' + p.id] = {
+        section: p.section, date: p.date || '',
+        cy8000: +p.cy8000 || 0, cy5000: +p.cy5000 || 0, slurry: +p.slurry || 0,
+        trucks: +p.trucks || 0, status: p.status || '',
+        label: p.label || '', type: p.type || '',
+        createdAt: new Date().toISOString(),
+        migratedFromSheet: true,
+      };
+      if (tombstoned[p.id]) { updates['pours-deleted/' + p.id] = null; restored++; }
+      pushed++;
+    }
+    if (Object.keys(updates).length) await db.ref().update(updates);
+
+    // Also store the ref/grand snapshot so the UI has something even when the sheet is offline
+    await fbSet('sheet-snapshot', { refs, grand, ts: new Date().toISOString() });
+
+    alert(`Migration done.\n\n${pushed} pour${pushed===1?'':'s'} copied to Firebase.\n${skipped} already existed, skipped.\n${restored} tombstones cleared.`);
+  } catch (err) {
+    console.error('Migration failed:', err);
+    alert('Migration failed — ' + (err.message || err) + '\n\nThe sheet fetch may be blocked. Try again later.');
+  } finally {
+    if (btn) {
+      btn._busy = false;
+      const lbl = btn.querySelector('span:last-child');
+      if (lbl) lbl.textContent = btn.dataset._label || 'Migrate Sheet';
+      btn.classList.remove('opacity-60');
+    }
+  }
+}
+
 function confirmDeletePour(pourId) {
   if (isManagerView) return;
   if (!confirm('Delete pour ' + pourId + '? This cannot be undone here.')) return;
@@ -1093,9 +1153,19 @@ function render() {
   refreshSortLabels();
 
   const hasContent = pours.length > 0;
-  document.getElementById('emptyState').classList.toggle('hidden', hasContent || state.sectionFilter === 'ALL' && state.dateFilter === 'ALL');
-  if (!hasContent && (state.sectionFilter !== 'ALL' || state.dateFilter !== 'ALL')) {
-    document.getElementById('emptyState').classList.remove('hidden');
+  const totalKnown = state.pours.length;
+  const filtersOn = state.sectionFilter !== 'ALL' || state.dateFilter !== 'ALL';
+  const emptyEl = document.getElementById('emptyState');
+  if (emptyEl) {
+    if (!hasContent && filtersOn) {
+      emptyEl.innerHTML = 'No pours match the current filter.';
+      emptyEl.classList.remove('hidden');
+    } else if (totalKnown === 0) {
+      emptyEl.innerHTML = 'No pours yet. <button onclick="migrateSheetToFirebase()" class="underline text-blue-300 hover:text-blue-200 ml-1">Migrate from sheet</button> or <button onclick="showAddPourModal()" class="underline text-green-300 hover:text-green-200">Add Pour</button>.';
+      emptyEl.classList.remove('hidden');
+    } else {
+      emptyEl.classList.add('hidden');
+    }
   }
 
   // Also update whichever tab is currently visible — skip pour day if user is editing the map or interacting with inputs
