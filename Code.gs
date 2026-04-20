@@ -19,8 +19,137 @@ function doPost(e) {
     return handleCheckEmbed(ss, data);
   }
 
+  if (data.action === 'addPour') {
+    return handleAddPour(sheet, data);
+  }
+
+  if (data.action === 'deletePour') {
+    return handleDeletePour(sheet, data);
+  }
+
+  if (data.action === 'uploadTicket') {
+    return handleUploadTicket(data);
+  }
+
+  if (data.action === 'bundleEOD') {
+    return handleBundleEOD(data);
+  }
+
   return ContentService.createTextOutput(JSON.stringify({ok:true}))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// Insert a new pour row at the end of ORDER SUMMARY (before GRAND TOTAL).
+// Sheet columns: A=id, B=section, C=date, D=cy8000, E=cy5000, F=slurry, G=total, H=trucks, I=ordered
+function handleAddPour(sheet, data) {
+  var values = sheet.getDataRange().getValues();
+  var inOrderSummary = false;
+  var grandTotalRow = -1;
+  for (var i = 0; i < values.length; i++) {
+    var cellA = String(values[i][0]).trim();
+    if (cellA === 'ORDER SUMMARY') { inOrderSummary = true; continue; }
+    if (!inOrderSummary) continue;
+    if (cellA === 'GRAND TOTAL') { grandTotalRow = i + 1; break; }
+    if (cellA === data.pourId) {
+      return ContentService.createTextOutput(JSON.stringify({error:'pour already exists'}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+  if (grandTotalRow < 0) {
+    return ContentService.createTextOutput(JSON.stringify({error:'no GRAND TOTAL anchor'}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  sheet.insertRowBefore(grandTotalRow);
+  var total = (Number(data.cy8000)||0) + (Number(data.cy5000)||0) + (Number(data.slurry)||0);
+  var trucks = Math.ceil(total / 9);
+  sheet.getRange(grandTotalRow, 1, 1, 8).setValues([[
+    data.pourId,
+    data.section || String(data.pourId).charAt(0),
+    data.date || '',
+    Number(data.cy8000) || 0,
+    Number(data.cy5000) || 0,
+    Number(data.slurry) || 0,
+    total,
+    trucks
+  ]]);
+  return ContentService.createTextOutput(JSON.stringify({ok:true, row:grandTotalRow}))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// Delete a pour row from ORDER SUMMARY by pourId.
+function handleDeletePour(sheet, data) {
+  var values = sheet.getDataRange().getValues();
+  var inOrderSummary = false;
+  for (var i = 0; i < values.length; i++) {
+    var cellA = String(values[i][0]).trim();
+    if (cellA === 'ORDER SUMMARY') { inOrderSummary = true; continue; }
+    if (!inOrderSummary) continue;
+    if (cellA === 'GRAND TOTAL') break;
+    if (cellA === data.pourId) {
+      sheet.deleteRow(i + 1);
+      return ContentService.createTextOutput(JSON.stringify({ok:true}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+  return ContentService.createTextOutput(JSON.stringify({ok:true, found:false}))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── TICKET PHOTO UPLOAD ────────────────────────────────────────────────────
+// Expects { action:'uploadTicket', pourId, truckNum, ticket, mimeType, dataB64 }
+// Photos land in Drive under TICKETS_ROOT_ID / {pourId} / truck-{num}-{ticket}.jpg
+var TICKETS_ROOT_ID = 'REPLACE_WITH_DRIVE_FOLDER_ID';
+
+function handleUploadTicket(data) {
+  try {
+    var rootFolder = DriveApp.getFolderById(TICKETS_ROOT_ID);
+    var pourFolder = getOrCreateFolder(rootFolder, data.pourId);
+    var bytes = Utilities.base64Decode(data.dataB64);
+    var name = 'truck-' + (data.truckNum || 'x') + (data.ticket ? '-' + data.ticket : '') + '-' + Date.now() + '.jpg';
+    var blob = Utilities.newBlob(bytes, data.mimeType || 'image/jpeg', name);
+    var file = pourFolder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return ContentService.createTextOutput(JSON.stringify({
+      ok: true,
+      fileId: file.getId(),
+      viewUrl: 'https://drive.google.com/uc?export=view&id=' + file.getId(),
+      thumbnailUrl: 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w200'
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({error: String(err)}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function getOrCreateFolder(parent, name) {
+  var it = parent.getFoldersByName(name);
+  if (it.hasNext()) return it.next();
+  return parent.createFolder(name);
+}
+
+// ── END-OF-DAY REPORT BUNDLE ───────────────────────────────────────────────
+// Expects { action:'bundleEOD', pourId, date, reportHtml }
+// Creates a Google Doc alongside the existing ticket photos in the same pour folder.
+function handleBundleEOD(data) {
+  try {
+    var rootFolder = DriveApp.getFolderById(TICKETS_ROOT_ID);
+    var pourFolder = getOrCreateFolder(rootFolder, data.pourId);
+    var docName = 'EOD ' + data.pourId + ' ' + (data.date || new Date().toISOString().slice(0,10));
+    // Remove any prior doc of the same name so we don't duplicate on re-run
+    var existing = pourFolder.getFilesByName(docName);
+    while (existing.hasNext()) existing.next().setTrashed(true);
+    var blob = Utilities.newBlob(data.reportHtml || '<html><body>Empty</body></html>', 'text/html', docName + '.html');
+    var htmlFile = pourFolder.createFile(blob);
+    htmlFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return ContentService.createTextOutput(JSON.stringify({
+      ok: true,
+      folderUrl: pourFolder.getUrl(),
+      htmlUrl: 'https://drive.google.com/uc?export=view&id=' + htmlFile.getId()
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({error: String(err)}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 function handleFieldUpdate(sheet, data) {

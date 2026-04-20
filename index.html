@@ -497,6 +497,10 @@
   <div id="sectionGrid" class="hidden grid grid-cols-2 md:grid-cols-4 gap-3"></div>
 
   <!-- POUR SCHEDULE -->
+  <div id="pourGridToolbar" class="hidden mb-2 flex items-center justify-between">
+    <span class="text-[10px] font-black tracking-widest text-white/40 uppercase">Pour Schedule</span>
+    <button id="addPourBtn" onclick="showAddPourModal()" style="touch-action:manipulation" class="text-[10px] font-bold px-3 py-1.5 rounded bg-green-500/10 text-green-400 border border-green-500/25 hover:bg-green-500/20">+ Add Pour</button>
+  </div>
   <div id="pourGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
 
   <!-- EMPTY STATE -->
@@ -604,6 +608,14 @@ function attachFirebaseListeners() {
     cachedOverrides = val || {};
     applyOverrides();
     render();
+  });
+  fbListen('pours-user', (val) => {
+    userPours = val || {};
+    if (state.pours.length) { mergeUserPours(); render(); }
+  });
+  fbListen('pours-deleted', (val) => {
+    deletedPours = val || {};
+    if (state.pours.length) { mergeUserPours(); render(); }
   });
   fbListen('pour-area', (val) => { pourAreaCache = val || {}; });
   fbListen('concrete-order', (val) => {
@@ -787,16 +799,168 @@ function openSheet() { window.open(SHEET_URL, '_blank'); }
 
 // Cached Firebase overrides — re-applied after each sheet poll
 let cachedOverrides = {};
+// User-added pours (Firebase-first). Deletions are tombstoned in deletedPours.
+let userPours = {};
+let deletedPours = {};
 function applyOverrides() {
-  if (!Object.keys(cachedOverrides).length || !state.pours.length) return;
-  Object.entries(cachedOverrides).forEach(([pourId, fields]) => {
-    const pour = state.pours.find(p => p.id === pourId);
-    if (!pour) return;
-    Object.entries(fields).forEach(([k,v]) => { pour[k] = v; });
-    pour.total = (pour.cy8000||0) + (pour.cy5000||0) + (pour.slurry||0);
-    pour.trucks = Math.ceil(pour.total / 9);
-  });
+  if (!state.pours.length) return;
+  if (Object.keys(cachedOverrides).length) {
+    Object.entries(cachedOverrides).forEach(([pourId, fields]) => {
+      const pour = state.pours.find(p => p.id === pourId);
+      if (!pour) return;
+      Object.entries(fields).forEach(([k,v]) => { pour[k] = v; });
+      pour.total = (pour.cy8000||0) + (pour.cy5000||0) + (pour.slurry||0);
+      pour.trucks = Math.ceil(pour.total / 9);
+    });
+  }
+  mergeUserPours();
   recalcTotals();
+}
+
+// Layer user-added pours onto state.pours and filter out tombstones.
+function mergeUserPours() {
+  // Filter out deleted pours
+  state.pours = state.pours.filter(p => !deletedPours[p.id]);
+  // Add user pours that aren't already in the list
+  Object.entries(userPours).forEach(([id, p]) => {
+    if (deletedPours[id]) return;
+    if (state.pours.find(x => x.id === id)) return; // sheet already has it — user pour is stale
+    const total = (p.cy8000||0) + (p.cy5000||0) + (p.slurry||0);
+    state.pours.push({
+      id,
+      section: p.section || id[0] || 'A',
+      date: p.date || '',
+      cy8000: +p.cy8000 || 0,
+      cy5000: +p.cy5000 || 0,
+      slurry: +p.slurry || 0,
+      total,
+      trucks: +p.trucks || Math.ceil(total / 9),
+      status: p.status || '',
+      label: p.label || '',
+      type: p.type || (p.slurry > 0 && !p.cy8000 && !p.cy5000 ? 'Slurry' : 'Structural'),
+      userAdded: true,
+      syncedToSheet: !!p.syncedToSheet,
+    });
+  });
+}
+
+// ── POUR CRUD ────────────────────────────────────────────────────────────────
+function showAddPourModal() {
+  if (isManagerView) return;
+  const existing = document.getElementById('addPourModal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'addPourModal';
+  modal.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4';
+  modal.style.cssText = 'background:rgba(0,0,0,0.75);backdrop-filter:blur(8px)';
+  modal.innerHTML = `
+    <div class="rounded-xl p-5 w-full max-w-sm" style="background:rgba(10,12,20,0.98);border:1px solid rgba(255,255,255,0.1)">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-bold text-white/90">Add Pour</h3>
+        <button onclick="document.getElementById('addPourModal').remove()" class="text-white/40 hover:text-white">&times;</button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <div><label class="block text-white/40 mb-1">Pour ID (e.g. A-5)</label><input id="newPourId" type="text" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono" placeholder="A-5"></div>
+        <div><label class="block text-white/40 mb-1">Section</label><select id="newPourSection" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white">
+          <option value="A" style="background:#1a1a1a">A</option>
+          <option value="B" style="background:#1a1a1a">B</option>
+          <option value="C" style="background:#1a1a1a">C</option>
+          <option value="D" style="background:#1a1a1a">D</option>
+        </select></div>
+        <div><label class="block text-white/40 mb-1">Date (M/D)</label><input id="newPourDate" type="text" placeholder="4/21" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
+        <div class="grid grid-cols-3 gap-2">
+          <div><label class="block text-white/40 mb-1">8000 CY</label><input id="newPour8000" type="number" step="0.5" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
+          <div><label class="block text-white/40 mb-1">5000 CY</label><input id="newPour5000" type="number" step="0.5" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
+          <div><label class="block text-white/40 mb-1">Slurry CY</label><input id="newPourSlurry" type="number" step="0.5" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
+        </div>
+        <div><label class="block text-white/40 mb-1">Label (optional)</label><input id="newPourLabel" type="text" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white" placeholder="e.g. North slab"></div>
+      </div>
+      <div class="flex gap-2 mt-5">
+        <button onclick="document.getElementById('addPourModal').remove()" class="flex-1 py-2 rounded bg-white/5 text-white/60 text-xs font-bold hover:bg-white/10">Cancel</button>
+        <button onclick="submitAddPour()" style="touch-action:manipulation" class="flex-1 py-2 rounded bg-green-500/20 text-green-300 border border-green-500/30 text-xs font-bold hover:bg-green-500/30">Add</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('newPourId')?.focus(), 50);
+}
+
+let _addPourLock = false;
+function submitAddPour() {
+  if (_addPourLock) return;
+  _addPourLock = true;
+  setTimeout(() => { _addPourLock = false; }, 500);
+  const id = document.getElementById('newPourId').value.trim().toUpperCase();
+  if (!/^[A-D]-\d+[A-Z]?$/.test(id)) { alert('Pour ID must match e.g. A-5 or B-12'); return; }
+  if (state.pours.find(p => p.id === id)) { alert('Pour ' + id + ' already exists'); return; }
+  const pour = {
+    id,
+    section: document.getElementById('newPourSection').value,
+    date: document.getElementById('newPourDate').value.trim(),
+    cy8000: parseFloat(document.getElementById('newPour8000').value) || 0,
+    cy5000: parseFloat(document.getElementById('newPour5000').value) || 0,
+    slurry: parseFloat(document.getElementById('newPourSlurry').value) || 0,
+    label: document.getElementById('newPourLabel').value.trim(),
+    createdAt: new Date().toISOString(),
+    syncedToSheet: false,
+  };
+  fbSet('pours-user/' + id, pour);
+  // If this id was previously tombstoned, clear the tombstone.
+  if (deletedPours[id]) fbSet('pours-deleted/' + id, null);
+  document.getElementById('addPourModal')?.remove();
+}
+
+function confirmDeletePour(pourId) {
+  if (isManagerView) return;
+  if (!confirm('Delete pour ' + pourId + '? This cannot be undone here.')) return;
+  deletePour(pourId);
+}
+
+function deletePour(pourId) {
+  const pour = state.pours.find(p => p.id === pourId);
+  if (!pour) return;
+  // Tombstone so even sheet pours get hidden until synced
+  fbSet('pours-deleted/' + pourId, true);
+  // Remove from user pours if applicable
+  if (userPours[pourId]) fbSet('pours-user/' + pourId, null);
+  // Local update
+  state.pours = state.pours.filter(p => p.id !== pourId);
+  render();
+}
+
+function syncPourToSheet(pourId) {
+  const pour = state.pours.find(p => p.id === pourId);
+  if (!pour) return;
+  const btn = document.querySelector('[data-sync-pour="' + pourId + '"]');
+  if (btn) { btn.textContent = 'Syncing...'; btn.disabled = true; }
+  fetch(API_URL, {
+    method: 'POST', mode: 'no-cors',
+    body: JSON.stringify({
+      action: 'addPour',
+      pourId: pour.id, section: pour.section, date: pour.date,
+      cy8000: pour.cy8000, cy5000: pour.cy5000, slurry: pour.slurry,
+    })
+  }).then(() => {
+    // no-cors means we can't read the response; assume success
+    fbSet('pours-user/' + pourId + '/syncedToSheet', true);
+    if (btn) { btn.textContent = 'Synced ✓'; btn.style.background = 'rgba(65,164,71,0.15)'; }
+  }).catch(err => {
+    console.error('sync failed', err);
+    if (btn) { btn.textContent = 'Sync failed'; btn.disabled = false; }
+  });
+}
+
+function syncDeletedPoursToSheet() {
+  const ids = Object.keys(deletedPours);
+  if (!ids.length) { alert('No deleted pours to sync'); return; }
+  if (!confirm('Push ' + ids.length + ' deletion(s) to the Google Sheet?')) return;
+  ids.forEach(pourId => {
+    fetch(API_URL, {
+      method: 'POST', mode: 'no-cors',
+      body: JSON.stringify({ action: 'deletePour', pourId })
+    }).then(() => {
+      fbSet('pours-deleted/' + pourId, null);
+    }).catch(err => console.error('delete sync failed', err));
+  });
 }
 
 // Recalculate section refs + grand totals from pour data
@@ -1185,6 +1349,11 @@ function renderPourCards(pours) {
         <span class="mono font-bold text-sm" style="color:#34D399">${p.total} <span class="text-white/40 font-normal text-xs">CY</span></span>
         <span class="text-xs text-white/40">${p.trucks} trucks</span>
       </div>
+      ${!isManagerView ? `<div class="flex items-center gap-2 mt-2 pt-2 border-t border-white/5">
+        ${p.userAdded && !p.syncedToSheet ? `<button onclick="syncPourToSheet('${p.id}')" data-sync-pour="${p.id}" style="touch-action:manipulation" class="text-[9px] font-bold px-2 py-1 rounded bg-blue-500/10 text-blue-300 border border-blue-500/25 hover:bg-blue-500/20">Sync to Sheet</button>` : ''}
+        ${p.userAdded && p.syncedToSheet ? `<span class="text-[9px] text-green-400/60">Synced ✓</span>` : ''}
+        <button onclick="confirmDeletePour('${p.id}')" style="touch-action:manipulation" class="ml-auto text-[9px] font-bold px-2 py-1 rounded bg-red-500/10 text-red-400/70 border border-red-500/20 hover:bg-red-500/20 hover:text-red-300">Delete</button>
+      </div>` : ''}
     </div>`;
   }).join('');
 }
@@ -1283,6 +1452,7 @@ async function init() {
     document.getElementById('zoneMap').classList.remove('hidden');
     document.getElementById('sectionGrid').classList.remove('hidden');
     document.getElementById('pourGrid').classList.remove('hidden');
+    if (!isManagerView) document.getElementById('pourGridToolbar')?.classList.remove('hidden');
     document.getElementById('footer').classList.remove('hidden');
 
     // Auto-switch views
@@ -2694,9 +2864,9 @@ function renderMapEditToolbar(pourId) {
   let tb = '<div class="px-3 py-2 border-b border-white/5 space-y-2" style="background:rgba(8,10,18,0.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)">';
   tb += '<div class="flex items-center gap-2 flex-wrap">';
   tb += '<button onclick="toggleGridEdit()" class="text-[9px] font-bold px-2.5 py-1.5 rounded transition-all ' + (gridEditOpen ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-white/5 text-white/40 border border-white/10 hover:text-white/60') + '">Edit Grid</button>';
-  tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'ftg\')" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20">+ Footing</button>';
-  tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'pc\')" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20">+ Pile Cap</button>';
-  tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'gb\')" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20">+ Grade Beam</button>';
+  tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'ftg\')" style="touch-action:manipulation" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20">+ Footing</button>';
+  tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'pc\')" style="touch-action:manipulation" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20">+ Pile Cap</button>';
+  tb += '<button onclick="addFootingToMap(\'' + pourId + '\',\'gb\')" style="touch-action:manipulation" class="text-[9px] font-bold px-2.5 py-1.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20">+ Grade Beam</button>';
   if (!sels.length) tb += '<span class="text-[9px] text-white/25 italic ml-2">Click to select · Shift+click for multi · Ctrl+C/V · Delete key</span>';
   tb += '<span class="ml-auto text-[9px] text-white/20">Auto-saves</span>';
   tb += '</div>';
@@ -2829,7 +2999,11 @@ function toggleMapEdit() {
   renderMapSection();
 }
 
+let _addFootingLock = false;
 function addFootingToMap(section, type) {
+  if (_addFootingLock) return;
+  _addFootingLock = true;
+  setTimeout(() => { _addFootingLock = false; }, 400);
   const map = loadFootingMap(section);
   if (!map) return;
   if (!map.footings) map.footings = [];
@@ -2956,10 +3130,23 @@ function initMapDrag() {
   }
 
   svg.addEventListener('pointerdown', e => {
-    if (!mapEditMode) return;
-    const svgP = getSvgPoint(e);
     const pourId = getActivePour()?.id;
     if (!pourId) return;
+    const ftgEl = e.target.closest('[data-ftg-id]');
+
+    // Non-edit mode: tapping a footing toggles its status (replaces old inline onclick)
+    if (!mapEditMode) {
+      if (ftgEl) {
+        svg._lastPointerTime = Date.now();
+        svg._lastPointerId = ftgEl.dataset.ftgId;
+        // Don't call toggleFooting here — wait for pointerup so long-press for embeds still works
+      }
+      return;
+    }
+
+    // Edit mode
+    svg._lastPointerTime = Date.now();
+    const svgP = getSvgPoint(e);
 
     // Grid column drag
     const gridColEl = e.target.closest('[data-grid-col]');
@@ -2982,37 +3169,57 @@ function initMapDrag() {
       return;
     }
     // Footing drag
-    const el = e.target.closest('[data-ftg-id]');
-    if (!el) {
+    if (!ftgEl) {
       mapSelected = [];
       renderMapSection();
       return;
     }
-    const id = el.dataset.ftgId;
+    const id = ftgEl.dataset.ftgId;
     if (e.shiftKey) {
       const idx = mapSelected.indexOf(id);
       if (idx >= 0) mapSelected.splice(idx, 1); else mapSelected.push(id);
       renderMapSection();
+      e.preventDefault();
       return;
     }
     mapSelected = [id];
     const map = loadFootingMap(pourId);
     const f = map?.footings.find(ft => ft.id === id);
-    if (!f) return;
-    mapDragging = { type:'footing', id, pourId, startX: svgP.x, startY: svgP.y, origX: f.x, origY: f.y, moved: false };
+    if (!f) { renderMapSection(); return; }
+    mapDragging = { type:'footing', id, pourId, startX: svgP.x, startY: svgP.y, origX: f.x, origY: f.y, moved: false, pointerType: e.pointerType };
     svg.setPointerCapture(e.pointerId);
     e.preventDefault();
+    renderMapSection();
   });
+
+  // Suppress synthesized click that fires after pointerdown on iPad — prevents double-selection
+  svg.addEventListener('click', e => {
+    if (svg._lastPointerTime && Date.now() - svg._lastPointerTime < 700) {
+      // In non-edit mode, translate the suppressed click into a single toggleFooting call
+      if (!mapEditMode && svg._lastPointerId) {
+        const ftgEl = e.target.closest('[data-ftg-id]');
+        // Only fire if the click is still on the same footing we tracked at pointerdown
+        if (ftgEl && ftgEl.dataset.ftgId === svg._lastPointerId) {
+          try { toggleFooting(svg._lastPointerId); } catch(err) { console.error(err); }
+        }
+        svg._lastPointerId = null;
+      }
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, true);
 
   svg.addEventListener('pointermove', e => {
     if (!mapDragging) return;
     const svgP = getSvgPoint(e);
     const map = loadFootingMap(mapDragging.pourId);
     if (!map) return;
+    // Touch needs a wider dead zone than mouse to prevent accidental drags from finger jitter
+    const deadZone = (mapDragging.pointerType === 'touch' || e.pointerType === 'touch') ? 10 : 3;
 
     if (mapDragging.type === 'gridCol') {
       const dx = svgP.x - mapDragging.startX;
-      if (Math.abs(dx) < 3 && !mapDragging.moved) return; // dead zone
+      if (Math.abs(dx) < deadZone && !mapDragging.moved) return; // dead zone
       mapDragging.moved = true;
       const newX = Math.max(10, Math.round(mapDragging.origX + dx));
       // Live update the SVG line + label + hit area without full re-render
@@ -3027,7 +3234,7 @@ function initMapDrag() {
 
     } else if (mapDragging.type === 'gridRow') {
       const dy = svgP.y - mapDragging.startY;
-      if (Math.abs(dy) < 3 && !mapDragging.moved) return;
+      if (Math.abs(dy) < deadZone && !mapDragging.moved) return;
       mapDragging.moved = true;
       const newY = Math.max(10, Math.round(mapDragging.origY + dy));
       map.gridRows[mapDragging.rowIdx].y = newY;
@@ -3035,7 +3242,7 @@ function initMapDrag() {
     } else if (mapDragging.type === 'footing') {
       const dx = svgP.x - mapDragging.startX;
       const dy = svgP.y - mapDragging.startY;
-      if (Math.abs(dx) < 3 && Math.abs(dy) < 3 && !mapDragging.moved) return; // dead zone
+      if (Math.abs(dx) < deadZone && Math.abs(dy) < deadZone && !mapDragging.moved) return; // dead zone
       mapDragging.moved = true;
       const f = map.footings.find(ft => ft.id === mapDragging.id);
       if (!f) return;
@@ -3122,6 +3329,87 @@ function selectPourDay(pourId) {
   renderPourDay();
 }
 
+// ── TICKET PHOTO CAPTURE ───────────────────────────────────────────────────
+// Holds a pre-captured photo (data URL) that will be attached to the next logTruck call.
+let pendingTicketPhoto = null;
+
+// Client-side resize + JPEG compress — keeps the Apps Script POST under ~500KB per truck.
+function compressImage(file, maxDim, quality) {
+  maxDim = maxDim || 1200;
+  quality = quality == null ? 0.75 : quality;
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+        else if (height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// User tapped the camera button next to the ticket # input.
+async function onTicketPhotoCapture(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  try {
+    pendingTicketPhoto = await compressImage(file);
+    const btn = document.getElementById('pdCameraBtn');
+    if (btn) {
+      btn.innerHTML = '<span class="material-symbols-outlined text-base">photo_camera</span><span class="text-[9px] absolute -top-1 -right-1 w-3 h-3 rounded-full bg-green-400"></span>';
+      btn.title = 'Photo attached — will be uploaded with next truck';
+    }
+  } catch (err) {
+    console.error('photo compress failed', err);
+    alert('Could not process photo: ' + err.message);
+  } finally {
+    ev.target.value = '';
+  }
+}
+
+// POST the data URL to Apps Script, which writes it to Drive.
+async function uploadTicketPhoto(pourId, truckNum, ticket, dataUrl) {
+  if (!dataUrl) return null;
+  const commaIdx = dataUrl.indexOf(',');
+  const dataB64 = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : dataUrl;
+  const mimeMatch = dataUrl.match(/^data:([^;]+);/);
+  const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+  try {
+    // Can't use no-cors here — we need the response (fileId, viewUrl)
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight on Apps Script
+      body: JSON.stringify({ action:'uploadTicket', pourId, truckNum, ticket, mimeType, dataB64 })
+    });
+    const json = await res.json();
+    if (json.error) throw new Error(json.error);
+    return json; // { fileId, viewUrl, thumbnailUrl }
+  } catch (err) {
+    console.error('ticket upload failed', err);
+    return null;
+  }
+}
+
+function viewTicketPhoto(url) {
+  if (!url) return;
+  const lb = document.createElement('div');
+  lb.className = 'fixed inset-0 z-[300] flex items-center justify-center p-4';
+  lb.style.cssText = 'background:rgba(0,0,0,0.92);cursor:zoom-out';
+  lb.onclick = () => lb.remove();
+  lb.innerHTML = '<img src="' + url + '" style="max-width:100%;max-height:100%;object-fit:contain"/>';
+  document.body.appendChild(lb);
+}
+
 async function logTruck() {
   const pour = getActivePour();
   if (!pour) return;
@@ -3131,20 +3419,37 @@ async function logTruck() {
   const prevCum = pourDay.trucks.filter(t => t.pourId === pour.id).reduce((s,t) => Math.max(s, t.cumulative), 0);
   const truckNum = pourDay.trucks.filter(t => t.pourId === pour.id).length + 1;
   const ts = new Date().toISOString();
+  const photoAtLog = pendingTicketPhoto;
+  pendingTicketPhoto = null;
 
-  pourDay.trucks.push({
+  const truck = {
     timestamp: ts, pourId: pour.id, truckNum, ticket, mix, cy, cumulative: prevCum + cy
-  });
+  };
+  pourDay.trucks.push(truck);
   renderPourDay();
 
   const inp = document.getElementById('pdTicketInput'); if (inp) inp.value = '';
+  const camBtn = document.getElementById('pdCameraBtn');
+  if (camBtn) { camBtn.innerHTML = '<span class="material-symbols-outlined text-base">photo_camera</span>'; camBtn.title = 'Attach photo'; }
 
-  fbPush(`trucks/${pour.id}`, {
-    timestamp: ts, pourId: pour.id, truckNum, ticket, mix, cy, cumulative: prevCum + cy
-  });
+  const fbRef = fbPush(`trucks/${pour.id}`, truck);
   // Live feed
   fbPush('feed', { ts, type:'truck', pourId:pour.id, msg:`Truck #${truckNum} arrived — ${cy} CY ${mix}`, detail:`Cumulative: ${prevCum+cy} CY` });
   appendPourLog('truck', 'Truck #'+truckNum+' — '+cy+' CY '+mix, 'Cumulative: '+(prevCum+cy)+' CY');
+
+  // Upload photo asynchronously and patch the truck record when done
+  if (photoAtLog) {
+    uploadTicketPhoto(pour.id, truckNum, ticket, photoAtLog).then(result => {
+      if (!result) return;
+      truck.ticketPhotoId = result.fileId;
+      truck.ticketPhotoUrl = result.viewUrl;
+      truck.ticketPhotoThumb = result.thumbnailUrl;
+      // Rewrite the Firebase node — simplest path given existing fbSet-on-clear pattern
+      const ref = fbRef && typeof fbRef.key === 'string' ? fbRef.key : null;
+      if (ref) fbSet(`trucks/${pour.id}/${ref}`, truck);
+      renderPourDay();
+    });
+  }
 }
 
 function editTruckEntry(pourId, idx) {
@@ -3179,12 +3484,49 @@ function editTruckEntry(pourId, idx) {
   h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1">Ticket #</label>';
   h += '<input type="text" value="' + (t.ticket||'') + '" placeholder="Enter ticket #" onchange="updateTruckField(\'' + pourId + '\',' + idx + ',\'ticket\',this.value)" class="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs mono text-white/80 placeholder:text-white/20 focus:outline-none focus:border-white/30"/>';
   h += '</div>';
+  // Ticket photo
+  h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1">Ticket Photo</label>';
+  h += '<div class="flex items-center gap-2">';
+  if (t.ticketPhotoThumb || t.ticketPhotoUrl) {
+    h += '<img src="' + (t.ticketPhotoThumb || t.ticketPhotoUrl) + '" onclick="viewTicketPhoto(\'' + (t.ticketPhotoUrl||'') + '\')" class="w-12 h-12 rounded object-cover border border-white/10 cursor-zoom-in"/>';
+  }
+  h += '<label for="editPhotoInput_' + idx + '" style="touch-action:manipulation" class="flex-1 cursor-pointer flex items-center justify-center gap-1.5 py-2 rounded bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 text-xs">';
+  h += '<span class="material-symbols-outlined text-sm">photo_camera</span>' + (t.ticketPhotoUrl ? 'Replace' : 'Attach') + '</label>';
+  h += '<input id="editPhotoInput_' + idx + '" type="file" accept="image/*" capture="environment" onchange="onEditTruckPhoto(\'' + pourId + '\',' + idx + ',event)" style="display:none"/>';
+  h += '</div></div>';
   // Delete
   h += '<button onclick="deleteTruckEntry(\'' + pourId + '\',' + idx + ')" class="w-full py-2.5 rounded-lg text-xs font-bold text-red-400/70 hover:text-red-400 bg-red-500/5 hover:bg-red-500/10 border border-red-500/15 transition-all mt-2">Delete This Entry</button>';
   h += '</div>';
   h += '<div class="px-4 py-2 border-t border-white/5 text-center"><button onclick="document.getElementById(\'truckEditPopup\').remove()" class="text-xs text-white/30 hover:text-white/50">Close</button></div>';
   h += '</div></div>';
   document.body.insertAdjacentHTML('beforeend', h);
+}
+
+async function onEditTruckPhoto(pourId, idx, ev) {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  const pourTrucks = pourDay.trucks.filter(function(t){ return t.pourId === pourId; });
+  const t = pourTrucks[idx];
+  if (!t) return;
+  try {
+    const dataUrl = await compressImage(file);
+    const res = await uploadTicketPhoto(pourId, t.truckNum, t.ticket, dataUrl);
+    if (!res) { alert('Upload failed — check connection'); return; }
+    t.ticketPhotoId = res.fileId;
+    t.ticketPhotoUrl = res.viewUrl;
+    t.ticketPhotoThumb = res.thumbnailUrl;
+    // Persist via same rewrite path as updateTruckField
+    fbSet('trucks/' + pourId, null);
+    pourTrucks.forEach(function(tk) { fbPush('trucks/' + pourId, tk); });
+    document.getElementById('truckEditPopup')?.remove();
+    editTruckEntry(pourId, idx);
+    renderPourDay();
+  } catch (err) {
+    console.error(err);
+    alert('Photo attach failed: ' + err.message);
+  } finally {
+    ev.target.value = '';
+  }
 }
 
 function updateTruckField(pourId, idx, field, value) {
@@ -3316,11 +3658,16 @@ function exportPourReport() {
     td{padding:4pt 6pt;font-size:9pt;border-bottom:0.5pt solid #e2e8f0}
     tr:nth-child(even){background:#f8fafc}
     .ok{color:#166534} .warn{color:#92400e} .bad{color:#991b1b}
-    @media print{body{padding:0.3in 0.5in}}
+    .tickets-grid{display:grid;grid-template-columns:1fr 1fr;gap:10pt;margin-top:6pt}
+    .ticket-card{border:0.5pt solid #ccc;border-radius:4pt;overflow:hidden;background:#fff;page-break-inside:avoid}
+    .ticket-hdr{background:#1C2E54;color:#fff;font-size:8pt;font-weight:700;padding:4pt 6pt}
+    .ticket-img{display:block;width:100%;max-height:320pt;object-fit:contain;background:#f8fafc}
+    body.tickets-only .full-only{display:none !important}
+    @media print{body{padding:0.3in 0.5in}.tickets-grid{grid-template-columns:1fr 1fr}}
   </style></head><body style="padding-top:50pt">
   <h1>WEBCOR CONCRETE — Pour Day Report</h1>
   <div class="meta">Pour: <strong>${pour.id}</strong> · Section ${pour.section} · Date: ${pour.date || today} · Generated: ${today}</div>
-
+  <div class="full-only">
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-val">${ordered}</div><div class="kpi-label">Ordered CY</div></div>
     <div class="kpi"><div class="kpi-val ${delivered>=ordered?'ok':''}">${delivered}</div><div class="kpi-label">Delivered CY</div></div>
@@ -3398,13 +3745,29 @@ function exportPourReport() {
   </table>
 
   <h2>Truck Log (${pourTrucks.length} arrivals)</h2>
-  <table><tr><th>#</th><th>Time</th><th>Mix</th><th>CY</th><th>Cumulative</th><th>Ticket #</th></tr>
+  <table><tr><th>#</th><th>Time</th><th>Mix</th><th>CY</th><th>Cumulative</th><th>Ticket #</th><th>Photo</th></tr>
   ${pourTrucks.map(t => {
     const time = typeof t.timestamp==='string'&&t.timestamp.includes('T') ? new Date(t.timestamp).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : t.timestamp;
     const mixLabel = t.mix==='slurry'?'Slurry':t.mix==='5000'?'5000 PSI':'8000 PSI';
-    return `<tr><td>${t.truckNum}</td><td>${time}</td><td>${mixLabel}</td><td>${t.cy} CY</td><td><strong>${t.cumulative} CY</strong></td><td>${t.ticket||'—'}</td></tr>`;
+    const photoCell = t.ticketPhotoUrl ? `<a href="${t.ticketPhotoUrl}" target="_blank"><img src="${t.ticketPhotoThumb || t.ticketPhotoUrl}" style="width:36pt;height:36pt;object-fit:cover;border-radius:3pt;border:0.5pt solid #ccc"/></a>` : '—';
+    return `<tr><td>${t.truckNum}</td><td>${time}</td><td>${mixLabel}</td><td>${t.cy} CY</td><td><strong>${t.cumulative} CY</strong></td><td>${t.ticket||'—'}</td><td>${photoCell}</td></tr>`;
   }).join('')}
   </table>
+
+  </div><!-- /full-only (pre-tickets) -->
+
+  ${pourTrucks.some(t => t.ticketPhotoUrl) ? `<h2>Delivery Tickets</h2>
+  <div class="tickets-grid">
+  ${pourTrucks.filter(t => t.ticketPhotoUrl).map(t => {
+    const time = typeof t.timestamp==='string'&&t.timestamp.includes('T') ? new Date(t.timestamp).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : t.timestamp;
+    return `<div class="ticket-card">
+      <div class="ticket-hdr">Truck #${t.truckNum} · ${time} · ${t.mix==='slurry'?'Slurry':t.mix+' PSI'} · ${t.cy} CY${t.ticket?' · Tkt '+t.ticket:''}</div>
+      <img src="${t.ticketPhotoUrl}" class="ticket-img"/>
+    </div>`;
+  }).join('')}
+  </div>` : ''}
+
+  <div class="full-only">
 
   ${ftgs.length ? `<h2>Pour Progress (${doneFtgs}/${totalFtgs} complete — ${completedCY.toFixed(1)}/${totalCY.toFixed(0)} CY)</h2>
   <table><tr><th>ID</th><th>Type</th><th>CY</th><th>Mix</th><th>Progress</th></tr>
@@ -3501,22 +3864,54 @@ function exportPourReport() {
     return h;
   })()}
 
+  </div><!-- /full-only (post-tickets) -->
+
   <div style="margin-top:20pt;font-size:7pt;color:#999;border-top:0.5pt solid #ccc;padding-top:4pt">
     ${pour.id} Pour Day Report · Generated ${today} · Webcor Concrete / OpenYap
   </div>
   </body></html>`;
 
   // Add share toolbar for iPad fullscreen
-  const shareBar = `<div style="position:fixed;top:0;left:0;right:0;z-index:999;background:#1C2E54;padding:8pt 16pt;display:flex;align-items:center;justify-content:space-between;gap:8pt;font-family:Arial,sans-serif" id="shareBar">
+  const reportApiUrl = API_URL;
+  const reportPourId = pour.id;
+  const reportDateIso = (new Date()).toISOString().slice(0,10);
+  const shareBar = `<div style="position:fixed;top:0;left:0;right:0;z-index:999;background:#1C2E54;padding:8pt 16pt;display:flex;align-items:center;justify-content:space-between;gap:8pt;font-family:Arial,sans-serif;flex-wrap:wrap" id="shareBar">
     <span style="color:#fff;font-size:10pt;font-weight:700">${pour.id} Pour Report</span>
-    <div style="display:flex;gap:6pt">
-      <button onclick="window.print()" style="background:#fff2;color:#fff;border:1px solid #fff3;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Print / PDF</button>
+    <div style="display:flex;gap:6pt;flex-wrap:wrap">
+      <button onclick="window.print()" style="background:#fff2;color:#fff;border:1px solid #fff3;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Print Full</button>
+      <button onclick="document.body.classList.add('tickets-only');window.print();setTimeout(()=>document.body.classList.remove('tickets-only'),500)" style="background:#fff2;color:#fff;border:1px solid #fff3;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Print Tickets Only</button>
+      <button id="uploadDriveBtn" onclick="uploadEodToDrive('${reportApiUrl}','${reportPourId}','${reportDateIso}',this)" style="background:#4ADE80;color:#000;border:none;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Upload to Drive</button>
       <button onclick="navigator.clipboard.writeText(document.body.innerText).then(()=>this.textContent='Copied!').catch(()=>{})" style="background:#fff2;color:#fff;border:1px solid #fff3;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Copy Text</button>
-      ${typeof navigator.share === 'function' ? '<button onclick="navigator.share({title:\'Pour Report — ' + pour.id + '\',text:document.body.innerText}).catch(()=>{})" style="background:#4ADE80;color:#000;border:none;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Share</button>' : ''}
+      ${typeof navigator.share === 'function' ? '<button onclick="navigator.share({title:\'Pour Report — ' + pour.id + '\',text:document.body.innerText}).catch(()=>{})" style="background:#fff2;color:#fff;border:1px solid #fff3;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Share</button>' : ''}
       <button onclick="window.close();window.location.href=\'https://dyap123.github.io/cup-dashboard/\'" style="background:#fff2;color:#fff;border:1px solid #fff3;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Back</button>
       <button onclick="document.getElementById(\'shareBar\').remove()" style="background:transparent;color:#fff6;border:none;padding:6pt 8pt;font-size:12pt;cursor:pointer">&times;</button>
     </div>
+    <div id="driveStatus" style="flex-basis:100%;color:#fff;font-size:8pt;opacity:0.7"></div>
   </div>
+  <script>
+  async function uploadEodToDrive(api, pourId, isoDate, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Uploading...';
+    const statusEl = document.getElementById('driveStatus');
+    const reportHtml = '<!DOCTYPE html>' + document.documentElement.outerHTML;
+    try {
+      const res = await fetch(api, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action:'bundleEOD', pourId, date: isoDate, reportHtml })
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      btn.textContent = 'Uploaded \u2713';
+      btn.style.background = '#22c55e';
+      if (statusEl) statusEl.innerHTML = 'Report + tickets saved to <a href="' + json.folderUrl + '" target="_blank" style="color:#4ADE80">Drive folder</a>';
+    } catch (err) {
+      btn.textContent = 'Upload failed';
+      btn.disabled = false;
+      if (statusEl) statusEl.textContent = 'Error: ' + err.message;
+    }
+  }
+  <\/scr` + `ipt>
   <style>@media print{#shareBar{display:none!important}body{padding-top:0.3in!important}}</style>`;
 
   const w = window.open('', '_blank');
@@ -3662,12 +4057,12 @@ function renderMapSection() {
       var shapeColor = isGB ? gbColor : fc;
       var selected = mapEditMode && mapSelected.includes(f.id);
       var safeId = f.id.replace(/'/g, "\\'");
-      var clickAction = mapEditMode ? "selectMapFooting('"+safeId+"',event)" : "toggleFooting('"+safeId+"')";
       var hasEmbeds = f.embeds && f.embeds.length;
+      // Long-press for embeds — only in non-edit mode. Selection itself is routed through the svg-level pointerdown handler.
       var lpAttr = (!mapEditMode && hasEmbeds) ? ' onpointerdown="startEmbedLongPress(\''+safeId+'\',event)" onpointerup="cancelEmbedLongPress()" onpointerleave="cancelEmbedLongPress()"' : '';
 
       if (isGB) {
-        ftgSvg += '<rect data-ftg-id="'+f.id+'" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="4" fill="'+gbColor+'20" stroke="'+(selected?'#fff':gbColor+'aa')+'" stroke-width="'+(selected?2.5:2)+'" stroke-dasharray="8,4" class="cursor-pointer" onclick="'+clickAction+'"'+lpAttr+'/>';
+        ftgSvg += '<rect data-ftg-id="'+f.id+'" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="4" fill="'+gbColor+'20" stroke="'+(selected?'#fff':gbColor+'aa')+'" stroke-width="'+(selected?2.5:2)+'" stroke-dasharray="8,4" class="cursor-pointer" style="touch-action:none"'+lpAttr+'/>';
         if (pct > 0) { var gbFillW = f.w * (pct / 100); ftgSvg += '<rect x="'+f.x+'" y="'+f.y+'" width="'+gbFillW+'" height="'+f.h+'" rx="4" fill="'+gbColor+'" opacity="'+(done?0.8:0.45)+'" pointer-events="none"/>'; }
         var dh = f.h * 0.6;
         ftgSvg += '<polygon points="'+f.x+','+(f.y+f.h/2)+' '+(f.x+5)+','+(f.y+f.h/2-dh/2)+' '+(f.x+10)+','+(f.y+f.h/2)+' '+(f.x+5)+','+(f.y+f.h/2+dh/2)+'" fill="'+gbColor+'88" pointer-events="none"/>';
@@ -3676,7 +4071,7 @@ function renderMapSection() {
       } else {
         var baseFill = pct === 0 ? shapeColor+'25' : shapeColor+'15';
         var baseStroke = selected ? '#fff' : (done ? shapeColor : shapeColor+'88');
-        ftgSvg += '<rect data-ftg-id="'+f.id+'" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="'+rx+'" fill="'+baseFill+'" stroke="'+baseStroke+'" stroke-width="'+(selected?3:2)+'" class="cursor-pointer" onclick="'+clickAction+'"'+lpAttr+'/>';
+        ftgSvg += '<rect data-ftg-id="'+f.id+'" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="'+rx+'" fill="'+baseFill+'" stroke="'+baseStroke+'" stroke-width="'+(selected?3:2)+'" class="cursor-pointer" style="touch-action:none"'+lpAttr+'/>';
         if (pct > 0) {
           ftgSvg += '<defs><clipPath id="'+clipId+'"><rect x="'+f.x+'" y="'+fillY+'" width="'+f.w+'" height="'+fillH+'"/></clipPath></defs>';
           ftgSvg += '<rect x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="'+rx+'" fill="'+shapeColor+'" opacity="'+(done?0.9:0.5)+'" clip-path="url(#'+clipId+')" pointer-events="none"/>';
@@ -3741,8 +4136,8 @@ function renderMapSection() {
 
     // SVG container — scrollable, min-height scales with content
     var svgMinH = Math.max(maxY * 0.8, 500);
-    mh += '<div style="height:80vh;min-height:' + svgMinH + 'px;overflow:auto;-webkit-overflow-scrolling:touch">'
-      + '<svg id="mapSvg" viewBox="' + dynViewBox + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:800px;min-height:' + svgMinH + 'px">'
+    mh += '<div style="height:80vh;min-height:' + svgMinH + 'px;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y">'
+      + '<svg id="mapSvg" viewBox="' + dynViewBox + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:800px;min-height:' + svgMinH + 'px;touch-action:none">'
       + '<rect width="' + maxX + '" height="' + maxY + '" fill="#080c14"/>'
       + '<defs><pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.6" fill="rgba(255,255,255,0.06)"/></pattern></defs>'
       + '<rect width="' + maxX + '" height="' + maxY + '" fill="url(#fgrid)"/>'
@@ -4137,6 +4532,10 @@ function renderPourDay() {
           ).join('')}
         </div>
         <input id="pdTicketInput" type="text" placeholder="Ticket #" class="w-24 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs mono text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/30">
+        <label id="pdCameraBtn" for="pdCameraInput" title="Attach photo" style="touch-action:manipulation" class="relative cursor-pointer flex items-center justify-center px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all">
+          <span class="material-symbols-outlined text-base">photo_camera</span>
+        </label>
+        <input id="pdCameraInput" type="file" accept="image/*" capture="environment" onchange="onTicketPhotoCapture(event)" style="display:none">
         <select id="pdMixSelect" class="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs mono text-white/70 focus:outline-none focus:border-white/30 cursor-pointer">
           <option value="8000" style="background:#1a1a1a">8000 PSI</option>
           <option value="5000" style="background:#1a1a1a">5000 PSI</option>
@@ -4167,6 +4566,7 @@ function renderPourDay() {
               <span class="mono font-bold text-white text-sm">${t.cy} CY</span>
               <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${t.mix==='8000'?'bg-red-500/15 text-red-300':t.mix==='5000'?'bg-blue-500/15 text-blue-300':'bg-gray-500/15 text-gray-300'}">${t.mix==='slurry'?'SLR':t.mix||'8000'}</span>
               ${t.ticket ? `<span class="mono text-white/30 text-[10px]">Tkt: ${t.ticket}</span>` : ''}
+              ${t.ticketPhotoThumb || t.ticketPhotoUrl ? `<img src="${t.ticketPhotoThumb || t.ticketPhotoUrl}" onclick="event.stopPropagation();viewTicketPhoto('${t.ticketPhotoUrl || ''}')" class="w-8 h-8 rounded object-cover border border-white/10 cursor-zoom-in" alt="ticket"/>` : ''}
             </div>
             <div class="flex items-center gap-3">
               <span class="mono text-white/30">${time}</span>
