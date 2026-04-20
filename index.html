@@ -1343,11 +1343,12 @@ function renderPourCards(pours) {
   const grid = document.getElementById('pourGrid');
   if (!pours.length) { grid.innerHTML = ''; return; }
 
-  const maxCy8000 = Math.max(...pours.map(p => p.cy8000), 1);
-  const maxCy5000 = Math.max(...pours.map(p => p.cy5000), 1);
+  const maxCy8000 = Math.max(...pours.map(p => p.cy8000 || 0), 1);
+  const maxCy5000 = Math.max(...pours.map(p => p.cy5000 || 0), 1);
+  const maxSlurry = Math.max(...pours.map(p => p.slurry || 0), 1);
 
   // Build each card's HTML once — reused in either layout
-  const cardHtml = (p, idx) => renderOnePourCard(p, idx, maxCy8000, maxCy5000);
+  const cardHtml = (p, idx) => renderOnePourCard(p, idx, maxCy8000, maxCy5000, maxSlurry);
 
   if (state.sortByDate) {
     // Horizontal kanban — date columns
@@ -1391,7 +1392,7 @@ function renderPourCards(pours) {
   grid.innerHTML = pours.map((p, idx) => cardHtml(p, idx)).join('');
 }
 
-function renderOnePourCard(p, idx, maxCy8000, maxCy5000) {
+function renderOnePourCard(p, idx, maxCy8000, maxCy5000, maxSlurry) {
   return ((p, idx) => {
     const c     = SEC_COLORS[p.section] || '#888';
     const pct8  = Math.round((p.cy8000 / maxCy8000) * 100);
@@ -1430,7 +1431,7 @@ function renderOnePourCard(p, idx, maxCy8000, maxCy5000) {
       </div>` : ''}
       ${p.slurry > 0 || p.type==='Slurry' ? `<div class="mb-3">
         <div class="flex justify-between text-xs mb-1"><span class="text-white/40">Slurry</span><span class="mono text-gray-300 font-semibold ${isManagerView ? '' : 'cursor-pointer" onclick="let v=prompt(\'Slurry CY:\',\''+p.slurry+'\');if(v!==null)updatePourField(\''+p.id+'\',\'slurry\',+v)'}">${p.slurry} CY</span></div>
-        <div class="h-1 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-gray-500 to-gray-400 bar-animate" style="width:${Math.round((p.slurry/Math.max(...pours.map(x=>x.slurry),1))*100)}%"></div></div>
+        <div class="h-1 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-gray-500 to-gray-400 bar-animate" style="width:${Math.round((p.slurry / (maxSlurry || 1)) * 100)}%"></div></div>
       </div>` : ''}
       ${(() => {
         const insp = getInspectionStatus(p.id);
