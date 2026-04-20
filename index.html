@@ -239,6 +239,27 @@
     }
     /* SVG text stays visible */
     body.light-mode #zoneSvg text { fill: currentColor; }
+
+    /* iOS/Safari default form styling gives inputs a white background that
+       overrides Tailwind's bg-transparent. Strip it so inline-edit inputs
+       (e.g. "+ label" on pour cards) don't show up as a blank white box. */
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    input[type="search"],
+    select, textarea {
+      -webkit-appearance: none;
+      appearance: none;
+      background-clip: padding-box;
+      color-scheme: dark;
+    }
+    /* Restore light-mode behavior where intended */
+    body.light-mode input[type="text"],
+    body.light-mode input[type="number"],
+    body.light-mode input[type="date"],
+    body.light-mode input[type="search"] {
+      color-scheme: light;
+    }
     /* Popups/modals */
     body.light-mode #embedPopup > div > div,
     body.light-mode #exportModal > div > div {
