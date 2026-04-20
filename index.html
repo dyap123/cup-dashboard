@@ -609,6 +609,16 @@ function attachFirebaseListeners() {
     applyOverrides();
     render();
   });
+  fbListen('custom-mixes', (val) => {
+    pourDay.customMixes = Array.isArray(val) ? val : (val ? Object.values(val) : []);
+    // Refresh the Edit popup if open so the buttons reappear.
+    const popup = document.getElementById('truckEditPopup');
+    if (popup && popup.dataset.pourId && popup.dataset.idx) {
+      editTruckEntry(popup.dataset.pourId, parseInt(popup.dataset.idx));
+    }
+    // Also refresh the pour-day mix dropdown
+    if (document.getElementById('pdMixSelect')) renderPourDay();
+  });
   fbListen('pours-user', (val) => {
     userPours = val || {};
     if (state.pours.length) { mergeUserPours(); render(); }
@@ -2607,6 +2617,7 @@ let pourDay = {
   defaultCY: 9,
   mapCache: {},
   feed: [],
+  customMixes: [], // user-defined mix codes, persisted to Firebase at `custom-mixes`
 };
 let livePour = { active: null }; // { pourId, startedAt, startedBy }
 const isManagerView = new URLSearchParams(window.location.search).get('view') === 'manager';
@@ -3329,6 +3340,21 @@ function selectPourDay(pourId) {
   renderPourDay();
 }
 
+// Render a human label for any mix value — standard codes 8000/5000/slurry, or a custom numeric PSI.
+function formatMixLabel(mix) {
+  if (!mix) return '8000 PSI';
+  if (mix === 'slurry') return 'Slurry';
+  if (mix === '8000' || mix === '5000') return mix + ' PSI';
+  const n = parseFloat(mix);
+  if (!isNaN(n) && n > 0) return n + ' PSI';
+  return String(mix);
+}
+function formatMixShort(mix) {
+  if (mix === 'slurry') return 'SLR';
+  if (!mix) return '8000';
+  return String(mix);
+}
+
 // ── TICKET PHOTO CAPTURE ───────────────────────────────────────────────────
 // Holds a pre-captured photo (data URL) that will be attached to the next logTruck call.
 let pendingTicketPhoto = null;
@@ -3459,30 +3485,57 @@ function editTruckEntry(pourId, idx) {
 
   // Build edit popup
   document.getElementById('truckEditPopup')?.remove();
-  var h = '<div id="truckEditPopup" class="fixed inset-0 z-[200] flex items-center justify-center" style="background:rgba(0,0,0,0.6);backdrop-filter:blur(4px)" onclick="if(event.target===this)this.remove()">';
+  var h = '<div id="truckEditPopup" data-pour-id="' + pourId + '" data-idx="' + idx + '" class="fixed inset-0 z-[200] flex items-center justify-center" style="background:rgba(0,0,0,0.6);backdrop-filter:blur(4px)" onclick="if(event.target===this)this.remove()">';
   h += '<div class="w-80 max-w-[90vw] rounded-xl overflow-hidden" style="background:rgba(6,6,14,0.95);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1)">';
   h += '<div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">';
   h += '<span class="text-sm font-bold text-white">Edit Truck #' + t.truckNum + '</span>';
   h += '<span class="text-[10px] mono text-white/30">' + (typeof t.timestamp==='string'&&t.timestamp.includes('T') ? new Date(t.timestamp).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : t.timestamp) + '</span>';
   h += '</div>';
-  h += '<div class="p-4 space-y-3">';
-  // CY
+  h += '<div class="p-4 space-y-3" data-popup-body>';
+  // Mix Type — quick buttons + user-defined custom mixes + "+ Add Mix"
+  var standardMixes = ['8000','5000','slurry'];
+  var customMixList = Array.isArray(pourDay.customMixes) ? pourDay.customMixes : [];
+  var isCustomMix = t.mix && !standardMixes.includes(t.mix);
+  h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1">Mix Type</label>';
+  h += '<div class="flex gap-1 flex-wrap">';
+  h += '<button onclick="updateTruckField(\'' + pourId + '\',' + idx + ',\'mix\',\'8000\')" class="flex-1 py-2 rounded text-xs font-bold transition-all min-w-[60px] ' + (t.mix==='8000' ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-white/5 text-white/30') + '">8000</button>';
+  h += '<button onclick="updateTruckField(\'' + pourId + '\',' + idx + ',\'mix\',\'5000\')" class="flex-1 py-2 rounded text-xs font-bold transition-all min-w-[60px] ' + (t.mix==='5000' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-white/5 text-white/30') + '">5000</button>';
+  h += '<button onclick="updateTruckField(\'' + pourId + '\',' + idx + ',\'mix\',\'slurry\')" class="flex-1 py-2 rounded text-xs font-bold transition-all min-w-[60px] ' + (t.mix==='slurry' ? 'bg-gray-500/20 text-gray-300 border border-gray-500/30' : 'bg-white/5 text-white/30') + '">Slurry</button>';
+  customMixList.forEach(function(m) {
+    var safe = String(m).replace(/'/g, "\\'");
+    var active = t.mix === m;
+    h += '<span class="relative inline-flex flex-1 min-w-[80px]">';
+    h += '<button onclick="updateTruckField(\'' + pourId + '\',' + idx + ',\'mix\',\'' + safe + '\')" class="w-full py-2 pr-6 rounded text-xs font-bold transition-all ' + (active ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-white/5 text-white/40 hover:text-white/70') + '">' + String(m).replace(/</g,'&lt;') + '</button>';
+    h += '<button onclick="event.stopPropagation();removeCustomMix(\'' + safe + '\')" title="Remove" class="absolute right-1 top-1/2 -translate-y-1/2 text-white/30 hover:text-red-400 text-[10px] leading-none px-1">&times;</button>';
+    h += '</span>';
+  });
+  h += '<button onclick="addCustomMix(\'' + pourId + '\',' + idx + ')" class="flex-1 min-w-[80px] py-2 rounded text-xs font-bold bg-white/5 text-white/40 border border-dashed border-white/15 hover:text-white hover:bg-white/10">+ Add Mix</button>';
+  h += '</div>';
+  if (isCustomMix) {
+    h += '<div class="text-[9px] text-amber-300/70 mono mt-1">Current: ' + String(t.mix).replace(/</g,'&lt;') + '</div>';
+  }
+  h += '</div>';
+  // Quantity (CY) — quick buttons + custom numeric input
   h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1">Quantity (CY)</label>';
   h += '<div class="flex gap-1">';
   [5,6,7,8,9,10].forEach(function(cy) {
     h += '<button onclick="updateTruckField(\'' + pourId + '\',' + idx + ',\'cy\',' + cy + ')" class="flex-1 py-2 rounded text-xs mono font-bold transition-all ' + (t.cy===cy ? 'bg-white/15 text-white' : 'bg-white/5 text-white/30') + '">' + cy + '</button>';
   });
-  h += '</div></div>';
-  // Mix
-  h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1">Mix Type</label>';
-  h += '<div class="flex gap-1">';
-  h += '<button onclick="updateTruckField(\'' + pourId + '\',' + idx + ',\'mix\',\'8000\')" class="flex-1 py-2 rounded text-xs font-bold transition-all ' + (t.mix==='8000' ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-white/5 text-white/30') + '">8000</button>';
-  h += '<button onclick="updateTruckField(\'' + pourId + '\',' + idx + ',\'mix\',\'5000\')" class="flex-1 py-2 rounded text-xs font-bold transition-all ' + (t.mix==='5000' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-white/5 text-white/30') + '">5000</button>';
-  h += '<button onclick="updateTruckField(\'' + pourId + '\',' + idx + ',\'mix\',\'slurry\')" class="flex-1 py-2 rounded text-xs font-bold transition-all ' + (t.mix==='slurry' ? 'bg-gray-500/20 text-gray-300 border border-gray-500/30' : 'bg-white/5 text-white/30') + '">Slurry</button>';
-  h += '</div></div>';
+  h += '</div>';
+  var isCustomCY = typeof t.cy === 'number' && [5,6,7,8,9,10].indexOf(t.cy) < 0;
+  h += '<div class="flex items-center gap-2 mt-2">';
+  h += '<input type="number" step="0.5" min="0" placeholder="Custom CY" value="' + (isCustomCY ? String(t.cy) : '') + '" onchange="setCustomCY(\'' + pourId + '\',' + idx + ',this.value)" class="flex-1 bg-white/5 border ' + (isCustomCY ? 'border-amber-500/40' : 'border-white/10') + ' rounded px-3 py-2 text-xs mono text-white/80 placeholder:text-white/20 focus:outline-none focus:border-amber-500/60"/>';
+  h += '<span class="text-[9px] text-white/30">CY</span>';
+  h += '</div>';
+  h += '</div>';
   // Ticket #
   h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1">Ticket #</label>';
   h += '<input type="text" value="' + (t.ticket||'') + '" placeholder="Enter ticket #" onchange="updateTruckField(\'' + pourId + '\',' + idx + ',\'ticket\',this.value)" class="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs mono text-white/80 placeholder:text-white/20 focus:outline-none focus:border-white/30"/>';
+  h += '</div>';
+  // Note
+  var safeNote = String(t.note || '').replace(/"/g, '&quot;');
+  h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1">Note</label>';
+  h += '<textarea rows="2" placeholder="Slump, admixture, delays, anything worth remembering\u2026" onchange="updateTruckField(\'' + pourId + '\',' + idx + ',\'note\',this.value)" class="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white/80 placeholder:text-white/20 focus:outline-none focus:border-white/30" style="resize:vertical">' + safeNote + '</textarea>';
   h += '</div>';
   // Ticket photo
   h += '<div><label class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1">Ticket Photo</label>';
@@ -3527,6 +3580,42 @@ async function onEditTruckPhoto(pourId, idx, ev) {
   } finally {
     ev.target.value = '';
   }
+}
+
+function setCustomMix(pourId, idx, value) {
+  var v = String(value || '').trim();
+  if (!v) return;
+  updateTruckField(pourId, idx, 'mix', v);
+}
+
+function setCustomCY(pourId, idx, value) {
+  var n = parseFloat(value);
+  if (isNaN(n) || n <= 0) return;
+  updateTruckField(pourId, idx, 'cy', n);
+}
+
+function addCustomMix(pourId, idx) {
+  var label = prompt('New mix label (e.g. 6000, 6000 PSI, Grout, 5000-FA):');
+  if (!label) return;
+  label = String(label).trim();
+  if (!label) return;
+  var list = Array.isArray(pourDay.customMixes) ? pourDay.customMixes.slice() : [];
+  if (!list.includes(label)) { list.push(label); fbSet('custom-mixes', list); pourDay.customMixes = list; }
+  // Immediately apply to the current truck being edited, if any
+  if (pourId != null && idx != null) updateTruckField(pourId, idx, 'mix', label);
+}
+
+function removeCustomMix(label) {
+  if (!confirm('Remove mix "' + label + '" from the quick list?')) return;
+  var list = (pourDay.customMixes || []).filter(function(m){ return m !== label; });
+  fbSet('custom-mixes', list);
+  pourDay.customMixes = list;
+  // Refresh popup if open
+  const popup = document.getElementById('truckEditPopup');
+  if (popup && popup.dataset.pourId && popup.dataset.idx) {
+    editTruckEntry(popup.dataset.pourId, parseInt(popup.dataset.idx));
+  }
+  renderPourDay();
 }
 
 function updateTruckField(pourId, idx, field, value) {
@@ -3745,12 +3834,13 @@ function exportPourReport() {
   </table>
 
   <h2>Truck Log (${pourTrucks.length} arrivals)</h2>
-  <table><tr><th>#</th><th>Time</th><th>Mix</th><th>CY</th><th>Cumulative</th><th>Ticket #</th><th>Photo</th></tr>
+  <table><tr><th>#</th><th>Time</th><th>Mix</th><th>CY</th><th>Cumulative</th><th>Ticket #</th><th>Photo</th><th>Note</th></tr>
   ${pourTrucks.map(t => {
     const time = typeof t.timestamp==='string'&&t.timestamp.includes('T') ? new Date(t.timestamp).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : t.timestamp;
-    const mixLabel = t.mix==='slurry'?'Slurry':t.mix==='5000'?'5000 PSI':'8000 PSI';
+    const mixLabel = formatMixLabel(t.mix);
     const photoCell = t.ticketPhotoUrl ? `<a href="${t.ticketPhotoUrl}" target="_blank"><img src="${t.ticketPhotoThumb || t.ticketPhotoUrl}" style="width:36pt;height:36pt;object-fit:cover;border-radius:3pt;border:0.5pt solid #ccc"/></a>` : '—';
-    return `<tr><td>${t.truckNum}</td><td>${time}</td><td>${mixLabel}</td><td>${t.cy} CY</td><td><strong>${t.cumulative} CY</strong></td><td>${t.ticket||'—'}</td><td>${photoCell}</td></tr>`;
+    const noteCell = t.note ? String(t.note).replace(/</g,'&lt;') : '—';
+    return `<tr><td>${t.truckNum}</td><td>${time}</td><td>${mixLabel}</td><td>${t.cy} CY</td><td><strong>${t.cumulative} CY</strong></td><td>${t.ticket||'—'}</td><td>${photoCell}</td><td style="font-size:8pt;color:#555">${noteCell}</td></tr>`;
   }).join('')}
   </table>
 
@@ -3761,7 +3851,7 @@ function exportPourReport() {
   ${pourTrucks.filter(t => t.ticketPhotoUrl).map(t => {
     const time = typeof t.timestamp==='string'&&t.timestamp.includes('T') ? new Date(t.timestamp).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : t.timestamp;
     return `<div class="ticket-card">
-      <div class="ticket-hdr">Truck #${t.truckNum} · ${time} · ${t.mix==='slurry'?'Slurry':t.mix+' PSI'} · ${t.cy} CY${t.ticket?' · Tkt '+t.ticket:''}</div>
+      <div class="ticket-hdr">Truck #${t.truckNum} · ${time} · ${formatMixLabel(t.mix)} · ${t.cy} CY${t.ticket?' · Tkt '+t.ticket:''}${t.note?' · '+String(t.note).slice(0,60):''}</div>
       <img src="${t.ticketPhotoUrl}" class="ticket-img"/>
     </div>`;
   }).join('')}
@@ -4540,6 +4630,7 @@ function renderPourDay() {
           <option value="8000" style="background:#1a1a1a">8000 PSI</option>
           <option value="5000" style="background:#1a1a1a">5000 PSI</option>
           <option value="slurry" style="background:#1a1a1a">Slurry</option>
+          ${(pourDay.customMixes||[]).map(m => `<option value="${String(m).replace(/"/g,'&quot;')}" style="background:#1a1a1a">${String(m).replace(/</g,'&lt;')}</option>`).join('')}
         </select>
       </div>
     </div>`;
@@ -4560,13 +4651,16 @@ function renderPourDay() {
         ${reverseTrucks.map(t => {
           const time = typeof t.timestamp === 'string' && t.timestamp.includes('T') ? new Date(t.timestamp).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : t.timestamp;
           const idx = pourTrucks.indexOf(t);
+          const mixChipCls = t.mix==='8000'?'bg-red-500/15 text-red-300':t.mix==='5000'?'bg-blue-500/15 text-blue-300':t.mix==='slurry'?'bg-gray-500/15 text-gray-300':'bg-amber-500/15 text-amber-300';
+          const noteSafe = t.note ? String(t.note).replace(/"/g,'&quot;').slice(0,80) : '';
           return `<div class="px-4 py-2.5 flex items-center justify-between border-b border-white/[0.04] text-xs group" onclick="editTruckEntry('${pour.id}',${idx})">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 flex-wrap">
               <span class="mono font-bold text-white/80 text-sm">#${t.truckNum}</span>
               <span class="mono font-bold text-white text-sm">${t.cy} CY</span>
-              <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${t.mix==='8000'?'bg-red-500/15 text-red-300':t.mix==='5000'?'bg-blue-500/15 text-blue-300':'bg-gray-500/15 text-gray-300'}">${t.mix==='slurry'?'SLR':t.mix||'8000'}</span>
+              <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${mixChipCls}">${formatMixShort(t.mix)}</span>
               ${t.ticket ? `<span class="mono text-white/30 text-[10px]">Tkt: ${t.ticket}</span>` : ''}
               ${t.ticketPhotoThumb || t.ticketPhotoUrl ? `<img src="${t.ticketPhotoThumb || t.ticketPhotoUrl}" onclick="event.stopPropagation();viewTicketPhoto('${t.ticketPhotoUrl || ''}')" class="w-8 h-8 rounded object-cover border border-white/10 cursor-zoom-in" alt="ticket"/>` : ''}
+              ${noteSafe ? `<span class="text-white/50 italic text-[10px] truncate max-w-[160px]" title="${noteSafe}">${noteSafe}</span>` : ''}
             </div>
             <div class="flex items-center gap-3">
               <span class="mono text-white/30">${time}</span>
@@ -5075,12 +5169,12 @@ function renderLive() {
       </div>
       ${recentTrucks.map((t, ti) => {
         const time = typeof t.timestamp === 'string' && t.timestamp.includes('T') ? new Date(t.timestamp).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : t.timestamp;
-        const mixCls = t.mix==='8000' ? 'bg-red-500/15 text-red-300' : t.mix==='5000' ? 'bg-blue-500/15 text-blue-300' : 'bg-gray-500/15 text-gray-300';
+        const mixCls = t.mix==='8000' ? 'bg-red-500/15 text-red-300' : t.mix==='5000' ? 'bg-blue-500/15 text-blue-300' : t.mix==='slurry' ? 'bg-gray-500/15 text-gray-300' : 'bg-amber-500/15 text-amber-300';
         return `<div class="pour-card px-4 py-2.5 flex items-center justify-between border-b border-white/[0.03] text-xs" style="animation-delay:${ti*40}ms">
           <div class="flex items-center gap-3">
             <span class="mono font-bold text-white/70">#${t.truckNum}</span>
             <span class="mono font-bold text-white">${t.cy} CY</span>
-            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${mixCls}">${t.mix==='slurry'?'SLR':t.mix||'8000'}</span>
+            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${mixCls}">${formatMixShort(t.mix)}</span>
           </div>
           <div class="flex items-center gap-3">
             <span class="mono text-white/25">${time}</span>
