@@ -844,8 +844,8 @@ let cachedOverrides = {};
 let userPours = {};
 let deletedPours = {};
 function applyOverrides() {
-  if (!state.pours.length) return;
-  if (Object.keys(cachedOverrides).length) {
+  // Field overrides only apply if we have sheet-sourced pours to override
+  if (state.pours.length && Object.keys(cachedOverrides).length) {
     Object.entries(cachedOverrides).forEach(([pourId, fields]) => {
       const pour = state.pours.find(p => p.id === pourId);
       if (!pour) return;
@@ -854,6 +854,7 @@ function applyOverrides() {
       pour.trucks = Math.ceil(pour.total / 9);
     });
   }
+  // Always merge Firebase user pours + refresh totals, even when the sheet is empty
   mergeUserPours();
   recalcTotals();
 }
