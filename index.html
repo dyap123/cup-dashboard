@@ -634,11 +634,13 @@ function attachFirebaseListeners() {
   });
   fbListen('pours-user', (val) => {
     userPours = val || {};
-    if (state.pours.length) { mergeUserPours(); render(); }
+    mergeUserPours();
+    render();
   });
   fbListen('pours-deleted', (val) => {
     deletedPours = val || {};
-    if (state.pours.length) { mergeUserPours(); render(); }
+    mergeUserPours();
+    render();
   });
   fbListen('pour-area', (val) => { pourAreaCache = val || {}; });
   fbListen('concrete-order', (val) => {
@@ -847,13 +849,17 @@ function applyOverrides() {
 }
 
 // Layer user-added pours onto state.pours and filter out tombstones.
+// Called after every Firebase pour-list change; must be idempotent because state.pours
+// may already contain user-added pours from a previous run.
 function mergeUserPours() {
-  // Filter out deleted pours
+  // Drop any prior user-added pours (we'll re-add from the current userPours snapshot)
+  state.pours = state.pours.filter(p => !p.userAdded);
+  // Drop tombstoned pours (whether they came from sheet or user)
   state.pours = state.pours.filter(p => !deletedPours[p.id]);
-  // Add user pours that aren't already in the list
+  // Add user pours that aren't already in the sheet data
   Object.entries(userPours).forEach(([id, p]) => {
     if (deletedPours[id]) return;
-    if (state.pours.find(x => x.id === id)) return; // sheet already has it — user pour is stale
+    if (state.pours.find(x => x.id === id)) return; // sheet already has it
     const total = (p.cy8000||0) + (p.cy5000||0) + (p.slurry||0);
     state.pours.push({
       id,
@@ -868,9 +874,9 @@ function mergeUserPours() {
       label: p.label || '',
       type: p.type || (p.slurry > 0 && !p.cy8000 && !p.cy5000 ? 'Slurry' : 'Structural'),
       userAdded: true,
-      syncedToSheet: !!p.syncedToSheet,
     });
   });
+  recalcTotals();
 }
 
 // ── POUR CRUD ────────────────────────────────────────────────────────────────
@@ -930,8 +936,11 @@ function submitAddPour() {
     slurry: parseFloat(document.getElementById('newPourSlurry').value) || 0,
     label: document.getElementById('newPourLabel').value.trim(),
     createdAt: new Date().toISOString(),
-    syncedToSheet: false,
   };
+  // Optimistic update — don't wait for the Firebase round-trip
+  userPours = Object.assign({}, userPours, { [id]: pour });
+  mergeUserPours();
+  render();
   fbSet('pours-user/' + id, pour);
   // If this id was previously tombstoned, clear the tombstone.
   if (deletedPours[id]) fbSet('pours-deleted/' + id, null);
@@ -947,50 +956,16 @@ function confirmDeletePour(pourId) {
 function deletePour(pourId) {
   const pour = state.pours.find(p => p.id === pourId);
   if (!pour) return;
-  // Tombstone so even sheet pours get hidden until synced
-  fbSet('pours-deleted/' + pourId, true);
-  // Remove from user pours if applicable
-  if (userPours[pourId]) fbSet('pours-user/' + pourId, null);
-  // Local update
-  state.pours = state.pours.filter(p => p.id !== pourId);
+  // Optimistic local update — immediate UI feedback
+  deletedPours = Object.assign({}, deletedPours, { [pourId]: true });
+  if (userPours[pourId]) { const u = Object.assign({}, userPours); delete u[pourId]; userPours = u; }
+  mergeUserPours();
   render();
+  // Persist — Tombstone so even sheet-sourced pours get hidden after reload
+  fbSet('pours-deleted/' + pourId, true);
+  if (pour.userAdded) fbSet('pours-user/' + pourId, null);
 }
 
-function syncPourToSheet(pourId) {
-  const pour = state.pours.find(p => p.id === pourId);
-  if (!pour) return;
-  const btn = document.querySelector('[data-sync-pour="' + pourId + '"]');
-  if (btn) { btn.textContent = 'Syncing...'; btn.disabled = true; }
-  fetch(API_URL, {
-    method: 'POST', mode: 'no-cors',
-    body: JSON.stringify({
-      action: 'addPour',
-      pourId: pour.id, section: pour.section, date: pour.date,
-      cy8000: pour.cy8000, cy5000: pour.cy5000, slurry: pour.slurry,
-    })
-  }).then(() => {
-    // no-cors means we can't read the response; assume success
-    fbSet('pours-user/' + pourId + '/syncedToSheet', true);
-    if (btn) { btn.textContent = 'Synced ✓'; btn.style.background = 'rgba(65,164,71,0.15)'; }
-  }).catch(err => {
-    console.error('sync failed', err);
-    if (btn) { btn.textContent = 'Sync failed'; btn.disabled = false; }
-  });
-}
-
-function syncDeletedPoursToSheet() {
-  const ids = Object.keys(deletedPours);
-  if (!ids.length) { alert('No deleted pours to sync'); return; }
-  if (!confirm('Push ' + ids.length + ' deletion(s) to the Google Sheet?')) return;
-  ids.forEach(pourId => {
-    fetch(API_URL, {
-      method: 'POST', mode: 'no-cors',
-      body: JSON.stringify({ action: 'deletePour', pourId })
-    }).then(() => {
-      fbSet('pours-deleted/' + pourId, null);
-    }).catch(err => console.error('delete sync failed', err));
-  });
-}
 
 // Recalculate section refs + grand totals from pour data
 function recalcTotals() {
@@ -1379,8 +1354,7 @@ function renderPourCards(pours) {
         <span class="text-xs text-white/40">${p.trucks} trucks</span>
       </div>
       ${!isManagerView ? `<div class="flex items-center gap-2 mt-2 pt-2 border-t border-white/5">
-        ${p.userAdded && !p.syncedToSheet ? `<button onclick="syncPourToSheet('${p.id}')" data-sync-pour="${p.id}" style="touch-action:manipulation" class="text-[9px] font-bold px-2 py-1 rounded bg-blue-500/10 text-blue-300 border border-blue-500/25 hover:bg-blue-500/20">Sync to Sheet</button>` : ''}
-        ${p.userAdded && p.syncedToSheet ? `<span class="text-[9px] text-green-400/60">Synced ✓</span>` : ''}
+        ${p.userAdded ? `<span class="text-[9px] text-amber-400/60 mono">Added manually</span>` : ''}
         <button onclick="confirmDeletePour('${p.id}')" style="touch-action:manipulation" class="ml-auto text-[9px] font-bold px-2 py-1 rounded bg-red-500/10 text-red-400/70 border border-red-500/20 hover:bg-red-500/20 hover:text-red-300">Delete</button>
       </div>` : ''}
     </div>`;
