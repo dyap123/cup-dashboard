@@ -1262,7 +1262,53 @@ function renderPourCards(pours) {
   const maxCy8000 = Math.max(...pours.map(p => p.cy8000), 1);
   const maxCy5000 = Math.max(...pours.map(p => p.cy5000), 1);
 
-  grid.innerHTML = pours.map((p, idx) => {
+  // Build each card's HTML once — reused in either layout
+  const cardHtml = (p, idx) => renderOnePourCard(p, idx, maxCy8000, maxCy5000);
+
+  if (state.sortByDate) {
+    // Horizontal kanban — date columns
+    grid.className = 'flex gap-4 overflow-x-auto pb-3 -mx-2 px-2 snap-x';
+    const groups = new Map();
+    for (const p of pours) {
+      const key = p.date && parseDateMD(p.date) ? p.date : 'Unscheduled';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(p);
+    }
+    // Sort keys chronologically, Unscheduled last
+    const keys = [...groups.keys()].sort((a, b) => {
+      if (a === 'Unscheduled') return 1;
+      if (b === 'Unscheduled') return -1;
+      return dateSortVal(a) - dateSortVal(b);
+    });
+    let idx = 0;
+    grid.innerHTML = keys.map(k => {
+      const col = groups.get(k);
+      const colTotal = col.reduce((s, p) => s + (p.total || 0), 0);
+      const isUnsched = k === 'Unscheduled';
+      const headColor = isUnsched ? '#9ca3af' : '#60a5fa';
+      const cards = col.map(p => cardHtml(p, idx++)).join('');
+      return `<div class="flex-none w-[320px] snap-start">
+        <div class="sticky top-0 z-10 flex items-center justify-between mb-2 px-3 py-2 rounded-lg" style="background:rgba(6,6,14,0.9);backdrop-filter:blur(12px);border:1px solid ${headColor}33">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-[14px]" style="color:${headColor}">${isUnsched ? 'schedule' : 'calendar_month'}</span>
+            <span class="mono text-xs font-bold" style="color:${headColor}">${k}</span>
+            <span class="text-[10px] text-white/30">· ${col.length} pour${col.length!==1?'s':''}</span>
+          </div>
+          <span class="mono text-[11px] font-bold" style="color:#34D399">${colTotal} CY</span>
+        </div>
+        <div class="flex flex-col gap-3">${cards}</div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  // Default: responsive grid (unchanged)
+  grid.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3';
+  grid.innerHTML = pours.map((p, idx) => cardHtml(p, idx)).join('');
+}
+
+function renderOnePourCard(p, idx, maxCy8000, maxCy5000) {
+  return ((p, idx) => {
     const c     = SEC_COLORS[p.section] || '#888';
     const pct8  = Math.round((p.cy8000 / maxCy8000) * 100);
     const pct5  = Math.round((p.cy5000 / maxCy5000) * 100);
@@ -1277,13 +1323,15 @@ function renderPourCards(pours) {
           ${!isManagerView && !p.label && !getPourLabel(p.id) ? `<input type="text" class="bg-transparent border-b border-dashed border-white/15 text-xs text-white/50 w-20 px-1 py-0.5 focus:border-white/40 focus:outline-none placeholder:text-white/15 placeholder:italic" placeholder="+ label" onchange="setPourLabel('${p.id}',this.value);render()"/>` : ''}
         </div>
         <div class="flex items-center gap-2">
-          ${isManagerView
-            ? `<span class="text-xs mono text-white/40">${p.date || '—'}</span>`
-            : `<span class="pour-date-btn relative inline-flex items-center gap-1 px-2.5 py-1 rounded-md border ${p.date?'border-blue-400/30 bg-blue-500/10 text-blue-300':'border-white/15 bg-white/5 text-white/40 border-dashed'} text-xs mono font-semibold cursor-pointer hover:brightness-125 transition-all" title="Click to change date">
+          ${state.sortByDate
+            ? ''
+            : (isManagerView
+                ? `<span class="text-xs mono text-white/40">${p.date || '—'}</span>`
+                : `<span class="pour-date-btn relative inline-flex items-center gap-1 px-2.5 py-1 rounded-md border ${p.date?'border-blue-400/30 bg-blue-500/10 text-blue-300':'border-white/15 bg-white/5 text-white/40 border-dashed'} text-xs mono font-semibold cursor-pointer hover:brightness-125 transition-all" title="Click to change date">
                 <span class="material-symbols-outlined" style="font-size:11px">calendar_month</span>
                 <span>${p.date || 'Set date'}</span>
                 <input type="date" value="${p.date ? '2026-' + p.date.split('/').map(n=>String(n).padStart(2,'0')).join('-') : ''}" class="absolute inset-0 opacity-0 cursor-pointer" style="color-scheme:dark" onchange="if(this.value){const d=this.value.split('-');updatePourField('${p.id}','date',parseInt(d[1])+'/'+parseInt(d[2]))}">
-              </span>`
+              </span>`)
           }
           <button onclick="cyclePourStatus('${p.id}')" class="text-[10px] font-bold px-2.5 py-1 rounded-full transition-all ${pourStat==='COMPLETE'?'bg-blue-500/20 text-blue-400 border border-blue-500/30':pourStat==='ORDERED'?'bg-green-500/20 text-green-400 border border-green-500/30':'bg-white/5 text-white/30 border border-white/10 hover:bg-white/10'}">${pourStat}</button>
         </div>
@@ -1381,7 +1429,7 @@ function renderPourCards(pours) {
         <button onclick="confirmDeletePour('${p.id}')" style="touch-action:manipulation" class="ml-auto text-[9px] font-bold px-2 py-1 rounded bg-red-500/10 text-red-400/70 border border-red-500/20 hover:bg-red-500/20 hover:text-red-300">Delete</button>
       </div>` : ''}
     </div>`;
-  }).join('');
+  })(p, idx);
 }
 
 // Footer
@@ -3275,24 +3323,22 @@ function initMapDrag() {
       if (!f) return;
       var rawX = Math.max(0, Math.round(mapDragging.origX + dx));
       var rawY = Math.max(0, Math.round(mapDragging.origY + dy));
-      // Snap to grid
+      // Snap to grid — try left edge, center, and right edge
       var colXs = (map.gridCols || []).map(function(g) { return g.x; });
       var rowYs = (map.gridRows || []).map(function(g) { return g.y; });
       var snappedX = snapToGrid(rawX, colXs, 14);
-      if (snappedX === rawX) snappedX = snapToGrid(rawX + f.w / 2, colXs, 14) - f.w / 2;
+      if (snappedX === rawX) { var c = snapToGrid(rawX + f.w/2, colXs, 14); if (c !== rawX + f.w/2) snappedX = c - f.w/2; }
+      if (snappedX === rawX) { var c = snapToGrid(rawX + f.w, colXs, 14); if (c !== rawX + f.w) snappedX = c - f.w; }
       var snappedY = snapToGrid(rawY, rowYs, 14);
-      if (snappedY === rawY) snappedY = snapToGrid(rawY + f.h / 2, rowYs, 14) - f.h / 2;
+      if (snappedY === rawY) { var c = snapToGrid(rawY + f.h/2, rowYs, 14); if (c !== rawY + f.h/2) snappedY = c - f.h/2; }
+      if (snappedY === rawY) { var c = snapToGrid(rawY + f.h, rowYs, 14); if (c !== rawY + f.h) snappedY = c - f.h; }
       f.x = Math.max(0, Math.round(snappedX));
       f.y = Math.max(0, Math.round(snappedY));
-      // Move the entire footing group — no re-render during drag
-      // Use a transform on the footing's SVG elements for smooth dragging
+      // Translate the entire footing group — all sub-elements move as one
       const movedDx = f.x - mapDragging.origX;
       const movedDy = f.y - mapDragging.origY;
-      // Find all elements for this footing and translate them
-      svg.querySelectorAll('[data-ftg-id="' + mapDragging.id + '"]').forEach(el => {
-        el.setAttribute('x', f.x);
-        el.setAttribute('y', f.y);
-      });
+      const g = svg.querySelector('[data-ftg-group="' + CSS.escape(mapDragging.id) + '"]');
+      if (g) g.setAttribute('transform', 'translate(' + movedDx + ',' + movedDy + ')');
     }
   });
 
@@ -4167,6 +4213,7 @@ function renderMapSection() {
       // Long-press for embeds — only in non-edit mode. Selection itself is routed through the svg-level pointerdown handler.
       var lpAttr = (!mapEditMode && hasEmbeds) ? ' onpointerdown="startEmbedLongPress(\''+safeId+'\',event)" onpointerup="cancelEmbedLongPress()" onpointerleave="cancelEmbedLongPress()"' : '';
 
+      ftgSvg += '<g data-ftg-group="'+f.id+'">';
       if (isGB) {
         ftgSvg += '<rect data-ftg-id="'+f.id+'" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="4" fill="'+gbColor+'20" stroke="'+(selected?'#fff':gbColor+'aa')+'" stroke-width="'+(selected?2.5:2)+'" stroke-dasharray="8,4" class="cursor-pointer" style="touch-action:none"'+lpAttr+'/>';
         if (pct > 0) { var gbFillW = f.w * (pct / 100); ftgSvg += '<rect x="'+f.x+'" y="'+f.y+'" width="'+gbFillW+'" height="'+f.h+'" rx="4" fill="'+gbColor+'" opacity="'+(done?0.8:0.45)+'" pointer-events="none"/>'; }
@@ -4203,6 +4250,7 @@ function renderMapSection() {
         ftgSvg += '<text x="'+dx+'" y="'+(dy+3)+'" text-anchor="middle" font-size="6" font-family="JetBrains Mono" fill="#000" font-weight="900" pointer-events="none">'+embCk+'/'+f.embeds.length+'</text>';
         if (embSt === 'missing') ftgSvg += '<circle cx="'+dx+'" cy="'+dy+'" r="5" fill="none" stroke="'+embClr+'" stroke-width="1" opacity="0.5" pointer-events="none"><animate attributeName="r" from="5" to="11" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" from="0.5" to="0" dur="1.5s" repeatCount="indefinite"/></circle>';
       }
+      ftgSvg += '</g>';
     }
     // Auto-extend viewBox FIRST — compute the bounds before building grid SVG
     var vb = (mapData.viewBox || '0 0 1200 500').split(' ').map(Number);
