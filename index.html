@@ -497,9 +497,12 @@
   <div id="sectionGrid" class="hidden grid grid-cols-2 md:grid-cols-4 gap-3"></div>
 
   <!-- POUR SCHEDULE -->
-  <div id="pourGridToolbar" class="hidden mb-2 flex items-center justify-between">
-    <span class="text-[10px] font-black tracking-widest text-white/40 uppercase">Pour Schedule</span>
-    <button id="addPourBtn" onclick="showAddPourModal()" style="touch-action:manipulation" class="text-[10px] font-bold px-3 py-1.5 rounded bg-green-500/10 text-green-400 border border-green-500/25 hover:bg-green-500/20">+ Add Pour</button>
+  <div id="pourGridToolbar" class="hidden mb-3 flex items-center justify-between gap-3 px-3 py-2 rounded-lg" style="background:rgba(6,6,14,0.82);border:1px solid rgba(255,255,255,0.06)">
+    <span class="text-xs font-black tracking-widest text-white/60 uppercase">Pour Schedule</span>
+    <button id="addPourBtn" onclick="showAddPourModal()" style="touch-action:manipulation" class="text-xs font-bold px-4 py-2 rounded-lg bg-green-500/20 text-green-300 border border-green-500/40 hover:bg-green-500/30 flex items-center gap-1.5">
+      <span class="material-symbols-outlined text-base">add_circle</span>
+      <span>Add Pour</span>
+    </button>
   </div>
   <div id="pourGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
 
@@ -609,6 +612,16 @@ function attachFirebaseListeners() {
     applyOverrides();
     render();
   });
+  fbListen('pour-status', (val) => {
+    pourStatusCache = val || {};
+    // Mirror to localStorage so offline reads see the latest state
+    Object.entries(pourStatusCache).forEach(([id, st]) => {
+      if (st === 'ORDERED' || st === 'COMPLETE' || st === 'PENDING') {
+        localStorage.setItem('cup_status_' + id, st);
+      }
+    });
+    if (state.pours.length) render();
+  });
   fbListen('custom-mixes', (val) => {
     pourDay.customMixes = Array.isArray(val) ? val : (val ? Object.values(val) : []);
     // Refresh the Edit popup if open so the buttons reappear.
@@ -680,7 +693,11 @@ function setPourArea(id, val) {
 
 // Ordered status — writes to sheet via Apps Script
 const API_URL = 'https://script.google.com/macros/s/AKfycbwNOYItk1zZdQbVktGTND9TIloio1Su4FFIuccoX2hG22FpKug9M-3C3h5zgtkNFmks/exec';
+// Pour status is kept in-sync across devices via Firebase `pour-status/{id}` and mirrored to localStorage for offline reads.
+let pourStatusCache = {};
 function getPourStatus(id) {
+  const fb = pourStatusCache[id];
+  if (fb === 'ORDERED' || fb === 'COMPLETE' || fb === 'PENDING') return fb;
   const v = localStorage.getItem('cup_status_'+id);
   if (v === 'ORDERED' || v === 'COMPLETE') return v;
   // Migrate old ordered flag
@@ -693,6 +710,8 @@ function cyclePourStatus(id) {
   const cur = getPourStatus(id);
   const next = cur === 'PENDING' ? 'ORDERED' : cur === 'ORDERED' ? 'COMPLETE' : 'PENDING';
   localStorage.setItem('cup_status_'+id, next);
+  pourStatusCache[id] = next;
+  fbSet('pour-status/' + id, next);
   // Sync ordered flag to sheet for backwards compat
   fetch(API_URL, { method:'POST', mode:'no-cors', body:JSON.stringify({ pourId:id, ordered:next !== 'PENDING' }) }).catch(()=>{});
   render();
