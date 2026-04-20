@@ -1503,9 +1503,13 @@ function updateFilterPills() {
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init() {
   try {
-    // Fetch all data — don't let checklist/pourday failures break the main dashboard
+    // Sheet fetch is best-effort — Firebase-added pours can still load without it
+    const sheetAttempt = fetchData().catch(err => {
+      console.error('Sheet fetch failed, continuing with Firebase-only data:', err);
+      return { refs: {}, pours: [], grand: { cy8000:0, cy5000:0, slurry:0, total:0, trucks:0 } };
+    });
     const [pourData] = await Promise.all([
-      fetchData(),
+      sheetAttempt,
       fetchChecklist().catch(()=>{}),
       fetchPourDayData().catch(()=>{}),
       loadChecklistFromFirebase().catch(()=>{}),
@@ -3334,11 +3338,15 @@ function initMapDrag() {
       if (snappedY === rawY) { var c = snapToGrid(rawY + f.h, rowYs, 14); if (c !== rawY + f.h) snappedY = c - f.h; }
       f.x = Math.max(0, Math.round(snappedX));
       f.y = Math.max(0, Math.round(snappedY));
-      // Translate the entire footing group — all sub-elements move as one
-      const movedDx = f.x - mapDragging.origX;
-      const movedDy = f.y - mapDragging.origY;
-      const g = svg.querySelector('[data-ftg-group="' + CSS.escape(mapDragging.id) + '"]');
-      if (g) g.setAttribute('transform', 'translate(' + movedDx + ',' + movedDy + ')');
+      // Re-render throttled via rAF — pointer capture on the SVG keeps the drag alive
+      // across the SVG rebuild, so children (rect + labels + progress fills) all stay in sync.
+      if (!mapDragging._rafPending) {
+        mapDragging._rafPending = true;
+        requestAnimationFrame(() => {
+          if (mapDragging) mapDragging._rafPending = false;
+          renderMapSection();
+        });
+      }
     }
   });
 
@@ -4213,7 +4221,6 @@ function renderMapSection() {
       // Long-press for embeds — only in non-edit mode. Selection itself is routed through the svg-level pointerdown handler.
       var lpAttr = (!mapEditMode && hasEmbeds) ? ' onpointerdown="startEmbedLongPress(\''+safeId+'\',event)" onpointerup="cancelEmbedLongPress()" onpointerleave="cancelEmbedLongPress()"' : '';
 
-      ftgSvg += '<g data-ftg-group="'+f.id+'">';
       if (isGB) {
         ftgSvg += '<rect data-ftg-id="'+f.id+'" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="4" fill="'+gbColor+'20" stroke="'+(selected?'#fff':gbColor+'aa')+'" stroke-width="'+(selected?2.5:2)+'" stroke-dasharray="8,4" class="cursor-pointer" style="touch-action:none"'+lpAttr+'/>';
         if (pct > 0) { var gbFillW = f.w * (pct / 100); ftgSvg += '<rect x="'+f.x+'" y="'+f.y+'" width="'+gbFillW+'" height="'+f.h+'" rx="4" fill="'+gbColor+'" opacity="'+(done?0.8:0.45)+'" pointer-events="none"/>'; }
@@ -4250,7 +4257,6 @@ function renderMapSection() {
         ftgSvg += '<text x="'+dx+'" y="'+(dy+3)+'" text-anchor="middle" font-size="6" font-family="JetBrains Mono" fill="#000" font-weight="900" pointer-events="none">'+embCk+'/'+f.embeds.length+'</text>';
         if (embSt === 'missing') ftgSvg += '<circle cx="'+dx+'" cy="'+dy+'" r="5" fill="none" stroke="'+embClr+'" stroke-width="1" opacity="0.5" pointer-events="none"><animate attributeName="r" from="5" to="11" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" from="0.5" to="0" dur="1.5s" repeatCount="indefinite"/></circle>';
       }
-      ftgSvg += '</g>';
     }
     // Auto-extend viewBox FIRST — compute the bounds before building grid SVG
     var vb = (mapData.viewBox || '0 0 1200 500').split(' ').map(Number);
