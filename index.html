@@ -859,35 +859,41 @@ function applyOverrides() {
   recalcTotals();
 }
 
+// Debug helper — run `debugDashboard()` in DevTools to see pour counts + filter state
+window.debugDashboard = () => ({ stateCount: state.pours.length, userPourCount: Object.keys(userPours||{}).length, deletedCount: Object.keys(deletedPours||{}).length, filter: { section: state.sectionFilter, date: state.dateFilter }, sample: state.pours.slice(0, 3) });
+
 // Layer user-added pours onto state.pours and filter out tombstones.
-// Called after every Firebase pour-list change; must be idempotent because state.pours
-// may already contain user-added pours from a previous run.
+// Called after every Firebase pour-list change; must be idempotent.
 function mergeUserPours() {
+  const before = state.pours.length;
   // Drop any prior user-added pours (we'll re-add from the current userPours snapshot)
   state.pours = state.pours.filter(p => !p.userAdded);
   // Drop tombstoned pours (whether they came from sheet or user)
   state.pours = state.pours.filter(p => !deletedPours[p.id]);
   // Add user pours that aren't already in the sheet data
+  let added = 0;
   Object.entries(userPours).forEach(([id, p]) => {
     if (deletedPours[id]) return;
     if (state.pours.find(x => x.id === id)) return; // sheet already has it
-    const total = (p.cy8000||0) + (p.cy5000||0) + (p.slurry||0);
+    const total = (+p.cy8000||0) + (+p.cy5000||0) + (+p.slurry||0);
     state.pours.push({
       id,
-      section: p.section || id[0] || 'A',
+      section: (p.section || id[0] || 'A').toString().toUpperCase(),
       date: p.date || '',
       cy8000: +p.cy8000 || 0,
       cy5000: +p.cy5000 || 0,
       slurry: +p.slurry || 0,
       total,
-      trucks: +p.trucks || Math.ceil(total / 9),
+      trucks: +p.trucks || Math.ceil(total / 9) || 0,
       status: p.status || '',
       label: p.label || '',
       type: p.type || (p.slurry > 0 && !p.cy8000 && !p.cy5000 ? 'Slurry' : 'Structural'),
       userAdded: true,
     });
+    added++;
   });
   recalcTotals();
+  console.log('[mergeUserPours] before=' + before + ' userPours=' + Object.keys(userPours).length + ' added=' + added + ' final=' + state.pours.length);
 }
 
 // ── POUR CRUD ────────────────────────────────────────────────────────────────
@@ -1155,11 +1161,18 @@ function render() {
 
   const hasContent = pours.length > 0;
   const totalKnown = state.pours.length;
+  const firebasePourCount = Object.keys(userPours || {}).length;
   const filtersOn = state.sectionFilter !== 'ALL' || state.dateFilter !== 'ALL';
   const emptyEl = document.getElementById('emptyState');
   if (emptyEl) {
     if (!hasContent && filtersOn) {
       emptyEl.innerHTML = 'No pours match the current filter.';
+      emptyEl.classList.remove('hidden');
+    } else if (totalKnown === 0 && firebasePourCount > 0) {
+      // Data exists in Firebase but didn't land in state — diagnostic path
+      emptyEl.innerHTML = `<p class="text-amber-300 text-xs mb-2">Diagnostic: ${firebasePourCount} pours in Firebase but the dashboard couldn't render them.</p>
+        <button onclick="(async()=>{const u=await fbGet('pours-user');userPours=u||{};mergeUserPours();render();})()" class="underline text-blue-300 hover:text-blue-200 text-xs">Force reload from Firebase</button>
+        <pre class="text-left text-[9px] text-white/30 mt-3 max-w-lg mx-auto overflow-auto" style="max-height:200px">${Object.keys(userPours).slice(0,5).map(k => k + ': ' + JSON.stringify(userPours[k])).join('\n')}</pre>`;
       emptyEl.classList.remove('hidden');
     } else if (totalKnown === 0) {
       emptyEl.innerHTML = 'No pours yet. <button onclick="migrateSheetToFirebase()" class="underline text-blue-300 hover:text-blue-200 ml-1">Migrate from sheet</button> or <button onclick="showAddPourModal()" class="underline text-green-300 hover:text-green-200">Add Pour</button>.';
