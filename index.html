@@ -1502,60 +1502,87 @@ function updateFilterPills() {
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init() {
+  // ── Phase A: data fetch — sheet is best-effort, Firebase user pours still load ──
+  let pourData = { refs: {}, pours: [], grand: { cy8000:0, cy5000:0, slurry:0, total:0, trucks:0 } };
+  let sheetFailed = false;
   try {
-    // Sheet fetch is best-effort — Firebase-added pours can still load without it
     const sheetAttempt = fetchData().catch(err => {
+      sheetFailed = true;
       console.error('Sheet fetch failed, continuing with Firebase-only data:', err);
-      return { refs: {}, pours: [], grand: { cy8000:0, cy5000:0, slurry:0, total:0, trucks:0 } };
+      return null;
     });
-    const [pourData] = await Promise.all([
+    const results = await Promise.all([
       sheetAttempt,
       fetchChecklist().catch(()=>{}),
       fetchPourDayData().catch(()=>{}),
       loadChecklistFromFirebase().catch(()=>{}),
       loadConcreteOrderFromFirebase().catch(()=>{}),
     ]);
-    const { refs, pours, grand } = pourData;
-    state.refs  = refs;
-    state.pours = pours;
-    state.grand = grand;
-    applyOverrides(); // apply any Firebase overrides on top of sheet data
+    if (results[0]) pourData = results[0];
+  } catch (err) {
+    // Promise.all itself shouldn't reject given all inner catches, but guard anyway
+    sheetFailed = true;
+    console.error('Data fetch error:', err);
+  }
 
-    // Attach Firebase listeners AFTER state is populated (avoids race condition)
-    if (db) attachFirebaseListeners();
+  state.refs  = pourData.refs  || {};
+  state.pours = pourData.pours || [];
+  state.grand = pourData.grand || { cy8000:0, cy5000:0, slurry:0, total:0, trucks:0 };
 
-    var loadEl = document.getElementById('loading');
-    loadEl.style.opacity = '0';
-    setTimeout(function(){ loadEl.classList.add('hidden'); if(window._stopLoadAnim) window._stopLoadAnim(); }, 500);
-    document.getElementById('zoneMap').classList.remove('hidden');
-    document.getElementById('sectionGrid').classList.remove('hidden');
-    document.getElementById('pourGrid').classList.remove('hidden');
-    if (!isManagerView) document.getElementById('pourGridToolbar')?.classList.remove('hidden');
-    document.getElementById('footer').classList.remove('hidden');
+  // ── Phase B: DOM setup — guarded so one missing element doesn't blow everything up ──
+  const hide = (id) => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); };
+  const show = (id) => { const el = document.getElementById(id); if (el) el.classList.remove('hidden'); };
+
+  try { applyOverrides(); } catch (err) { console.error('applyOverrides error:', err); }
+  try { if (db) attachFirebaseListeners(); } catch (err) { console.error('attachFirebaseListeners error:', err); }
+
+  try {
+    const loadEl = document.getElementById('loading');
+    if (loadEl) {
+      loadEl.style.opacity = '0';
+      setTimeout(() => {
+        loadEl.classList.add('hidden');
+        if (window._stopLoadAnim) window._stopLoadAnim();
+      }, 500);
+    }
+    show('zoneMap');
+    show('sectionGrid');
+    show('pourGrid');
+    if (!isManagerView) {
+      const tb = document.getElementById('pourGridToolbar');
+      if (tb) tb.classList.remove('hidden');
+    }
+    show('footer');
 
     // Auto-switch views
     const viewParam = new URLSearchParams(window.location.search).get('view');
     if (viewParam === 'manager') {
-      // Manager: live pour only — hide everything else
       document.querySelector('header')?.remove();
       document.querySelector('.sticky.top-14')?.remove();
-      document.getElementById('dashboardView')?.classList.add('hidden');
-      document.getElementById('zoneMap')?.classList.add('hidden');
-      document.getElementById('sectionGrid')?.classList.add('hidden');
-      document.getElementById('pourGrid')?.classList.add('hidden');
-      document.getElementById('footer')?.classList.add('hidden');
-      document.getElementById('pourdayView')?.classList.add('hidden');
-      document.getElementById('checklistView')?.classList.add('hidden');
-      document.getElementById('liveView')?.classList.remove('hidden');
-      renderLive();
-    } else if (viewParam === 'live') switchTab('live');
+      ['dashboardView','zoneMap','sectionGrid','pourGrid','footer','pourdayView','checklistView'].forEach(hide);
+      show('liveView');
+      try { renderLive(); } catch (err) { console.error('renderLive error:', err); }
+    } else if (viewParam === 'live') {
+      try { switchTab('live'); } catch (err) { console.error('switchTab live error:', err); }
+    }
 
-    render();
+    try { render(); } catch (err) { console.error('render error:', err); }
   } catch (err) {
-    console.error('Fetch error:', err);
-    document.getElementById('loading').innerHTML =
-      `<p class="text-red-400 text-sm">Error loading data. Check console.</p>`;
+    console.error('DOM setup error (non-fatal):', err);
   }
+
+  // ── Banner: only if we have no pours from any source AFTER listeners attach ──
+  // Give Firebase listeners a beat to fire first, then decide.
+  setTimeout(() => {
+    if (sheetFailed && state.pours.length === 0) {
+      const loadEl = document.getElementById('loading');
+      if (loadEl) {
+        loadEl.classList.remove('hidden');
+        loadEl.style.opacity = '1';
+        loadEl.innerHTML = `<p class="text-red-400 text-sm text-center px-6">Couldn't reach Google Sheets and no local pours found. <button onclick="location.reload()" class="underline ml-2">Retry</button></p>`;
+      }
+    }
+  }, 1500);
 }
 
 // ── AUTO-REFRESH ──────────────────────────────────────────────────────────────
@@ -3197,6 +3224,37 @@ function snapToGrid(val, gridPositions, threshold) {
   return val;
 }
 
+// Escape an id for use inside a [attr="..."] selector. Falls back to CSS.escape when available.
+function cssEscapeAttr(v) {
+  if (typeof CSS !== 'undefined' && CSS.escape) return CSS.escape(String(v));
+  return String(v).replace(/(["\\])/g, '\\$1');
+}
+
+// Update the selected-state stroke on map footings without re-rendering the whole SVG.
+// This is critical during active pointer interaction — re-rendering destroys pointer capture.
+function updateMapSelectionInPlace(svg, selectedIds) {
+  if (!svg) return;
+  const selSet = new Set(selectedIds);
+  svg.querySelectorAll('[data-ftg-id]').forEach(rect => {
+    const id = rect.getAttribute('data-ftg-id');
+    const isSel = selSet.has(id);
+    // Compare the rect's existing dashed stroke to detect GB vs regular footing
+    const isGB = rect.getAttribute('stroke-dasharray') === '8,4';
+    if (isSel) {
+      rect.setAttribute('stroke', '#fff');
+      rect.setAttribute('stroke-width', isGB ? '2.5' : '3');
+    } else {
+      // Pull the baseline color from a data attribute we stash at render time,
+      // but if it's missing, fall back to type-specific defaults.
+      const orig = rect.getAttribute('data-orig-stroke');
+      const origW = rect.getAttribute('data-orig-stroke-width');
+      if (orig) rect.setAttribute('stroke', orig);
+      if (origW) rect.setAttribute('stroke-width', origW);
+      else rect.setAttribute('stroke-width', '2');
+    }
+  });
+}
+
 function initMapDrag() {
   const svg = document.querySelector('#mapSection svg');
   if (!svg || svg._dragBound) return;
@@ -3247,28 +3305,34 @@ function initMapDrag() {
       e.preventDefault();
       return;
     }
-    // Footing drag
+    // Footing drag — avoid any re-render while a pointer interaction is live.
+    // Re-rendering here destroys the SVG that holds pointer capture and makes
+    // drag/selection feel broken (especially on iPad). Pointerup does one
+    // re-render to refresh the toolbar count once the interaction completes.
     if (!ftgEl) {
+      updateMapSelectionInPlace(svg, []);
       mapSelected = [];
-      renderMapSection();
+      svg._needsToolbarRefresh = true;
       return;
     }
     const id = ftgEl.dataset.ftgId;
     if (e.shiftKey) {
       const idx = mapSelected.indexOf(id);
       if (idx >= 0) mapSelected.splice(idx, 1); else mapSelected.push(id);
-      renderMapSection();
+      updateMapSelectionInPlace(svg, mapSelected);
+      svg._needsToolbarRefresh = true;
       e.preventDefault();
       return;
     }
     mapSelected = [id];
+    updateMapSelectionInPlace(svg, mapSelected);
+    svg._needsToolbarRefresh = true;
     const map = loadFootingMap(pourId);
     const f = map?.footings.find(ft => ft.id === id);
-    if (!f) { renderMapSection(); return; }
+    if (!f) return;
     mapDragging = { type:'footing', id, pourId, startX: svgP.x, startY: svgP.y, origX: f.x, origY: f.y, moved: false, pointerType: e.pointerType };
     svg.setPointerCapture(e.pointerId);
     e.preventDefault();
-    renderMapSection();
   });
 
   // Suppress synthesized click that fires after pointerdown on iPad — prevents double-selection
@@ -3338,20 +3402,24 @@ function initMapDrag() {
       if (snappedY === rawY) { var c = snapToGrid(rawY + f.h, rowYs, 14); if (c !== rawY + f.h) snappedY = c - f.h; }
       f.x = Math.max(0, Math.round(snappedX));
       f.y = Math.max(0, Math.round(snappedY));
-      // Re-render throttled via rAF — pointer capture on the SVG keeps the drag alive
-      // across the SVG rebuild, so children (rect + labels + progress fills) all stay in sync.
-      if (!mapDragging._rafPending) {
-        mapDragging._rafPending = true;
-        requestAnimationFrame(() => {
-          if (mapDragging) mapDragging._rafPending = false;
-          renderMapSection();
-        });
-      }
+      // Translate the footing's <g> in place — all child elements move atomically.
+      // No re-render during the drag keeps pointer capture alive.
+      const tx = f.x - mapDragging.origX;
+      const ty = f.y - mapDragging.origY;
+      const g = svg.querySelector('[data-ftg-group="' + cssEscapeAttr(mapDragging.id) + '"]');
+      if (g) g.setAttribute('transform', 'translate(' + tx + ',' + ty + ')');
     }
   });
 
   svg.addEventListener('pointerup', e => {
-    if (!mapDragging) return;
+    // Even if no drag started, a selection tap needs the edit toolbar count to refresh
+    if (!mapDragging) {
+      if (mapEditMode && mapSelected.length >= 0 && svg._needsToolbarRefresh) {
+        svg._needsToolbarRefresh = false;
+        renderMapSection();
+      }
+      return;
+    }
     const wasMoved = mapDragging.moved;
     if (wasMoved) {
       // Save + full re-render to update labels, connections, viewBox
@@ -4197,6 +4265,7 @@ function renderMapSection() {
     if (mapEditMode && !isManagerView) mh += renderMapEditToolbar(pour.id);
     // SVG footings
     var ftgSvg = '';
+    var clipDefs = ''; // <defs><clipPath> blocks are collected here and emitted once at SVG root
     for (var fi = 0; fi < ftgs.length; fi++) {
       var f = ftgs[fi];
       var pct = getFootingPct(f.id);
@@ -4221,8 +4290,12 @@ function renderMapSection() {
       // Long-press for embeds — only in non-edit mode. Selection itself is routed through the svg-level pointerdown handler.
       var lpAttr = (!mapEditMode && hasEmbeds) ? ' onpointerdown="startEmbedLongPress(\''+safeId+'\',event)" onpointerup="cancelEmbedLongPress()" onpointerleave="cancelEmbedLongPress()"' : '';
 
+      // Wrap each footing in a <g> so drag can translate the whole cluster atomically.
+      ftgSvg += '<g data-ftg-group="'+f.id+'">';
+
       if (isGB) {
-        ftgSvg += '<rect data-ftg-id="'+f.id+'" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="4" fill="'+gbColor+'20" stroke="'+(selected?'#fff':gbColor+'aa')+'" stroke-width="'+(selected?2.5:2)+'" stroke-dasharray="8,4" class="cursor-pointer" style="touch-action:none"'+lpAttr+'/>';
+        var gbBaseStroke = gbColor+'aa';
+        ftgSvg += '<rect data-ftg-id="'+f.id+'" data-orig-stroke="'+gbBaseStroke+'" data-orig-stroke-width="2" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="4" fill="'+gbColor+'20" stroke="'+(selected?'#fff':gbBaseStroke)+'" stroke-width="'+(selected?2.5:2)+'" stroke-dasharray="8,4" class="cursor-pointer" style="touch-action:none"'+lpAttr+'/>';
         if (pct > 0) { var gbFillW = f.w * (pct / 100); ftgSvg += '<rect x="'+f.x+'" y="'+f.y+'" width="'+gbFillW+'" height="'+f.h+'" rx="4" fill="'+gbColor+'" opacity="'+(done?0.8:0.45)+'" pointer-events="none"/>'; }
         var dh = f.h * 0.6;
         ftgSvg += '<polygon points="'+f.x+','+(f.y+f.h/2)+' '+(f.x+5)+','+(f.y+f.h/2-dh/2)+' '+(f.x+10)+','+(f.y+f.h/2)+' '+(f.x+5)+','+(f.y+f.h/2+dh/2)+'" fill="'+gbColor+'88" pointer-events="none"/>';
@@ -4230,10 +4303,13 @@ function renderMapSection() {
         ftgSvg += '<text x="'+fcx+'" y="'+(fcy+3)+'" text-anchor="middle" dominant-baseline="central" font-size="8" font-family="JetBrains Mono" fill="#FFB800cc" font-weight="700" pointer-events="none">'+ftypeLabel+' '+f.cy+'CY</text>';
       } else {
         var baseFill = pct === 0 ? shapeColor+'25' : shapeColor+'15';
-        var baseStroke = selected ? '#fff' : (done ? shapeColor : shapeColor+'88');
-        ftgSvg += '<rect data-ftg-id="'+f.id+'" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="'+rx+'" fill="'+baseFill+'" stroke="'+baseStroke+'" stroke-width="'+(selected?3:2)+'" class="cursor-pointer" style="touch-action:none"'+lpAttr+'/>';
+        var baseStrokeRaw = done ? shapeColor : shapeColor+'88';
+        var baseStroke = selected ? '#fff' : baseStrokeRaw;
+        ftgSvg += '<rect data-ftg-id="'+f.id+'" data-orig-stroke="'+baseStrokeRaw+'" data-orig-stroke-width="2" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="'+rx+'" fill="'+baseFill+'" stroke="'+baseStroke+'" stroke-width="'+(selected?3:2)+'" class="cursor-pointer" style="touch-action:none"'+lpAttr+'/>';
         if (pct > 0) {
-          ftgSvg += '<defs><clipPath id="'+clipId+'"><rect x="'+f.x+'" y="'+fillY+'" width="'+f.w+'" height="'+fillH+'"/></clipPath></defs>';
+          // Emit the clipPath to the SVG root's <defs> instead of inside the group,
+          // so a translate on the group doesn't shift the clip coords.
+          clipDefs += '<clipPath id="'+clipId+'"><rect x="'+f.x+'" y="'+fillY+'" width="'+f.w+'" height="'+fillH+'"/></clipPath>';
           ftgSvg += '<rect x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="'+rx+'" fill="'+shapeColor+'" opacity="'+(done?0.9:0.5)+'" clip-path="url(#'+clipId+')" pointer-events="none"/>';
         }
         if (done || active) ftgSvg += '<rect x="'+(f.x-2)+'" y="'+(f.y-2)+'" width="'+(f.w+4)+'" height="'+(f.h+4)+'" rx="'+(rx+2)+'" fill="none" stroke="'+shapeColor+'" stroke-width="1" opacity="0.2" pointer-events="none"/>';
@@ -4257,6 +4333,7 @@ function renderMapSection() {
         ftgSvg += '<text x="'+dx+'" y="'+(dy+3)+'" text-anchor="middle" font-size="6" font-family="JetBrains Mono" fill="#000" font-weight="900" pointer-events="none">'+embCk+'/'+f.embeds.length+'</text>';
         if (embSt === 'missing') ftgSvg += '<circle cx="'+dx+'" cy="'+dy+'" r="5" fill="none" stroke="'+embClr+'" stroke-width="1" opacity="0.5" pointer-events="none"><animate attributeName="r" from="5" to="11" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" from="0.5" to="0" dur="1.5s" repeatCount="indefinite"/></circle>';
       }
+      ftgSvg += '</g>'; // close footing group
     }
     // Auto-extend viewBox FIRST — compute the bounds before building grid SVG
     var vb = (mapData.viewBox || '0 0 1200 500').split(' ').map(Number);
@@ -4299,7 +4376,7 @@ function renderMapSection() {
     mh += '<div style="height:80vh;min-height:' + svgMinH + 'px;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y">'
       + '<svg id="mapSvg" viewBox="' + dynViewBox + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:800px;min-height:' + svgMinH + 'px;touch-action:none">'
       + '<rect width="' + maxX + '" height="' + maxY + '" fill="#080c14"/>'
-      + '<defs><pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.6" fill="rgba(255,255,255,0.06)"/></pattern></defs>'
+      + '<defs><pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.6" fill="rgba(255,255,255,0.06)"/></pattern>' + clipDefs + '</defs>'
       + '<rect width="' + maxX + '" height="' + maxY + '" fill="url(#fgrid)"/>'
       + gridColsSvg + gridRowsSvg + ftgSvg
       + '</svg></div>';
