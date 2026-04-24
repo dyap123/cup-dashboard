@@ -3573,22 +3573,21 @@ function initMapDrag() {
   });
 
   svg.addEventListener('pointerup', e => {
-    // Even if no drag started, a selection tap needs the edit toolbar count to refresh
-    if (!mapDragging) {
-      if (mapEditMode && mapSelected.length >= 0 && svg._needsToolbarRefresh) {
-        svg._needsToolbarRefresh = false;
-        renderMapSection();
-      }
-      return;
-    }
-    const wasMoved = mapDragging.moved;
-    if (wasMoved) {
+    const wasMoved = mapDragging ? mapDragging.moved : false;
+    if (mapDragging && wasMoved) {
       // Save + full re-render to update labels, connections, viewBox
       const map = loadFootingMap(mapDragging.pourId);
       saveFootingMap(mapDragging.pourId, map);
     }
     mapDragging = null;
-    if (wasMoved) renderMapSection();
+    // Any selection change (footing tap, empty-space deselect, shift toggle) flips
+    // the toolbar-refresh flag in pointerdown. Honor it here so the edit toolbar
+    // rebuilds with the selected footing's fields — without this the user saw
+    // selection highlight but no editor.
+    if (wasMoved || svg._needsToolbarRefresh) {
+      svg._needsToolbarRefresh = false;
+      renderMapSection();
+    }
   });
 }
 
