@@ -2907,19 +2907,38 @@ function addEmbedToFooting(pourId, embedId) {
   const f = map?.footings.find(ft => ft.id === mapSelected[0]);
   if (!f) return;
   if (!f.embeds) f.embeds = [];
-  if (f.embeds.find(e => e.embedId === embedId)) return;
-  f.embeds.push({ embedId, qty: 1 });
+  // If the same embedId is already present, bump its qty instead of silently no-op.
+  // Previous behavior confused the user into thinking "the add option stopped working"
+  // when they accidentally picked the same embed twice.
+  const existing = f.embeds.find(e => e.embedId === embedId);
+  if (existing) {
+    existing.qty = (existing.qty || 1) + 1;
+  } else {
+    f.embeds.push({ embedId, qty: 1 });
+  }
   saveFootingMap(pourId, map);
-  // Append a Firebase embed record scoped to this pour's area + section
-  const pour = state.pours.find(p => p.id === pourId);
-  const area = pour ? getPourArea(pour.id) : '0A';
-  const section = pour?.section || 'A';
-  upsertDetailedEmbed({
-    area, section, embedId, installed: false, status: 'Planned',
-    drawingRef: '', notes: pourId + ' — ' + f.id,
-    pourId, footingId: f.id,
-  });
+  // Firebase embed record scoped to this pour's area + section (one row per unique embed)
+  if (!existing) {
+    const pour = state.pours.find(p => p.id === pourId);
+    const area = pour ? getPourArea(pour.id) : '0A';
+    const section = pour?.section || 'A';
+    upsertDetailedEmbed({
+      area, section, embedId, installed: false, status: 'Planned',
+      drawingRef: '', notes: pourId + ' — ' + f.id,
+      pourId, footingId: f.id,
+    });
+  }
   renderMapSection();
+}
+
+// Wrapper called from the dropdown's onchange. Resets the select FIRST so the
+// dropdown is visually clear even on iPads where the element may get replaced
+// mid-callback by renderMapSection. Then queues the add on the next microtask
+// so the select has visibly reset before re-render happens.
+function pickEmbedForFooting(selectEl, pourId) {
+  const val = selectEl.value;
+  selectEl.value = '';
+  if (val) addEmbedToFooting(pourId, val);
 }
 function removeEmbedFromFooting(pourId, idx) {
   if (!mapSelected.length) return;
@@ -3186,8 +3205,8 @@ function renderMapEditToolbar(pourId) {
         + e.embedId + (e.qty > 1 ? ' x'+e.qty : '')
         + ' <button onclick="removeEmbedFromFooting(\'' + pourId + '\',' + idx + ')" class="text-amber-400/60 hover:text-red-400 ml-0.5">&times;</button></span>';
     });
-    tb += '<select onchange="addEmbedToFooting(\'' + pourId + '\',this.value);this.value=\'\'" class="bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-[9px] mono text-white/50 focus:outline-none cursor-pointer">';
-    tb += '<option value="">+ embed</option>';
+    tb += '<select onchange="pickEmbedForFooting(this,\'' + pourId + '\')" class="bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded px-2 py-1 text-[10px] mono font-bold focus:outline-none focus:border-amber-400 cursor-pointer hover:bg-amber-500/15">';
+    tb += '<option value="" style="background:#1a1a1a">+ add embed</option>';
     // Render embed types grouped by sequence (Sequence 0 = CUP, Sequence 1 = 200-series, etc.)
     const groupedEmbeds = embedTypes.reduce(function(acc, e) {
       (acc[e.sequence] = acc[e.sequence] || []).push(e); return acc;
