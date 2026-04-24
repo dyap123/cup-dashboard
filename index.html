@@ -3297,6 +3297,27 @@ function updateSelectedFooting(section, field, value) {
     f.cy = Math.round(((f.w / PX_PER_FT) * (f.h / PX_PER_FT) * (f.d / PX_PER_FT) / 27) * 100) / 100;
   }
   saveFootingMap(section, map);
+
+  // Dimension-only edits (w/h) can update the SVG rect + label positions in place —
+  // this avoids tearing down the toolbar input the user is actively editing.
+  if (field === 'w' || field === 'h') {
+    const svg = document.querySelector('#mapSection svg');
+    if (svg) {
+      const fcx = f.x + f.w/2, fcy = f.y + f.h/2;
+      const g = svg.querySelector('[data-ftg-group="' + cssEscapeAttr(f.id) + '"]');
+      if (g) {
+        g.querySelectorAll('rect').forEach(r => {
+          r.setAttribute('width', f.w);
+          r.setAttribute('height', f.h);
+        });
+        g.querySelectorAll('text').forEach((t, i) => {
+          t.setAttribute('x', fcx);
+          // Leave y alone for now; a full render on blur of the toolbar fixes up.
+        });
+      }
+      return;
+    }
+  }
   renderMapSection();
 }
 
@@ -3461,18 +3482,13 @@ function initMapDrag() {
     e.preventDefault();
   });
 
-  // Suppress synthesized click that fires after pointerdown on iPad — prevents double-selection
+  // In non-edit mode, inline onclick on the rect drives toggleFooting — DO NOT
+  // intercept the click here (capture-phase stopPropagation would kill the inline
+  // onclick before it fires). Only intercept in edit mode to stop spurious clicks
+  // during drag/selection.
   svg.addEventListener('click', e => {
+    if (!mapEditMode) return;
     if (svg._lastPointerTime && Date.now() - svg._lastPointerTime < 700) {
-      // In non-edit mode, translate the suppressed click into a single toggleFooting call
-      if (!mapEditMode && svg._lastPointerId) {
-        const ftgEl = e.target.closest('[data-ftg-id]');
-        // Only fire if the click is still on the same footing we tracked at pointerdown
-        if (ftgEl && ftgEl.dataset.ftgId === svg._lastPointerId) {
-          try { toggleFooting(svg._lastPointerId); } catch(err) { console.error(err); }
-        }
-        svg._lastPointerId = null;
-      }
       e.stopPropagation();
       e.preventDefault();
     }
@@ -4417,11 +4433,14 @@ function renderMapSection() {
       var lpAttr = (!mapEditMode && hasEmbeds) ? ' onpointerdown="startEmbedLongPress(\''+safeId+'\',event)" onpointerup="cancelEmbedLongPress()" onpointerleave="cancelEmbedLongPress()"' : '';
 
       // Wrap each footing in a <g> so drag can translate the whole cluster atomically.
+      // In non-edit mode, inline onclick drives the cycle. In edit mode, selection
+       // happens via the svg-level pointerdown handler (no onclick so edit clicks don't fire toggles).
+      var tapAttr = (!mapEditMode && !isManagerView) ? ' onclick="toggleFooting(\''+safeId+'\')"' : '';
       ftgSvg += '<g data-ftg-group="'+f.id+'">';
 
       if (isGB) {
         var gbBaseStroke = gbColor+'aa';
-        ftgSvg += '<rect data-ftg-id="'+f.id+'" data-orig-stroke="'+gbBaseStroke+'" data-orig-stroke-width="2" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="4" fill="'+gbColor+'20" stroke="'+(selected?'#fff':gbBaseStroke)+'" stroke-width="'+(selected?2.5:2)+'" stroke-dasharray="8,4" class="cursor-pointer" style="touch-action:none"'+lpAttr+'/>';
+        ftgSvg += '<rect data-ftg-id="'+f.id+'" data-orig-stroke="'+gbBaseStroke+'" data-orig-stroke-width="2" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="4" fill="'+gbColor+'20" stroke="'+(selected?'#fff':gbBaseStroke)+'" stroke-width="'+(selected?2.5:2)+'" stroke-dasharray="8,4" class="cursor-pointer"'+tapAttr+lpAttr+'/>';
         if (pct > 0) { var gbFillW = f.w * (pct / 100); ftgSvg += '<rect x="'+f.x+'" y="'+f.y+'" width="'+gbFillW+'" height="'+f.h+'" rx="4" fill="'+gbColor+'" opacity="'+(done?0.8:0.45)+'" pointer-events="none"/>'; }
         var dh = f.h * 0.6;
         ftgSvg += '<polygon points="'+f.x+','+(f.y+f.h/2)+' '+(f.x+5)+','+(f.y+f.h/2-dh/2)+' '+(f.x+10)+','+(f.y+f.h/2)+' '+(f.x+5)+','+(f.y+f.h/2+dh/2)+'" fill="'+gbColor+'88" pointer-events="none"/>';
@@ -4431,7 +4450,7 @@ function renderMapSection() {
         var baseFill = pct === 0 ? shapeColor+'25' : shapeColor+'15';
         var baseStrokeRaw = done ? shapeColor : shapeColor+'88';
         var baseStroke = selected ? '#fff' : baseStrokeRaw;
-        ftgSvg += '<rect data-ftg-id="'+f.id+'" data-orig-stroke="'+baseStrokeRaw+'" data-orig-stroke-width="2" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="'+rx+'" fill="'+baseFill+'" stroke="'+baseStroke+'" stroke-width="'+(selected?3:2)+'" class="cursor-pointer" style="touch-action:none"'+lpAttr+'/>';
+        ftgSvg += '<rect data-ftg-id="'+f.id+'" data-orig-stroke="'+baseStrokeRaw+'" data-orig-stroke-width="2" x="'+f.x+'" y="'+f.y+'" width="'+f.w+'" height="'+f.h+'" rx="'+rx+'" fill="'+baseFill+'" stroke="'+baseStroke+'" stroke-width="'+(selected?3:2)+'" class="cursor-pointer"'+tapAttr+lpAttr+'/>';
         if (pct > 0) {
           // Emit the clipPath to the SVG root's <defs> instead of inside the group,
           // so a translate on the group doesn't shift the clip coords.
