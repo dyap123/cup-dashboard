@@ -255,6 +255,46 @@
     input.bg-transparent {
       background-color: transparent !important;
     }
+    /* Pour day view (and pour cards) inputs/selects/textareas need a definite
+       dark fill — bg-white/5 is only 5% alpha and lets iOS Safari's default
+       white form background bleed through, making typed text unreadable. */
+    #pourdayView input[type="text"],
+    #pourdayView input[type="number"],
+    #pourdayView input[type="date"],
+    #pourdayView input[type="search"],
+    #pourdayView select,
+    #pourdayView textarea,
+    .pour-card input[type="text"],
+    .pour-card input[type="number"],
+    .pour-card input[type="date"],
+    .pour-card input[type="search"],
+    .pour-card select,
+    .pour-card textarea {
+      background-color: rgba(20, 25, 40, 0.85) !important;
+      color: #fff !important;
+    }
+    body.light-mode #pourdayView input[type="text"],
+    body.light-mode #pourdayView input[type="number"],
+    body.light-mode #pourdayView input[type="date"],
+    body.light-mode #pourdayView input[type="search"],
+    body.light-mode #pourdayView select,
+    body.light-mode #pourdayView textarea,
+    body.light-mode .pour-card input[type="text"],
+    body.light-mode .pour-card input[type="number"],
+    body.light-mode .pour-card input[type="date"],
+    body.light-mode .pour-card input[type="search"],
+    body.light-mode .pour-card select,
+    body.light-mode .pour-card textarea {
+      background-color: rgba(255, 255, 255, 0.95) !important;
+      color: #1a1a2e !important;
+    }
+    /* Webkit autofill — Safari paints its own yellow/white over the input. */
+    #pourdayView input:-webkit-autofill,
+    .pour-card input:-webkit-autofill {
+      -webkit-box-shadow: 0 0 0 1000px rgba(20, 25, 40, 0.95) inset !important;
+      -webkit-text-fill-color: #fff !important;
+      caret-color: #fff;
+    }
     /* Restore light-mode behavior where intended */
     body.light-mode input, body.light-mode select, body.light-mode textarea {
       color-scheme: light;
@@ -2578,7 +2618,13 @@ function loadFootingMap(key) {
   if (pourDay.mapCache && pourDay.mapCache[key]) map = pourDay.mapCache[key];
   else { const saved = localStorage.getItem('cup_ftgmap_'+key); if (saved) try { map = JSON.parse(saved); } catch {} }
   if (!map) map = DEFAULT_FOOTING_MAPS[key] || null;
-  if (map && !map.footings) map.footings = []; // Firebase strips empty arrays
+  // Firebase strips empty arrays AND converts arrays with non-sequential keys to
+  // numeric-keyed objects. Re-coerce to arrays so .push/.splice work.
+  if (map) {
+    if (!Array.isArray(map.footings)) map.footings = map.footings ? Object.values(map.footings) : [];
+    if (!Array.isArray(map.gridRows)) map.gridRows = map.gridRows ? Object.values(map.gridRows) : [];
+    if (!Array.isArray(map.gridCols)) map.gridCols = map.gridCols ? Object.values(map.gridCols) : [];
+  }
   return map;
 }
 function saveFootingMap(key, data) {
@@ -3144,10 +3190,10 @@ function renderMapEditToolbar(pourId) {
         tb += '<div class="flex items-center gap-1 bg-white/[0.03] rounded px-1.5 py-1">';
         tb += '<input type="text" value="' + (col.label||'') + '" onchange="updateGridCol(\'' + pourId + '\',' + ci + ',\'label\',this.value)" class="w-16 bg-white/5 border border-white/10 rounded px-1 py-0.5 text-[9px] mono text-white font-bold focus:outline-none focus:border-purple-400/40">';
         tb += '<input type="number" value="' + (col.x||0) + '" onchange="updateGridCol(\'' + pourId + '\',' + ci + ',\'x\',this.value)" class="w-16 bg-white/5 border border-white/10 rounded px-1 py-0.5 text-[9px] mono text-white/60 focus:outline-none focus:border-purple-400/40">';
-        tb += '<button onclick="removeGridCol(\'' + pourId + '\',' + ci + ')" class="text-red-400/50 hover:text-red-400 text-xs leading-none">&times;</button>';
+        tb += '<button onclick="removeGridCol(\'' + pourId + '\',' + ci + ')" style="touch-action:manipulation" class="text-red-400/50 hover:text-red-400 text-xs leading-none px-1">&times;</button>';
         tb += '</div>';
       });
-      tb += '<button onclick="addGridCol(\'' + pourId + '\')" class="text-[9px] font-bold px-2 py-1 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 hover:bg-purple-500/20">+ Add Col</button>';
+      tb += '<button onclick="addGridCol(\'' + pourId + '\')" style="touch-action:manipulation" class="text-[9px] font-bold px-2 py-1 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 hover:bg-purple-500/20">+ Add Col</button>';
       tb += '</div>';
       tb += '<div class="text-[8px] font-bold text-purple-300/60 uppercase tracking-wider mt-2">Grid Rows</div>';
       tb += '<div class="flex flex-wrap gap-1.5">';
@@ -3155,10 +3201,10 @@ function renderMapEditToolbar(pourId) {
         tb += '<div class="flex items-center gap-1 bg-white/[0.03] rounded px-1.5 py-1">';
         tb += '<input type="text" value="' + (row.label||'') + '" onchange="updateGridRow(\'' + pourId + '\',' + ri + ',\'label\',this.value)" class="w-16 bg-white/5 border border-white/10 rounded px-1 py-0.5 text-[9px] mono text-white font-bold focus:outline-none focus:border-purple-400/40">';
         tb += '<input type="number" value="' + (row.y||0) + '" onchange="updateGridRow(\'' + pourId + '\',' + ri + ',\'y\',this.value)" class="w-16 bg-white/5 border border-white/10 rounded px-1 py-0.5 text-[9px] mono text-white/60 focus:outline-none focus:border-purple-400/40">';
-        tb += '<button onclick="removeGridRow(\'' + pourId + '\',' + ri + ')" class="text-red-400/50 hover:text-red-400 text-xs leading-none">&times;</button>';
+        tb += '<button onclick="removeGridRow(\'' + pourId + '\',' + ri + ')" style="touch-action:manipulation" class="text-red-400/50 hover:text-red-400 text-xs leading-none px-1">&times;</button>';
         tb += '</div>';
       });
-      tb += '<button onclick="addGridRow(\'' + pourId + '\')" class="text-[9px] font-bold px-2 py-1 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 hover:bg-purple-500/20">+ Add Row</button>';
+      tb += '<button onclick="addGridRow(\'' + pourId + '\')" style="touch-action:manipulation" class="text-[9px] font-bold px-2 py-1 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 hover:bg-purple-500/20">+ Add Row</button>';
       tb += '</div>';
       tb += '</div>';
     }
