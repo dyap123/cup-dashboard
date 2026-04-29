@@ -6567,6 +6567,55 @@ setInterval(async () => {
 setInterval(() => { if (livePour.active) renderLive(); }, 30000);
 
 // ─────────────────────────────────────────────────────────────────────────────
+// TICKETS INDEX — Drive-backed list of which pours already have a tickets PDF.
+// Fetched once on app load + after each successful upload. Pure read-through
+// to Drive via Apps Script; nothing about ticket PDFs lives in Firebase.
+// ─────────────────────────────────────────────────────────────────────────────
+window.ticketsIndex = {};   // {pourId: {url, pages, name, updated}}
+
+async function loadTicketsIndex() {
+  try {
+    const r = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'listTicketsPDFs' }),
+    });
+    const j = await r.json();
+    if (j && j.byPour) {
+      window.ticketsIndex = j.byPour;
+      applyTicketsIndexToState();
+    }
+  } catch (err) {
+    console.warn('loadTicketsIndex failed', err);
+  }
+}
+
+function applyTicketsIndexToState() {
+  if (!state || !state.pours) return;
+  state.pours.forEach((p) => {
+    const entry = ticketsIndex[p.id];
+    if (entry) {
+      p.ticketsPdfUrl = entry.url;
+      p.ticketsPdfPages = entry.pages;
+    } else {
+      // Clear stale fields if the PDF was deleted from Drive
+      delete p.ticketsPdfUrl;
+      delete p.ticketsPdfPages;
+    }
+  });
+  // Re-render whichever view is open
+  try { if (typeof render === 'function') render(); } catch (_) {}
+  try { if (typeof renderPourDay === 'function' &&
+              !document.getElementById('pourdayView')?.classList.contains('hidden'))
+              renderPourDay(); } catch (_) {}
+}
+
+// Kick off after Firebase boots so state.pours is populated
+setTimeout(loadTicketsIndex, 1500);
+// Refresh every 5 minutes in case other devices uploaded
+setInterval(loadTicketsIndex, 5 * 60 * 1000);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // BULK TICKET SCANNER — works on iPad: live camera, edge detection, multi-page
 // queue, compiled into a single PDF + uploaded to Drive via Apps Script.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -6990,13 +7039,17 @@ const Scanner = (function () {
       const j = await r.json();
       if (j.error) throw new Error(j.error);
 
-      // Persist the URL onto the pour record so the dashboard can show
-      // "View Tickets" without re-querying Drive.
-      if (j.viewUrl) {
-        try {
-          await fbSet('pour-overrides/' + state.pourId + '/ticketsPdfUrl', j.viewUrl);
-          await fbSet('pour-overrides/' + state.pourId + '/ticketsPdfPages', state.pages.length);
-        } catch (e) { console.warn('Firebase write failed:', e); }
+      // Update the in-memory tickets index so the dashboard "View Tickets"
+      // link appears without needing a full reload. Drive is the source of
+      // truth — we don't write the URL to Firebase.
+      if (j.viewUrl && window.ticketsIndex) {
+        ticketsIndex[state.pourId] = {
+          url: j.viewUrl,
+          pages: state.pages.length,
+          name: j.filename || '',
+          updated: new Date().toISOString(),
+        };
+        applyTicketsIndexToState();
       }
       // Wipe the draft now that we've successfully uploaded
       try {

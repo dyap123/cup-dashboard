@@ -30,6 +30,9 @@ function doPost(e) {
   if (data.action === 'uploadTicketsPDF') {
     return handleUploadTicketsPDF(data);
   }
+  if (data.action === 'listTicketsPDFs') {
+    return handleListTicketsPDFs();
+  }
   if (data.action === 'uploadTicket') {
     return handleUploadTicket(data);
   }
@@ -128,6 +131,45 @@ function getOrCreateFolder(parent, name) {
   var it = parent.getFoldersByName(name);
   if (it.hasNext()) return it.next();
   return parent.createFolder(name);
+}
+
+// ── TICKETS PDF INDEX ──────────────────────────────────────────────────────
+// Walks every pour subfolder under TICKETS_ROOT_ID and returns the latest
+// tickets-*.pdf for each. The dashboard calls this on load and uses the
+// result to render "View Tickets" links — Drive is the single source of
+// truth, no Firebase write needed.
+function handleListTicketsPDFs() {
+  try {
+    var rootFolder = DriveApp.getFolderById(TICKETS_ROOT_ID);
+    var subFolders = rootFolder.getFolders();
+    var result = {};
+    while (subFolders.hasNext()) {
+      var pourFolder = subFolders.next();
+      var pourId = pourFolder.getName();
+      var files = pourFolder.getFiles();
+      var latest = null;
+      while (files.hasNext()) {
+        var f = files.next();
+        if (f.getName().indexOf('tickets-') !== 0) continue;
+        if (f.getMimeType() !== 'application/pdf') continue;
+        if (!latest || f.getDateCreated() > latest.getDateCreated()) latest = f;
+      }
+      if (latest) {
+        var pages = (latest.getName().match(/-(\d+)p\.pdf$/) || [])[1];
+        result[pourId] = {
+          url: 'https://drive.google.com/file/d/' + latest.getId() + '/view',
+          pages: pages ? parseInt(pages, 10) : null,
+          name: latest.getName(),
+          updated: latest.getLastUpdated().toISOString()
+        };
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, byPour: result }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({error: String(err)}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 // ── BULK TICKETS PDF UPLOAD ────────────────────────────────────────────────
