@@ -1577,12 +1577,12 @@ function renderOnePourCard(p, idx, maxCy8000, maxCy5000, maxSlurry) {
         <span class="mono font-bold text-sm" style="color:#34D399">${p.total} <span class="text-white/40 font-normal text-xs">CY</span></span>
         <span class="text-xs text-white/40">${p.trucks} trucks</span>
       </div>
-      <div class="mt-2 pt-2 border-t border-white/5">
-        <button onclick="event.stopPropagation();openTicketScanner('${p.id}')" style="touch-action:manipulation" class="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-500/30 hover:bg-blue-500/20 hover:text-blue-200 text-xs font-bold transition-all">
-          <span class="material-symbols-outlined text-base">document_scanner</span>
-          Scan Tickets PDF
-        </button>
-      </div>
+      ${p.ticketsPdfUrl ? `<div class="mt-2 pt-2 border-t border-white/5">
+        <a href="${p.ticketsPdfUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20 hover:text-emerald-200 text-xs font-bold transition-all">
+          <span class="material-symbols-outlined text-base">picture_as_pdf</span>
+          View Tickets PDF${p.ticketsPdfPages ? ` · ${p.ticketsPdfPages}p` : ''}
+        </a>
+      </div>` : ''}
       ${!isManagerView ? `<div class="flex items-center gap-2 mt-2 pt-2 border-t border-white/5">
         ${p.userAdded ? `<span class="text-[9px] text-amber-400/60 mono">Added manually</span>` : ''}
         <button onclick="confirmDeletePour('${p.id}')" style="touch-action:manipulation" class="ml-auto text-[9px] font-bold px-2 py-1 rounded bg-red-500/10 text-red-400/70 border border-red-500/20 hover:bg-red-500/20 hover:text-red-300">Delete</button>
@@ -5028,6 +5028,32 @@ function renderPourDay() {
     </div>`;
   }
 
+  // ── Ticket scanner card (Pour Day) ─────────────────────────────────────
+  // Expose the scanner front-and-center on the view where the user is
+  // actively logging trucks. Shows draft/saved status.
+  const ticketsPdfUrl = pour.ticketsPdfUrl || '';
+  const ticketsPdfPages = pour.ticketsPdfPages || 0;
+  const draftCount = (window.Scanner && Scanner.getDraftCount) ? Scanner.getDraftCount(pour.id) : 0;
+  h += `<div class="mb-3 p-3 rounded-xl flex items-center gap-3" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+    <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center">
+      <span class="material-symbols-outlined text-blue-300">document_scanner</span>
+    </div>
+    <div class="flex-1 min-w-0">
+      <div class="text-sm font-bold text-white">Concrete Tickets</div>
+      <div class="text-[11px] text-white/50">
+        ${ticketsPdfUrl
+          ? `Last upload: <a href="${ticketsPdfUrl}" target="_blank" class="text-emerald-300 underline hover:text-emerald-200">${ticketsPdfPages || '?'} pages</a>`
+          : (draftCount > 0
+              ? `<span class="text-amber-300">Draft: ${draftCount} pages waiting to upload</span>`
+              : `Scan one ticket at a time throughout the night, save to a single PDF when done.`)}
+      </div>
+    </div>
+    <button onclick="openTicketScanner('${pour.id}')" style="touch-action:manipulation" class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-bold">
+      <span class="material-symbols-outlined text-base">photo_camera</span>
+      ${draftCount > 0 ? 'Resume Scan' : 'Scan Tickets'}
+    </button>
+  </div>`;
+
   // Truck log (editable — tap row to edit)
   const reverseTrucks = [...pourTrucks].reverse();
   if (reverseTrucks.length) {
@@ -6561,7 +6587,10 @@ setInterval(() => { if (livePour.active) renderLive(); }, 30000);
         <span class="text-white/40 mx-1">·</span>
         <span class="mono"><span id="scanPageCount">0</span> page<span id="scanPageS">s</span></span>
       </div>
-      <button id="scanSaveBtn" onclick="saveTicketScanner()" disabled class="text-sm font-bold px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 disabled:opacity-40 disabled:cursor-not-allowed text-white">Save & Upload</button>
+      <div class="flex items-center gap-2">
+        <button id="scanDraftBtn" onclick="saveDraftTicketScanner()" disabled class="text-sm font-bold px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 disabled:opacity-40 disabled:cursor-not-allowed text-white/80 border border-white/15">Save Draft</button>
+        <button id="scanSaveBtn" onclick="saveTicketScanner()" disabled class="text-sm font-bold px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 disabled:opacity-40 disabled:cursor-not-allowed text-white">Save &amp; Upload</button>
+      </div>
     </div>
 
     <!-- viewfinder -->
@@ -6596,15 +6625,87 @@ const Scanner = (function () {
   const state = {
     pourId: null,
     stream: null,
-    pages: [],         // [{dataUrl, blob, w, h}]
+    pages: [],         // [{dataUrl, w, h}]
     cv: null,
     jscanify: null,
     rafId: null,
     loadingLibs: false,
     libsLoaded: false,
+    db: null,
+    draftCounts: {},   // {pourId: pageCount} — populated lazily for the badge
   };
 
   function $(id) { return document.getElementById(id); }
+
+  // ── IndexedDB draft store ─────────────────────────────────────────────
+  // Stores up to ~tens of MB of JPEGs — far better than localStorage.
+  function openDB() {
+    if (state.db) return Promise.resolve(state.db);
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open('cup-scanner', 1);
+      req.onupgradeneeded = (ev) => {
+        const db = ev.target.result;
+        if (!db.objectStoreNames.contains('drafts')) {
+          db.createObjectStore('drafts', { keyPath: 'pourId' });
+        }
+      };
+      req.onsuccess = (ev) => { state.db = ev.target.result; resolve(state.db); };
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function dbPutDraft(pourId, pages) {
+    const db = await openDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction('drafts', 'readwrite');
+      tx.objectStore('drafts').put({ pourId, pages, updatedAt: Date.now() });
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+  }
+  async function dbGetDraft(pourId) {
+    const db = await openDB();
+    return new Promise((res) => {
+      const tx = db.transaction('drafts', 'readonly');
+      const req = tx.objectStore('drafts').get(pourId);
+      req.onsuccess = () => res(req.result || null);
+      req.onerror = () => res(null);
+    });
+  }
+  async function dbDeleteDraft(pourId) {
+    const db = await openDB();
+    return new Promise((res) => {
+      const tx = db.transaction('drafts', 'readwrite');
+      tx.objectStore('drafts').delete(pourId);
+      tx.oncomplete = () => res();
+      tx.onerror = () => res();
+    });
+  }
+  async function dbAllDrafts() {
+    const db = await openDB();
+    return new Promise((res) => {
+      const tx = db.transaction('drafts', 'readonly');
+      const req = tx.objectStore('drafts').getAll();
+      req.onsuccess = () => res(req.result || []);
+      req.onerror = () => res([]);
+    });
+  }
+
+  // Synchronous draft-count lookup (for badges) — populates from IndexedDB
+  // on first call, then trusts the cached map.
+  let _draftPrimed = false;
+  function primeDrafts() {
+    if (_draftPrimed) return;
+    _draftPrimed = true;
+    dbAllDrafts().then((all) => {
+      all.forEach((d) => { state.draftCounts[d.pourId] = (d.pages || []).length; });
+      // Re-render so any badge updates pick up
+      try { if (typeof renderPourDay === 'function') renderPourDay(); } catch (_) {}
+    });
+  }
+  function getDraftCount(pourId) {
+    primeDrafts();
+    return state.draftCounts[pourId] || 0;
+  }
 
   // Lazy-load opencv.js + jscanify (heavy, only on first scanner open)
   function loadLibs() {
@@ -6663,6 +6764,23 @@ const Scanner = (function () {
     $('scanModal').classList.remove('hidden');
     $('scanModal').classList.add('flex');
     $('scanPourLabel').textContent = pourId;
+
+    // Resume any saved draft for this pour
+    try {
+      const draft = await dbGetDraft(pourId);
+      if (draft && draft.pages && draft.pages.length) {
+        const minutes = Math.round((Date.now() - draft.updatedAt) / 60000);
+        const ago = minutes < 60 ? minutes + ' min ago'
+                  : Math.round(minutes / 60) + 'h ago';
+        if (confirm('Resume ' + draft.pages.length + ' draft pages from ' + ago + '?')) {
+          state.pages = draft.pages;
+        } else {
+          await dbDeleteDraft(pourId);
+          state.draftCounts[pourId] = 0;
+        }
+      }
+    } catch (_) { /* no-op — draft load failure is non-fatal */ }
+
     renderThumbnails();
     updatePageCount();
 
@@ -6803,8 +6921,31 @@ const Scanner = (function () {
   }
 
   function updatePageCount() {
-    $('scanPageCount').textContent = state.pages.length;
-    $('scanSaveBtn').disabled = state.pages.length === 0;
+    const n = state.pages.length;
+    $('scanPageCount').textContent = n;
+    const ps = $('scanPageS'); if (ps) ps.textContent = n === 1 ? '' : 's';
+    $('scanSaveBtn').disabled = n === 0;
+    const draftBtn = $('scanDraftBtn');
+    if (draftBtn) draftBtn.disabled = n === 0;
+  }
+
+  // ── Save Draft (local only, no upload) ────────────────────────────────
+  async function saveDraft() {
+    if (!state.pages.length || !state.pourId) return;
+    const btn = $('scanDraftBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      await dbPutDraft(state.pourId, state.pages);
+      state.draftCounts[state.pourId] = state.pages.length;
+      btn.textContent = 'Draft saved ✓';
+      setTimeout(() => { btn.textContent = 'Save Draft'; btn.disabled = false; close(); }, 700);
+    } catch (err) {
+      console.error('saveDraft', err);
+      btn.textContent = 'Save Draft';
+      btn.disabled = false;
+      alert('Could not save draft: ' + err.message);
+    }
   }
 
   // Compile pages into a PDF (one image per page, US Letter portrait) and ship.
@@ -6848,13 +6989,26 @@ const Scanner = (function () {
       });
       const j = await r.json();
       if (j.error) throw new Error(j.error);
+
+      // Persist the URL onto the pour record so the dashboard can show
+      // "View Tickets" without re-querying Drive.
+      if (j.viewUrl) {
+        try {
+          await fbSet('pour-overrides/' + state.pourId + '/ticketsPdfUrl', j.viewUrl);
+          await fbSet('pour-overrides/' + state.pourId + '/ticketsPdfPages', state.pages.length);
+        } catch (e) { console.warn('Firebase write failed:', e); }
+      }
+      // Wipe the draft now that we've successfully uploaded
+      try {
+        await dbDeleteDraft(state.pourId);
+        state.draftCounts[state.pourId] = 0;
+      } catch (_) {}
+
       btn.textContent = 'Saved ✓';
       setTimeout(() => {
         const url = j.viewUrl;
-        if (url) {
-          if (confirm('Saved ' + state.pages.length + ' pages. Open the PDF?'))
-            window.open(url, '_blank');
-        }
+        if (url && confirm('Uploaded ' + state.pages.length + ' pages. Open the PDF?'))
+          window.open(url, '_blank');
         close();
       }, 600);
     } catch (err) {
@@ -6873,14 +7027,15 @@ const Scanner = (function () {
     });
   }
 
-  return { open, close, capture, save };
+  return { open, close, capture, save, saveDraft, getDraftCount };
 })();
 
 // Helper exposed to onclick handlers
-function openTicketScanner(pourId) { Scanner.open(pourId); }
-function closeTicketScanner()       { Scanner.close(); }
-function captureTicketScanner()     { Scanner.capture(); }
-function saveTicketScanner()        { Scanner.save(); }
+function openTicketScanner(pourId)   { Scanner.open(pourId); }
+function closeTicketScanner()         { Scanner.close(); }
+function captureTicketScanner()       { Scanner.capture(); }
+function saveTicketScanner()          { Scanner.save(); }
+function saveDraftTicketScanner()     { Scanner.saveDraft(); }
 </script>
 </body>
 </html>
