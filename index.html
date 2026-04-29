@@ -1577,6 +1577,12 @@ function renderOnePourCard(p, idx, maxCy8000, maxCy5000, maxSlurry) {
         <span class="mono font-bold text-sm" style="color:#34D399">${p.total} <span class="text-white/40 font-normal text-xs">CY</span></span>
         <span class="text-xs text-white/40">${p.trucks} trucks</span>
       </div>
+      <div class="mt-2 pt-2 border-t border-white/5">
+        <button onclick="event.stopPropagation();openTicketScanner('${p.id}')" style="touch-action:manipulation" class="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-500/30 hover:bg-blue-500/20 hover:text-blue-200 text-xs font-bold transition-all">
+          <span class="material-symbols-outlined text-base">document_scanner</span>
+          Scan Tickets PDF
+        </button>
+      </div>
       ${!isManagerView ? `<div class="flex items-center gap-2 mt-2 pt-2 border-t border-white/5">
         ${p.userAdded ? `<span class="text-[9px] text-amber-400/60 mono">Added manually</span>` : ''}
         <button onclick="confirmDeletePour('${p.id}')" style="touch-action:manipulation" class="ml-auto text-[9px] font-bold px-2 py-1 rounded bg-red-500/10 text-red-400/70 border border-red-500/20 hover:bg-red-500/20 hover:text-red-300">Delete</button>
@@ -6533,6 +6539,348 @@ setInterval(async () => {
 
 // Update live view elapsed time every 30s
 setInterval(() => { if (livePour.active) renderLive(); }, 30000);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BULK TICKET SCANNER — works on iPad: live camera, edge detection, multi-page
+// queue, compiled into a single PDF + uploaded to Drive via Apps Script.
+// ─────────────────────────────────────────────────────────────────────────────
+// Scanner modal markup (injected once on first script run)
+(function injectScannerModal() {
+  if (document.getElementById('scanModal')) return;
+  const html = `
+  <div id="scanModal" class="hidden fixed inset-0 z-[400] flex-col" style="background:#000;">
+    <!-- top bar -->
+    <div class="flex items-center justify-between px-4 py-3 text-white" style="background:rgba(0,0,0,0.55);backdrop-filter:blur(10px);">
+      <button onclick="closeTicketScanner()" class="flex items-center gap-1.5 text-sm text-white/70 hover:text-white px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10">
+        <span class="material-symbols-outlined text-base">close</span>
+        <span>Cancel</span>
+      </button>
+      <div class="text-sm font-semibold flex items-center gap-2">
+        <span class="material-symbols-outlined text-base text-blue-400">document_scanner</span>
+        <span class="text-white/90">Pour <span id="scanPourLabel">—</span></span>
+        <span class="text-white/40 mx-1">·</span>
+        <span class="mono"><span id="scanPageCount">0</span> page<span id="scanPageS">s</span></span>
+      </div>
+      <button id="scanSaveBtn" onclick="saveTicketScanner()" disabled class="text-sm font-bold px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 disabled:opacity-40 disabled:cursor-not-allowed text-white">Save & Upload</button>
+    </div>
+
+    <!-- viewfinder -->
+    <div class="relative flex-1 overflow-hidden flex items-center justify-center">
+      <video id="scanVideo" playsinline autoplay muted class="max-w-full max-h-full object-contain"></video>
+      <canvas id="scanOverlay" class="absolute inset-0 pointer-events-none m-auto"></canvas>
+      <canvas id="scanWork" class="hidden"></canvas>
+      <!-- capture flash -->
+      <div id="scanFlash" class="absolute inset-0 bg-white pointer-events-none transition-opacity" style="opacity:0;transition:opacity 0.18s;"></div>
+      <!-- status -->
+      <div id="scanStatus" class="absolute top-3 left-1/2 -translate-x-1/2 text-xs text-white/70 bg-black/50 px-3 py-1 rounded-full"></div>
+    </div>
+
+    <!-- thumbnails + capture -->
+    <div class="flex flex-col gap-3 px-4 py-3" style="background:rgba(0,0,0,0.55);backdrop-filter:blur(10px);">
+      <div id="scanThumbs" class="flex gap-2 overflow-x-auto pb-1" style="-webkit-overflow-scrolling:touch;"></div>
+      <div class="flex items-center justify-center">
+        <button onclick="captureTicketScanner()" style="touch-action:manipulation" class="relative w-16 h-16 rounded-full bg-white hover:bg-blue-50 active:bg-blue-100 shadow-lg flex items-center justify-center" title="Capture">
+          <div class="w-14 h-14 rounded-full border-4 border-blue-500 flex items-center justify-center">
+            <span class="material-symbols-outlined text-blue-600 text-2xl">photo_camera</span>
+          </div>
+        </button>
+      </div>
+      <div class="text-center text-[11px] text-white/40">Hold steady · keep all 4 corners in frame · tap shutter to capture</div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+})();
+
+
+const Scanner = (function () {
+  const state = {
+    pourId: null,
+    stream: null,
+    pages: [],         // [{dataUrl, blob, w, h}]
+    cv: null,
+    jscanify: null,
+    rafId: null,
+    loadingLibs: false,
+    libsLoaded: false,
+  };
+
+  function $(id) { return document.getElementById(id); }
+
+  // Lazy-load opencv.js + jscanify (heavy, only on first scanner open)
+  function loadLibs() {
+    if (state.libsLoaded) return Promise.resolve();
+    if (state.loadingLibs) return state.loadingLibs;
+    state.loadingLibs = new Promise((resolve, reject) => {
+      const status = $('scanStatus');
+      if (status) status.textContent = 'Loading scanner libraries…';
+      // jsPDF
+      const jsp = document.createElement('script');
+      jsp.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      document.head.appendChild(jsp);
+      // OpenCV.js — required by jscanify
+      const ocv = document.createElement('script');
+      ocv.src = 'https://docs.opencv.org/4.10.0/opencv.js';
+      ocv.async = true;
+      document.head.appendChild(ocv);
+      // jscanify (depends on cv)
+      const js = document.createElement('script');
+      js.src = 'https://cdn.jsdelivr.net/npm/jscanify@1.4.0/src/jscanify.min.js';
+      document.head.appendChild(js);
+
+      let opencvReady = false, jsReady = false, jspdfReady = false;
+      const check = () => {
+        if (opencvReady && jsReady && jspdfReady) {
+          state.cv = window.cv;
+          state.jscanify = new window.jscanify();
+          state.libsLoaded = true;
+          if (status) status.textContent = '';
+          resolve();
+        }
+      };
+      const onCv = () => {
+        if (window.cv && window.cv.Mat) { opencvReady = true; check(); }
+        else if (window.cv && window.cv.onRuntimeInitialized) {
+          window.cv.onRuntimeInitialized = () => { opencvReady = true; check(); };
+        } else {
+          setTimeout(onCv, 80);
+        }
+      };
+      ocv.onload = onCv;
+      js.onload = () => { jsReady = true; check(); };
+      jsp.onload = () => { jspdfReady = true; check(); };
+      setTimeout(() => {
+        if (!state.libsLoaded) {
+          if (status) status.textContent = 'Library load slow — keep waiting…';
+        }
+      }, 6000);
+    });
+    return state.loadingLibs;
+  }
+
+  async function open(pourId) {
+    state.pourId = pourId;
+    state.pages = [];
+    $('scanModal').classList.remove('hidden');
+    $('scanModal').classList.add('flex');
+    $('scanPourLabel').textContent = pourId;
+    renderThumbnails();
+    updatePageCount();
+
+    try {
+      await loadLibs();
+    } catch (err) {
+      alert('Scanner libraries failed to load: ' + err);
+      close(); return;
+    }
+
+    // Start camera (back-facing). Must be triggered from a user gesture on iOS.
+    try {
+      state.stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width:  { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      });
+      const v = $('scanVideo');
+      v.srcObject = state.stream;
+      v.setAttribute('playsinline', 'true');   // iOS Safari quirk
+      await v.play();
+      startEdgeLoop();
+    } catch (err) {
+      $('scanStatus').textContent = 'Camera blocked: ' + (err && err.message || err);
+    }
+  }
+
+  function close() {
+    stopEdgeLoop();
+    if (state.stream) {
+      state.stream.getTracks().forEach(t => t.stop());
+      state.stream = null;
+    }
+    $('scanModal').classList.add('hidden');
+    $('scanModal').classList.remove('flex');
+  }
+
+  // Per-frame: detect document corners, draw a highlight quad over the video
+  function startEdgeLoop() {
+    const v = $('scanVideo');
+    const canvas = $('scanOverlay');
+    const ctx = canvas.getContext('2d');
+    const tick = () => {
+      if (!state.stream) return;
+      try {
+        if (v.videoWidth > 0) {
+          canvas.width = v.videoWidth;
+          canvas.height = v.videoHeight;
+          // Draw the live frame to a hidden canvas for jscanify to read
+          const work = $('scanWork');
+          work.width = v.videoWidth; work.height = v.videoHeight;
+          work.getContext('2d').drawImage(v, 0, 0);
+          let pts = null;
+          try {
+            pts = state.jscanify.findPaperContour(work);
+          } catch (_) { pts = null; }
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          if (pts) {
+            ctx.lineWidth = 6;
+            ctx.strokeStyle = 'rgba(96,165,250,0.95)';
+            ctx.fillStyle = 'rgba(96,165,250,0.18)';
+            ctx.beginPath();
+            const arr = ptsArray(pts);
+            arr.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+          }
+        }
+      } catch (_) { /* silent */ }
+      state.rafId = requestAnimationFrame(tick);
+    };
+    state.rafId = requestAnimationFrame(tick);
+  }
+
+  function stopEdgeLoop() {
+    if (state.rafId) cancelAnimationFrame(state.rafId);
+    state.rafId = null;
+    const c = $('scanOverlay');
+    if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+  }
+
+  function ptsArray(quad) {
+    if (Array.isArray(quad)) return quad;
+    if (quad && typeof quad === 'object') {
+      // jscanify returns {topLeftCorner, topRightCorner, bottomRightCorner, bottomLeftCorner}
+      const k = ['topLeftCorner', 'topRightCorner', 'bottomRightCorner', 'bottomLeftCorner'];
+      return k.map(n => quad[n]).filter(Boolean);
+    }
+    return [];
+  }
+
+  // Capture the current frame, perspective-correct via jscanify, queue it.
+  async function capture() {
+    const v = $('scanVideo');
+    if (!v.videoWidth) return;
+    const src = document.createElement('canvas');
+    src.width = v.videoWidth; src.height = v.videoHeight;
+    src.getContext('2d').drawImage(v, 0, 0);
+    let extracted = src;
+    try {
+      const ex = state.jscanify.extractPaper(src, 1240, 1700);
+      if (ex && ex.width > 0) extracted = ex;
+    } catch (_) { /* fall back to raw frame */ }
+    const dataUrl = extracted.toDataURL('image/jpeg', 0.85);
+    state.pages.push({ dataUrl: dataUrl, w: extracted.width, h: extracted.height });
+    renderThumbnails();
+    updatePageCount();
+    // Tap feedback — flash the screen
+    const flash = $('scanFlash');
+    if (flash) {
+      flash.style.opacity = '0.6';
+      setTimeout(() => { flash.style.opacity = '0'; }, 120);
+    }
+  }
+
+  function deletePage(idx) {
+    state.pages.splice(idx, 1);
+    renderThumbnails();
+    updatePageCount();
+  }
+
+  function renderThumbnails() {
+    const strip = $('scanThumbs');
+    strip.innerHTML = '';
+    state.pages.forEach((p, i) => {
+      const item = document.createElement('div');
+      item.className = 'relative flex-shrink-0';
+      item.innerHTML =
+        '<img src="' + p.dataUrl + '" class="h-16 w-12 object-cover rounded border border-white/20" />' +
+        '<div class="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-blue-500 text-[10px] font-bold flex items-center justify-center text-white">' + (i + 1) + '</div>' +
+        '<button class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs leading-none">&times;</button>';
+      item.querySelector('button').onclick = () => deletePage(i);
+      strip.appendChild(item);
+    });
+  }
+
+  function updatePageCount() {
+    $('scanPageCount').textContent = state.pages.length;
+    $('scanSaveBtn').disabled = state.pages.length === 0;
+  }
+
+  // Compile pages into a PDF (one image per page, US Letter portrait) and ship.
+  async function save() {
+    if (!state.pages.length) return;
+    const btn = $('scanSaveBtn');
+    btn.disabled = true;
+    btn.textContent = 'Building PDF…';
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'portrait' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const margin = 18;
+    state.pages.forEach((p, i) => {
+      if (i > 0) pdf.addPage();
+      const aspect = p.w / p.h;
+      let w = pageW - 2 * margin, h = w / aspect;
+      if (h > pageH - 2 * margin) {
+        h = pageH - 2 * margin;
+        w = h * aspect;
+      }
+      const x = (pageW - w) / 2;
+      const y = (pageH - h) / 2;
+      pdf.addImage(p.dataUrl, 'JPEG', x, y, w, h, undefined, 'FAST');
+    });
+
+    btn.textContent = 'Uploading…';
+    const blob = pdf.output('blob');
+    const dataB64 = await blobToBase64(blob);
+    try {
+      const r = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'uploadTicketsPDF',
+          pourId: state.pourId,
+          dataB64: dataB64.split(',')[1],
+          pageCount: state.pages.length,
+        }),
+      });
+      const j = await r.json();
+      if (j.error) throw new Error(j.error);
+      btn.textContent = 'Saved ✓';
+      setTimeout(() => {
+        const url = j.viewUrl;
+        if (url) {
+          if (confirm('Saved ' + state.pages.length + ' pages. Open the PDF?'))
+            window.open(url, '_blank');
+        }
+        close();
+      }, 600);
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Save & Upload';
+      alert('Upload failed: ' + err.message);
+    }
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+  }
+
+  return { open, close, capture, save };
+})();
+
+// Helper exposed to onclick handlers
+function openTicketScanner(pourId) { Scanner.open(pourId); }
+function closeTicketScanner()       { Scanner.close(); }
+function captureTicketScanner()     { Scanner.capture(); }
+function saveTicketScanner()        { Scanner.save(); }
 </script>
 </body>
 </html>

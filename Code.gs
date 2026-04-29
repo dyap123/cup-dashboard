@@ -27,6 +27,9 @@ function doPost(e) {
     return handleDeletePour(sheet, data);
   }
 
+  if (data.action === 'uploadTicketsPDF') {
+    return handleUploadTicketsPDF(data);
+  }
   if (data.action === 'uploadTicket') {
     return handleUploadTicket(data);
   }
@@ -125,6 +128,35 @@ function getOrCreateFolder(parent, name) {
   var it = parent.getFoldersByName(name);
   if (it.hasNext()) return it.next();
   return parent.createFolder(name);
+}
+
+// ── BULK TICKETS PDF UPLOAD ────────────────────────────────────────────────
+// Expects { action:'uploadTicketsPDF', pourId, dataB64, pageCount }
+// Saves the full multi-page PDF in the pour folder as
+// "tickets-YYYY-MM-DD-HHMM-{N}pages.pdf" so the field crew can drop a whole
+// day's ticket batch in one upload.
+function handleUploadTicketsPDF(data) {
+  try {
+    var rootFolder = DriveApp.getFolderById(TICKETS_ROOT_ID);
+    var pourFolder = getOrCreateFolder(rootFolder, data.pourId);
+    var bytes = Utilities.base64Decode(data.dataB64);
+    var stamp = Utilities.formatDate(new Date(), 'America/Los_Angeles', 'yyyy-MM-dd-HHmm');
+    var pages = data.pageCount ? '-' + data.pageCount + 'p' : '';
+    var name = 'tickets-' + stamp + pages + '.pdf';
+    var blob = Utilities.newBlob(bytes, 'application/pdf', name);
+    var file = pourFolder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return ContentService.createTextOutput(JSON.stringify({
+      ok: true,
+      fileId: file.getId(),
+      viewUrl: 'https://drive.google.com/file/d/' + file.getId() + '/view',
+      downloadUrl: 'https://drive.google.com/uc?export=download&id=' + file.getId(),
+      filename: name
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({error: String(err)}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 // ── END-OF-DAY REPORT BUNDLE ───────────────────────────────────────────────
