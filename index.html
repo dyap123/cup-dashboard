@@ -4069,6 +4069,64 @@ function exportPourReport() {
   const avgInterval = timestamps.length > 1 ? Math.round(totalDuration / (timestamps.length - 1)) : 0;
   const fmtTime = d => d ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—';
 
+  // Interval analysis — gaps between consecutive trucks, with truck-pair attribution
+  const intervals = [];
+  for (let i = 1; i < pourTrucks.length; i++) {
+    const t0 = new Date(pourTrucks[i-1].timestamp).getTime();
+    const t1 = new Date(pourTrucks[i].timestamp).getTime();
+    if (!isNaN(t0) && !isNaN(t1)) {
+      intervals.push({
+        minutes: Math.round((t1 - t0) / 60000),
+        from: pourTrucks[i-1].truckNum,
+        to: pourTrucks[i].truckNum,
+        atTime: new Date(t1),
+        mixChange: pourTrucks[i-1].mix !== pourTrucks[i].mix,
+      });
+    }
+  }
+  const largestGap = intervals.length ? intervals.reduce((a, b) => a.minutes > b.minutes ? a : b) : null;
+  const smallestGap = intervals.length ? intervals.reduce((a, b) => a.minutes < b.minutes ? a : b) : null;
+  const medianInterval = intervals.length ? (() => {
+    const sorted = intervals.map(i => i.minutes).sort((a,b) => a-b);
+    const m = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[m] : Math.round((sorted[m-1] + sorted[m]) / 2);
+  })() : 0;
+  const STALL_THRESHOLD = 30; // min — gap above this counts as a stall
+  const stalls = intervals.filter(i => i.minutes > STALL_THRESHOLD);
+  const stallTotalMin = stalls.reduce((s, i) => s + (i.minutes - STALL_THRESHOLD), 0);
+  const activeDuration = Math.max(0, totalDuration - stallTotalMin);
+
+  // Pour rates
+  const hoursTotal = totalDuration / 60;
+  const hoursActive = activeDuration / 60;
+  const pourRateAvg = hoursTotal > 0 ? (delivered / hoursTotal).toFixed(1) : '—';
+  const pourRateActive = hoursActive > 0 ? (delivered / hoursActive).toFixed(1) : '—';
+  const trucksPerHour = hoursTotal > 0 ? (pourTrucks.length / hoursTotal).toFixed(1) : '—';
+
+  // Mix changeovers
+  const mixChangeovers = intervals.filter(i => i.mixChange).length;
+  const mixChangeoverGaps = intervals.filter(i => i.mixChange);
+  const avgMixChangeoverMin = mixChangeoverGaps.length
+    ? Math.round(mixChangeoverGaps.reduce((s,i) => s + i.minutes, 0) / mixChangeoverGaps.length)
+    : 0;
+
+  // Pace check — was the back half slower than the front half?
+  let frontHalfRate = null, backHalfRate = null;
+  if (pourTrucks.length >= 4 && firstTruck && lastTruck) {
+    const midIdx = Math.floor(pourTrucks.length / 2);
+    const midTrucks = pourTrucks.slice(0, midIdx);
+    const midCY = midTrucks[midTrucks.length - 1].cumulative;
+    const midTime = new Date(midTrucks[midTrucks.length - 1].timestamp);
+    const frontHrs = (midTime - firstTruck) / 3600000;
+    const backHrs = (lastTruck - midTime) / 3600000;
+    if (frontHrs > 0) frontHalfRate = (midCY / frontHrs).toFixed(1);
+    if (backHrs > 0) backHalfRate = ((delivered - midCY) / backHrs).toFixed(1);
+  }
+
+  // Yield: ticket CY vs system-recorded truck CY (if tickets carry their own qty in note/ticket — best-effort)
+  const truckCYTotal = pourTrucks.reduce((s,t) => s + (parseFloat(t.cy) || 0), 0);
+  const yieldVsCum = pourTrucks.length ? (delivered - truckCYTotal) : 0;
+
   // Footing progress
   const totalFtgs = ftgs.length;
   const doneFtgs = ftgs.filter(f => getFootingPct(f.id) === 100).length;
@@ -4121,14 +4179,29 @@ function exportPourReport() {
   ${cySlurry > 0 ? `<tr><td>Slurry</td><td>S80S662L2</td><td><strong>${cySlurry.toFixed(1)}</strong> CY</td><td>${ftgs.filter(f=>getFootingMix(f)==='slurry').map(f=>f.id).join(', ')}</td></tr>` : ''}
   </table>
 
-  <h2>Timing Metrics</h2>
-  <table><tr><th>Metric</th><th>Value</th></tr>
-  <tr><td>First Truck</td><td>${fmtTime(firstTruck)}</td></tr>
-  <tr><td>Last Truck</td><td>${fmtTime(lastTruck)}</td></tr>
-  <tr><td>Total Duration</td><td>${totalDuration} min (${(totalDuration/60).toFixed(1)} hrs)</td></tr>
-  <tr><td>Avg Interval Between Trucks</td><td>${avgInterval} min</td></tr>
-  <tr><td>Total Trucks</td><td>${pourTrucks.length}</td></tr>
-  <tr><td>Avg CY Per Truck</td><td>${pourTrucks.length ? (delivered / pourTrucks.length).toFixed(1) : '—'} CY</td></tr>
+  <h2>Pour Performance</h2>
+  <table><tr><th>Metric</th><th>Value</th><th>Notes</th></tr>
+  <tr><td>First Truck</td><td>${fmtTime(firstTruck)}</td><td>—</td></tr>
+  <tr><td>Last Truck</td><td>${fmtTime(lastTruck)}</td><td>—</td></tr>
+  <tr><td>Total Duration</td><td><strong>${totalDuration} min</strong> (${(totalDuration/60).toFixed(1)} hrs)</td><td>First → last truck</td></tr>
+  <tr><td>Active Duration</td><td><strong>${activeDuration} min</strong> (${(activeDuration/60).toFixed(1)} hrs)</td><td>Excludes stalls &gt; ${STALL_THRESHOLD} min</td></tr>
+  <tr><td>Pour Rate (avg)</td><td><strong>${pourRateAvg}</strong> CY/hr</td><td>Delivered ÷ total hrs</td></tr>
+  <tr><td>Pour Rate (active)</td><td><strong>${pourRateActive}</strong> CY/hr</td><td>Delivered ÷ active hrs</td></tr>
+  <tr><td>Trucks Per Hour</td><td><strong>${trucksPerHour}</strong></td><td>—</td></tr>
+  <tr><td>Total Trucks</td><td>${pourTrucks.length}</td><td>—</td></tr>
+  <tr><td>Avg CY Per Truck</td><td>${pourTrucks.length ? (delivered / pourTrucks.length).toFixed(1) : '—'} CY</td><td>—</td></tr>
+  ${frontHalfRate && backHalfRate ? `<tr><td>Pace (front / back half)</td><td>${frontHalfRate} / <strong class="${parseFloat(backHalfRate) < parseFloat(frontHalfRate) * 0.85 ? 'warn' : 'ok'}">${backHalfRate}</strong> CY/hr</td><td>${parseFloat(backHalfRate) < parseFloat(frontHalfRate) * 0.85 ? 'Back half slower &gt;15%' : 'Consistent pace'}</td></tr>` : ''}
+  </table>
+
+  <h2>Interval Analysis ${intervals.length ? `(${intervals.length} intervals)` : ''}</h2>
+  <table><tr><th>Metric</th><th>Value</th><th>Detail</th></tr>
+  ${largestGap ? `<tr><td><strong>Largest Gap</strong></td><td><strong class="${largestGap.minutes > STALL_THRESHOLD ? 'bad' : largestGap.minutes > 20 ? 'warn' : ''}">${largestGap.minutes} min</strong></td><td>Truck #${largestGap.from} → #${largestGap.to} · arrived ${fmtTime(largestGap.atTime)}${largestGap.mixChange ? ' · mix changeover' : ''}</td></tr>` : '<tr><td>Largest Gap</td><td>—</td><td>Need ≥2 trucks</td></tr>'}
+  ${smallestGap ? `<tr><td>Smallest Gap</td><td>${smallestGap.minutes} min</td><td>Truck #${smallestGap.from} → #${smallestGap.to}</td></tr>` : ''}
+  <tr><td>Avg Interval</td><td>${avgInterval} min</td><td>—</td></tr>
+  <tr><td>Median Interval</td><td>${medianInterval} min</td><td>Less skewed by outliers</td></tr>
+  <tr><td>Stalls (&gt; ${STALL_THRESHOLD} min)</td><td><strong class="${stalls.length === 0 ? 'ok' : stalls.length <= 2 ? 'warn' : 'bad'}">${stalls.length}</strong></td><td>${stalls.length ? stalls.map(s => `#${s.from}→#${s.to} (${s.minutes}m)`).join(', ') : 'No stalls'}</td></tr>
+  <tr><td>Stall Time Total</td><td>${stallTotalMin} min</td><td>Beyond the ${STALL_THRESHOLD}-min threshold</td></tr>
+  ${mixChangeovers > 0 ? `<tr><td>Mix Changeovers</td><td>${mixChangeovers}</td><td>Avg ${avgMixChangeoverMin} min between mix-switch trucks</td></tr>` : ''}
   </table>
 
   ${(() => {
