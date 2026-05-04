@@ -335,6 +335,37 @@
       box-shadow: 0 0 0 2px rgba(96,165,250,0.5), 0 0 30px rgba(96,165,250,0.25);
       background: rgba(96,165,250,0.04);
     }
+    /* Foundation Sequences — edit mode */
+    .seq-edit-active { background: rgba(245,158,11,0.18) !important; color: #fbbf24 !important; border-color: rgba(245,158,11,0.45) !important; }
+    #seqOverlay.seq-editing polygon[data-area-id] { cursor: move; }
+    #seqOverlay.seq-editing polygon[data-area-id].seq-pulse-amber { animation: none; }
+    #seqOverlay .seq-vertex {
+      cursor: grab;
+      transition: r 0.15s ease, fill-opacity 0.15s ease;
+      pointer-events: auto;
+    }
+    #seqOverlay .seq-vertex:hover { fill-opacity: 1; r: 11; }
+    #seqOverlay .seq-vertex.seq-dragging { cursor: grabbing; }
+    #seqOverlay .seq-vertex.seq-selected { stroke: #ef4444; stroke-width: 2.5; }
+    #seqOverlay .seq-vertex-x {
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    #seqOverlay .seq-phase-handle, #seqOverlay .seq-label-handle {
+      cursor: move;
+      pointer-events: auto;
+    }
+    #seqOverlay .seq-area-trash {
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    #seqOverlay .seq-area-trash:hover circle { fill: rgba(239,68,68,0.4); }
+    #seqEditPanel {
+      background: rgba(245,158,11,0.08);
+      border: 1px solid rgba(245,158,11,0.3);
+      color: rgba(251,191,36,0.9);
+    }
+    #seqEditPanel button { transition: all 0.15s ease; }
   </style>
 </head>
 <body class="min-h-screen" style="position:relative">
@@ -413,10 +444,25 @@
         <input type="checkbox" id="seqShowArchived" onchange="renderSequenceGroups()" class="accent-cyan-500">
         <span>Show archived</span>
       </label>
+      <button onclick="toggleSeqEditMode()" id="seqEditBtn" style="touch-action:manipulation" class="text-xs font-bold px-3 py-2 rounded-lg bg-white/5 text-white/60 border border-white/10 hover:bg-white/10 flex items-center gap-1.5" title="Edit polygons, drag vertices, add/delete areas">
+        <span class="material-symbols-outlined text-base">edit</span>
+        <span>Edit Map</span>
+      </button>
       <button onclick="showAddFoundationPourModal()" id="seqAddBtn" style="touch-action:manipulation" class="text-xs font-bold px-4 py-2 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 flex items-center gap-1.5">
         <span class="material-symbols-outlined text-base">add_circle</span>
         <span>Add Pour</span>
       </button>
+    </div>
+  </div>
+  <div id="seqEditPanel" class="hidden mb-3 px-3 py-2 rounded-lg flex items-center justify-between gap-3 flex-wrap text-[11px]">
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="font-bold uppercase tracking-wider">Edit Mode</span>
+      <span class="text-white/50">Drag vertices · drag inside to move · double-click body to insert vertex · click vertex × to delete · drag phase letters/labels</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="showAddSequenceAreaModal()" class="font-bold px-2.5 py-1 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25 flex items-center gap-1"><span class="material-symbols-outlined" style="font-size:14px">add</span>Add Area</button>
+      <button onclick="resetAllSeqOverrides()" class="font-bold px-2.5 py-1 rounded bg-white/5 text-white/60 border border-white/10 hover:bg-white/10">Reset all</button>
+      <button onclick="toggleSeqEditMode()" class="font-bold px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30">Done</button>
     </div>
   </div>
   <div id="seqGroups" class="space-y-4"></div>
@@ -7628,6 +7674,9 @@ let seqAreasJson = [];
 let foundationPours = {};
 let foundationMapRendered = false;
 let seqFilter = 'ALL';
+let seqEditMode = false;
+let seqOverrides = {};         // foundation-areas-overrides Firebase node
+let seqSelectedVertex = null;  // {section_id, idx} when a vertex is selected
 
 function getSequenceScaffold() {
   return [
@@ -7699,6 +7748,46 @@ function attachFoundationListeners() {
       renderSequenceGroups();
     }
   });
+  fbListen('foundation-areas-overrides', (val) => {
+    seqOverrides = val || {};
+    if (foundationMapRendered) {
+      renderSequenceMap().then(() => seqRecolorAreas());
+    }
+  });
+}
+
+// Merge Firebase overrides onto the static foundation_areas.json. Defaults
+// can be partially overridden (polygon/phases/label_offset/color/label) or
+// soft-deleted via __deleted. User-added areas are emitted with __userAdded.
+function getMergedAreas() {
+  const merged = [];
+  seqAreasJson.forEach(area => {
+    const ov = seqOverrides[area.section_id];
+    if (ov && ov.__deleted) return;
+    if (!ov) { merged.push(area); return; }
+    const m = Object.assign({}, area);
+    if (ov.polygon) m.polygon = ov.polygon;
+    if (ov.phases) m.phases = ov.phases;
+    if (ov.label_offset) m.label_offset = ov.label_offset;
+    if (ov.label != null) m.label = ov.label;
+    if (ov.outline_color) m.outline_color = ov.outline_color;
+    if (ov.annotation != null) m.annotation = ov.annotation;
+    merged.push(m);
+  });
+  Object.entries(seqOverrides).forEach(([sid, ov]) => {
+    if (!ov || !ov.__userAdded || ov.__deleted) return;
+    if (seqAreasJson.find(a => a.section_id === sid)) return;
+    merged.push(Object.assign({
+      section_id: sid,
+      polygon: ov.polygon || [[800,800],[1000,800],[1000,1000],[800,1000]],
+      phases: ov.phases || [],
+      label_offset: ov.label_offset || [0,0],
+      interactive: true,
+      outline_color: ov.outline_color || '#22d3ee',
+      label: ov.label || sid,
+    }, ov));
+  });
+  return merged;
 }
 
 // ── SVG MAP ──────────────────────────────────────────────────────────────
@@ -7720,6 +7809,7 @@ async function renderSequenceMap() {
   const svg = document.getElementById('seqOverlay');
   if (!svg) return;
   while (svg.firstChild) svg.removeChild(svg.firstChild);
+  svg.classList.toggle('seq-editing', seqEditMode);
   const W = foundationCanvas.width || 1700;
   const H = foundationCanvas.height || 1700;
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
@@ -7760,8 +7850,8 @@ async function renderSequenceMap() {
     svg.appendChild(seqSvgEl('path', { d, stroke:'#475569', 'stroke-width':1.5, fill:'none', 'stroke-dasharray':'6 8', 'stroke-linecap':'round', 'stroke-opacity':0.55 }));
   }
 
-  // Areas — non-interactive first
-  const sorted = seqAreasJson.slice().sort((a,b) => (a.interactive?1:0) - (b.interactive?1:0));
+  // Areas — non-interactive first; merged with Firebase overrides
+  const sorted = getMergedAreas().sort((a,b) => (a.interactive?1:0) - (b.interactive?1:0));
   sorted.forEach(area => seqDrawArea(svg, area));
 
   // Legend (bottom-left)
@@ -7779,20 +7869,24 @@ function seqDrawArea(svg, area) {
   const points = area.polygon.map(p => p.join(',')).join(' ');
   const sid = area.section_id;
   const meta = seqAreaToSeqNum(area);
-  const isFoundation = !!(meta && meta.areaId && /^[A-Z]$/.test(meta.areaId));
-  const isInteractive = !!(area.interactive && isFoundation);
+  const isFoundation = !!(meta && meta.areaId && /^[A-Z][A-Z0-9-]*$/.test(meta.areaId));
+  const isUserAdded = !!(seqOverrides[sid] && seqOverrides[sid].__userAdded);
+  const isInteractive = !!(area.interactive && (isFoundation || isUserAdded));
 
   // Backdrop
   svg.appendChild(seqSvgEl('polygon', {
     points, fill:'#0f172a',
     'fill-opacity': area.interactive ? 0.6 : 0.4,
     stroke:'none', 'pointer-events':'none',
+    'data-edit-poly': sid,
   }));
 
   // Status fill
   let statusColor;
   if (isFoundation) {
     statusColor = SEQ_STATUS_COLOR[aggregateAreaStatus(meta.seq, meta.areaId)];
+  } else if (isUserAdded && area.sequence != null && area.area) {
+    statusColor = SEQ_STATUS_COLOR[aggregateAreaStatus(area.sequence, area.area)];
   } else {
     statusColor = { fill:'#64748b', stroke: area.outline_color || '#475569' };
   }
@@ -7802,16 +7896,28 @@ function seqDrawArea(svg, area) {
     stroke: statusColor.stroke,
     'stroke-width':1.2, 'stroke-opacity':0.9,
     'stroke-linejoin':'round', 'stroke-linecap':'round',
+    'data-edit-poly': sid,
   };
-  if (isInteractive) polyAttrs['data-area-id'] = `${meta.seq}-${meta.areaId}`;
+  if (isInteractive && isFoundation) polyAttrs['data-area-id'] = `${meta.seq}-${meta.areaId}`;
+  if (isInteractive && isUserAdded && area.sequence != null && area.area) polyAttrs['data-area-id'] = `${area.sequence}-${area.area}`;
   const poly = seqSvgEl('polygon', polyAttrs);
   if (!isInteractive) poly.classList.add('seq-readonly');
-  if (isInteractive) {
-    const status = aggregateAreaStatus(meta.seq, meta.areaId);
-    if (status === 'PENDING' || status === 'ORDERED') poly.classList.add('seq-pulse-amber');
-    poly.addEventListener('mousemove', (e) => seqShowTooltip(e, area, meta));
+  if (isInteractive && !seqEditMode) {
+    if (isFoundation || (isUserAdded && area.sequence != null && area.area)) {
+      const status = isFoundation ? aggregateAreaStatus(meta.seq, meta.areaId) : aggregateAreaStatus(area.sequence, area.area);
+      if (status === 'PENDING' || status === 'ORDERED') poly.classList.add('seq-pulse-amber');
+    }
+    poly.addEventListener('mousemove', (e) => seqShowTooltip(e, area, meta || { seq: area.sequence, areaId: area.area }));
     poly.addEventListener('mouseleave', seqHideTooltip);
-    poly.addEventListener('click', () => seqJumpToArea(meta.seq, meta.areaId));
+    poly.addEventListener('click', () => {
+      const tgt = isFoundation ? meta : { seq: area.sequence, areaId: area.area };
+      if (tgt && tgt.seq != null && tgt.areaId) seqJumpToArea(tgt.seq, tgt.areaId);
+    });
+  }
+  if (isInteractive && seqEditMode) {
+    poly.style.cursor = 'move';
+    poly.addEventListener('pointerdown', (e) => seqStartPolygonDrag(e, area));
+    poly.addEventListener('dblclick', (e) => seqInsertVertex(e, area));
   }
   svg.appendChild(poly);
 
@@ -7823,6 +7929,7 @@ function seqDrawArea(svg, area) {
     'stroke-linejoin':'round',
     'stroke-dasharray': isInteractive ? '0' : '4 6',
     'pointer-events':'none',
+    'data-edit-poly': sid,
   }));
 
   // Label(s)
@@ -7833,15 +7940,21 @@ function seqDrawArea(svg, area) {
   let labelSize = 32, labelWeight = 600;
   if (sid === '4') { labelText = 'Zone 4'; labelSize = 24; }
   if (!isInteractive) { labelSize = 20; labelWeight = 500; }
-  svg.appendChild(seqSvgEl('text', {
+  const labelEl = seqSvgEl('text', {
     x: cx + off[0], y: cy + off[1],
     'text-anchor':'middle', 'dominant-baseline':'middle',
     fill: isInteractive ? '#f8fafc' : '#94a3b8',
     'font-size':labelSize, 'font-weight':labelWeight,
     'font-family':'-apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif',
-    'letter-spacing':'-0.015em', 'pointer-events':'none',
+    'letter-spacing':'-0.015em',
+    'pointer-events': seqEditMode && isInteractive ? 'auto' : 'none',
     opacity: isInteractive ? 0.95 : 0.7,
-  }, labelText));
+  }, labelText);
+  if (seqEditMode && isInteractive) {
+    labelEl.classList.add('seq-label-handle');
+    labelEl.addEventListener('pointerdown', (e) => seqStartLabelDrag(e, area, labelEl, cx, cy));
+  }
+  svg.appendChild(labelEl);
 
   if (area.label && isInteractive && area.label !== sid) {
     svg.appendChild(seqSvgEl('text', {
@@ -7861,16 +7974,369 @@ function seqDrawArea(svg, area) {
     }, area.annotation));
   }
 
+  // Phase markers (draggable in edit mode)
   if (area.phases) {
-    area.phases.forEach(ph => {
-      svg.appendChild(seqSvgEl('text', {
+    area.phases.forEach((ph, idx) => {
+      const phaseEl = seqSvgEl('text', {
         x: ph.anchor[0], y: ph.anchor[1],
         'text-anchor':'middle', 'dominant-baseline':'middle',
-        fill:'#94a3b8', 'font-size':10, 'font-weight':500,
-        'letter-spacing':'0.06em', 'pointer-events':'none', opacity:0.7,
-      }, ph.id.replace(/^Phase\s+/i,'').toUpperCase()));
+        fill: seqEditMode && isInteractive ? '#fbbf24' : '#94a3b8',
+        'font-size': seqEditMode && isInteractive ? 14 : 10,
+        'font-weight': 600,
+        'letter-spacing':'0.06em',
+        'pointer-events': seqEditMode && isInteractive ? 'auto' : 'none',
+        opacity: seqEditMode && isInteractive ? 0.95 : 0.7,
+      }, ph.id.replace(/^Phase\s+/i,'').toUpperCase());
+      if (seqEditMode && isInteractive) {
+        phaseEl.classList.add('seq-phase-handle');
+        phaseEl.addEventListener('pointerdown', (e) => seqStartPhaseDrag(e, area, idx, phaseEl));
+      }
+      svg.appendChild(phaseEl);
     });
   }
+
+  // Edit-mode handles: vertices + delete-area trash
+  if (seqEditMode && isInteractive) {
+    area.polygon.forEach((v, idx) => {
+      const isSelected = !!(seqSelectedVertex && seqSelectedVertex.section_id === sid && seqSelectedVertex.idx === idx);
+      const handle = seqSvgEl('circle', {
+        cx: v[0], cy: v[1], r: 9,
+        fill: isSelected ? '#ef4444' : '#3b82f6', 'fill-opacity': 0.75,
+        stroke: '#fff', 'stroke-width': 1.5,
+        'data-vertex-section': sid, 'data-vertex-idx': idx,
+      });
+      handle.classList.add('seq-vertex');
+      if (isSelected) handle.classList.add('seq-selected');
+      handle.addEventListener('pointerdown', (e) => seqStartVertexDrag(e, area, idx, handle));
+      svg.appendChild(handle);
+      if (isSelected) {
+        const xg = seqSvgEl('g', { transform: `translate(${v[0]+18},${v[1]-18})` });
+        xg.classList.add('seq-vertex-x');
+        xg.appendChild(seqSvgEl('circle', { r: 11, fill: '#ef4444', stroke: '#fff', 'stroke-width': 1.5 }));
+        xg.appendChild(seqSvgEl('text', {
+          'text-anchor':'middle', 'dominant-baseline':'central',
+          fill:'#fff', 'font-size': 14, 'font-weight': 700,
+          'pointer-events':'none',
+        }, '×'));
+        xg.addEventListener('click', (e) => { e.stopPropagation(); seqDeleteVertex(area, idx); });
+        svg.appendChild(xg);
+      }
+    });
+
+    // Trash icon for the area (top-right of bounding box)
+    const maxX = Math.max(...area.polygon.map(p => p[0]));
+    const minY = Math.min(...area.polygon.map(p => p[1]));
+    const trash = seqSvgEl('g', { transform: `translate(${maxX-22},${minY+22})` });
+    trash.classList.add('seq-area-trash');
+    trash.appendChild(seqSvgEl('circle', { r: 13, fill: 'rgba(239,68,68,0.18)', stroke: 'rgba(239,68,68,0.5)', 'stroke-width': 1.5 }));
+    trash.appendChild(seqSvgEl('path', {
+      d: 'M-4,-3 L4,-3 M-3,-3 L-3,4 M3,-3 L3,4 M-1,-3 L-1,-5 L1,-5 L1,-3',
+      stroke: '#ef4444', 'stroke-width': 1.4, fill: 'none', 'stroke-linecap':'round', 'stroke-linejoin':'round',
+      'pointer-events':'none',
+    }));
+    trash.addEventListener('click', (e) => { e.stopPropagation(); seqDeleteAreaPrompt(area); });
+    svg.appendChild(trash);
+
+    // Reset-to-default ↺ for areas that have an override
+    if (seqOverrides[sid] && !seqOverrides[sid].__userAdded) {
+      const reset = seqSvgEl('g', { transform: `translate(${maxX-50},${minY+22})` });
+      reset.style.cursor = 'pointer';
+      reset.appendChild(seqSvgEl('circle', { r: 13, fill: 'rgba(148,163,184,0.15)', stroke: 'rgba(148,163,184,0.5)', 'stroke-width': 1.5 }));
+      reset.appendChild(seqSvgEl('text', {
+        'text-anchor':'middle', 'dominant-baseline':'central',
+        fill:'#cbd5e1', 'font-size': 14, 'font-weight':700, 'pointer-events':'none',
+      }, '↻'));
+      reset.addEventListener('click', (e) => { e.stopPropagation(); seqResetArea(sid); });
+      svg.appendChild(reset);
+    }
+  }
+}
+
+// ── EDIT MODE: drag helpers ─────────────────────────────────────────────
+function svgClientToCoord(svg, cx, cy) {
+  const pt = svg.createSVGPoint();
+  pt.x = cx; pt.y = cy;
+  const m = svg.getScreenCTM();
+  if (!m) return [cx, cy];
+  const p = pt.matrixTransform(m.inverse());
+  return [p.x, p.y];
+}
+
+function seqGenericDrag(evt, opts) {
+  evt.preventDefault();
+  evt.stopPropagation();
+  const svg = document.getElementById('seqOverlay');
+  const start = svgClientToCoord(svg, evt.clientX, evt.clientY);
+  let moved = false;
+  let lastDelta = [0, 0];
+  function onMove(e) {
+    const cur = svgClientToCoord(svg, e.clientX, e.clientY);
+    lastDelta = [cur[0] - start[0], cur[1] - start[1]];
+    if (!moved && Math.hypot(lastDelta[0], lastDelta[1]) > 4) moved = true;
+    if (moved && opts.onDrag) opts.onDrag(lastDelta);
+  }
+  function onUp() {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onUp);
+    if (moved && opts.onCommit) opts.onCommit(lastDelta);
+    else if (!moved && opts.onClick) opts.onClick();
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp, { once: true });
+  document.addEventListener('pointercancel', onUp, { once: true });
+}
+
+function _seqQueryEditPolys(sid) {
+  const esc = (window.CSS && CSS.escape) ? CSS.escape(sid) : String(sid).replace(/"/g, '\\"');
+  return document.querySelectorAll(`#seqOverlay polygon[data-edit-poly="${esc}"]`);
+}
+
+function seqStartVertexDrag(evt, area, idx, handle) {
+  const sid = area.section_id;
+  const origVerts = area.polygon.map(p => [...p]);
+  const polyEls = _seqQueryEditPolys(sid);
+  function liveUpdate(verts) {
+    const pts = verts.map(p => p.join(',')).join(' ');
+    polyEls.forEach(el => el.setAttribute('points', pts));
+  }
+  seqGenericDrag(evt, {
+    onDrag: (delta) => {
+      const newVerts = origVerts.map((p, i) => i === idx ? [p[0]+delta[0], p[1]+delta[1]] : [...p]);
+      handle.classList.add('seq-dragging');
+      handle.setAttribute('cx', newVerts[idx][0]);
+      handle.setAttribute('cy', newVerts[idx][1]);
+      liveUpdate(newVerts);
+    },
+    onCommit: (delta) => {
+      const newVerts = origVerts.map((p, i) => i === idx ? [Math.round(p[0]+delta[0]), Math.round(p[1]+delta[1])] : [...p]);
+      handle.classList.remove('seq-dragging');
+      area.polygon = newVerts;
+      seqSelectedVertex = null;
+      persistSeqOverride(sid, { polygon: newVerts });
+    },
+    onClick: () => {
+      handle.classList.remove('seq-dragging');
+      const cur = seqSelectedVertex;
+      if (cur && cur.section_id === sid && cur.idx === idx) {
+        seqSelectedVertex = null;
+      } else {
+        seqSelectedVertex = { section_id: sid, idx };
+      }
+      renderSequenceMap();
+    },
+  });
+}
+
+function seqStartPolygonDrag(evt, area) {
+  const sid = area.section_id;
+  const origVerts = area.polygon.map(p => [...p]);
+  const origPhases = (area.phases || []).map(p => Object.assign({}, p, { anchor: [...(p.anchor || [0,0])] }));
+  const polyEls = _seqQueryEditPolys(sid);
+  // Pre-grab phase + vertex elements so we can move them live
+  const esc = (window.CSS && CSS.escape) ? CSS.escape(sid) : String(sid).replace(/"/g, '\\"');
+  const vertHandles = document.querySelectorAll(`#seqOverlay circle[data-vertex-section="${esc}"]`);
+  function liveUpdate(verts, phaseDelta) {
+    const pts = verts.map(p => p.join(',')).join(' ');
+    polyEls.forEach(el => el.setAttribute('points', pts));
+    vertHandles.forEach(h => {
+      const i = parseInt(h.getAttribute('data-vertex-idx'));
+      if (!isNaN(i) && verts[i]) { h.setAttribute('cx', verts[i][0]); h.setAttribute('cy', verts[i][1]); }
+    });
+  }
+  seqGenericDrag(evt, {
+    onDrag: (delta) => {
+      const newVerts = origVerts.map(p => [p[0]+delta[0], p[1]+delta[1]]);
+      liveUpdate(newVerts);
+    },
+    onCommit: (delta) => {
+      const newVerts = origVerts.map(p => [Math.round(p[0]+delta[0]), Math.round(p[1]+delta[1])]);
+      const newPhases = origPhases.map(p => Object.assign({}, p, { anchor: [Math.round(p.anchor[0]+delta[0]), Math.round(p.anchor[1]+delta[1])] }));
+      area.polygon = newVerts;
+      if (newPhases.length) area.phases = newPhases;
+      const partial = { polygon: newVerts };
+      if (newPhases.length) partial.phases = newPhases;
+      persistSeqOverride(sid, partial);
+    },
+  });
+}
+
+function seqStartPhaseDrag(evt, area, phaseIdx, phaseEl) {
+  const sid = area.section_id;
+  const origAnchor = [...(area.phases[phaseIdx].anchor || [0,0])];
+  seqGenericDrag(evt, {
+    onDrag: (delta) => {
+      phaseEl.setAttribute('x', origAnchor[0] + delta[0]);
+      phaseEl.setAttribute('y', origAnchor[1] + delta[1]);
+    },
+    onCommit: (delta) => {
+      const newAnchor = [Math.round(origAnchor[0]+delta[0]), Math.round(origAnchor[1]+delta[1])];
+      const newPhases = area.phases.map((p,i) => i === phaseIdx ? Object.assign({}, p, { anchor: newAnchor }) : p);
+      area.phases = newPhases;
+      persistSeqOverride(sid, { phases: newPhases });
+    },
+  });
+}
+
+function seqStartLabelDrag(evt, area, labelEl, baseCx, baseCy) {
+  const sid = area.section_id;
+  const origOff = area.label_offset ? [...area.label_offset] : [0,0];
+  seqGenericDrag(evt, {
+    onDrag: (delta) => {
+      labelEl.setAttribute('x', baseCx + origOff[0] + delta[0]);
+      labelEl.setAttribute('y', baseCy + origOff[1] + delta[1]);
+    },
+    onCommit: (delta) => {
+      const newOff = [Math.round(origOff[0]+delta[0]), Math.round(origOff[1]+delta[1])];
+      area.label_offset = newOff;
+      persistSeqOverride(sid, { label_offset: newOff });
+    },
+  });
+}
+
+function _pointToSegmentDistance(p, a, b) {
+  const dx = b[0]-a[0], dy = b[1]-a[1];
+  if (dx === 0 && dy === 0) return Math.hypot(p[0]-a[0], p[1]-a[1]);
+  const t = Math.max(0, Math.min(1, ((p[0]-a[0])*dx + (p[1]-a[1])*dy) / (dx*dx + dy*dy)));
+  return Math.hypot(p[0]-(a[0]+t*dx), p[1]-(a[1]+t*dy));
+}
+
+function seqInsertVertex(evt, area) {
+  evt.preventDefault();
+  evt.stopPropagation();
+  const svg = document.getElementById('seqOverlay');
+  const [cx, cy] = svgClientToCoord(svg, evt.clientX, evt.clientY);
+  // Skip if too close to an existing vertex (to avoid stealing dblclick on handle)
+  const minVertexDist = Math.min(...area.polygon.map(v => Math.hypot(cx-v[0], cy-v[1])));
+  if (minVertexDist < 18) return;
+  let bestI = 0, bestDist = Infinity;
+  const verts = area.polygon;
+  for (let i = 0; i < verts.length; i++) {
+    const a = verts[i], b = verts[(i+1) % verts.length];
+    const d = _pointToSegmentDistance([cx,cy], a, b);
+    if (d < bestDist) { bestDist = d; bestI = i; }
+  }
+  const newVerts = [...verts.slice(0, bestI+1), [Math.round(cx), Math.round(cy)], ...verts.slice(bestI+1)];
+  area.polygon = newVerts;
+  persistSeqOverride(area.section_id, { polygon: newVerts });
+}
+
+function seqDeleteVertex(area, idx) {
+  if (area.polygon.length <= 3) { alert('Polygon must keep at least 3 vertices.'); return; }
+  const newVerts = area.polygon.filter((_, i) => i !== idx);
+  area.polygon = newVerts;
+  seqSelectedVertex = null;
+  persistSeqOverride(area.section_id, { polygon: newVerts });
+}
+
+function seqDeleteAreaPrompt(area) {
+  const sid = area.section_id;
+  const isUserAdded = !!(seqOverrides[sid] && seqOverrides[sid].__userAdded);
+  const prompt = isUserAdded
+    ? `Delete the user-added area ${sid}? This removes it permanently.`
+    : `Hide ${sid} from the map? Existing pours stay; click Reset on the area to restore.`;
+  if (!confirm(prompt)) return;
+  if (isUserAdded) fbSet('foundation-areas-overrides/' + sid, null);
+  else persistSeqOverride(sid, { __deleted: true });
+}
+
+function seqResetArea(sid) {
+  if (!confirm(`Reset ${sid} to its default polygon/phases/label?`)) return;
+  fbSet('foundation-areas-overrides/' + sid, null);
+}
+
+function resetAllSeqOverrides() {
+  if (!confirm('Discard ALL polygon edits and restore foundation_areas.json defaults? This cannot be undone.')) return;
+  fbSet('foundation-areas-overrides', null);
+}
+
+function persistSeqOverride(sectionId, partial) {
+  if (!sectionId) return;
+  const cur = seqOverrides[sectionId] || {};
+  const next = Object.assign({}, cur, partial);
+  // Strip __deleted if user is editing again
+  if (partial.polygon || partial.phases || partial.label_offset) delete next.__deleted;
+  seqOverrides = Object.assign({}, seqOverrides, { [sectionId]: next });
+  fbSet('foundation-areas-overrides/' + sectionId, next);
+}
+
+function toggleSeqEditMode() {
+  seqEditMode = !seqEditMode;
+  document.getElementById('seqEditBtn')?.classList.toggle('seq-edit-active', seqEditMode);
+  document.getElementById('seqEditPanel')?.classList.toggle('hidden', !seqEditMode);
+  document.getElementById('seqOverlay')?.classList.toggle('seq-editing', seqEditMode);
+  seqSelectedVertex = null;
+  // Hide any tooltip that was open in view mode
+  seqHideTooltip();
+  renderSequenceMap();
+}
+
+// ── ADD AREA MODAL ──────────────────────────────────────────────────────
+function showAddSequenceAreaModal() {
+  document.getElementById('addSeqAreaModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'addSeqAreaModal';
+  m.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4';
+  m.style.cssText = 'background:rgba(0,0,0,0.75);backdrop-filter:blur(8px)';
+  m.innerHTML = `
+    <div class="rounded-xl p-5 w-full max-w-sm" style="background:rgba(10,12,20,0.98);border:1px solid rgba(255,255,255,0.1)">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-bold text-white/90">Add Sequence Area</h3>
+        <button onclick="document.getElementById('addSeqAreaModal').remove()" class="text-white/40 hover:text-white text-xl leading-none">&times;</button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <div class="grid grid-cols-2 gap-2">
+          <div><label class="block text-white/40 mb-1">Sequence</label>
+            <select id="asaSeq" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white">
+              <option value="1" style="background:#1a1a1a">1</option>
+              <option value="2" style="background:#1a1a1a">2</option>
+              <option value="3" style="background:#1a1a1a">3</option>
+              <option value="4" style="background:#1a1a1a">4</option>
+            </select>
+          </div>
+          <div><label class="block text-white/40 mb-1">Area letter</label><input id="asaArea" type="text" placeholder="E" maxlength="3" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+        </div>
+        <div><label class="block text-white/40 mb-1">Label (optional)</label><input id="asaLabel" type="text" placeholder="Sequence 4 — Area E" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white"></div>
+        <div class="flex items-center gap-2"><label class="text-white/40">Outline color</label><input id="asaColor" type="color" value="#22d3ee" class="h-8 w-16 rounded border border-white/10 cursor-pointer"></div>
+        <div class="text-white/40 text-[10px] italic">A 200×200 polygon will appear in the map center — drag the vertices to reshape.</div>
+      </div>
+      <div class="flex gap-2 mt-5">
+        <button onclick="document.getElementById('addSeqAreaModal').remove()" class="flex-1 py-2 rounded bg-white/5 text-white/60 text-xs font-bold hover:bg-white/10">Cancel</button>
+        <button onclick="submitAddSequenceArea()" class="flex-1 py-2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-bold hover:bg-cyan-500/30">Create</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  setTimeout(() => document.getElementById('asaArea')?.focus(), 50);
+}
+
+function submitAddSequenceArea() {
+  const seq = document.getElementById('asaSeq').value;
+  const area = document.getElementById('asaArea').value.trim().toUpperCase();
+  const label = document.getElementById('asaLabel').value.trim();
+  const color = document.getElementById('asaColor').value;
+  if (!seq || !area || !/^[A-Z][A-Z0-9-]*$/.test(area)) { alert('Sequence + a valid area id (letter, optionally followed by chars) required.'); return; }
+  const sid = `${seq}${area}`;
+  const existing = seqAreasJson.find(a => a.section_id === sid);
+  const ov = seqOverrides[sid];
+  if ((existing && !(ov && ov.__deleted)) || (ov && !ov.__deleted)) {
+    alert(`Area ${sid} already exists.`); return;
+  }
+  const cw = foundationCanvas.width || 1700;
+  const ch = foundationCanvas.height || 1700;
+  const x = Math.round(cw/2 - 100), y = Math.round(ch/2 - 100);
+  const polygon = [[x, y], [x+200, y], [x+200, y+200], [x, y+200]];
+  const override = {
+    __userAdded: true,
+    sequence: parseInt(seq),
+    area,
+    label: label || `Sequence ${seq} — Area ${area}`,
+    interactive: true,
+    outline_color: color,
+    polygon,
+    phases: [],
+  };
+  fbSet('foundation-areas-overrides/' + sid, override);
+  document.getElementById('addSeqAreaModal').remove();
 }
 
 function seqRecolorAreas() {
