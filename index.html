@@ -312,6 +312,29 @@
       border-color: rgba(0,0,0,0.1) !important;
       color: #1a1a2e;
     }
+    /* Foundation Sequences map */
+    #seqOverlay polygon[data-area-id] {
+      pointer-events: auto;
+      cursor: pointer;
+      transition: fill-opacity 0.18s ease, stroke-width 0.18s ease, stroke-opacity 0.18s ease;
+    }
+    #seqOverlay polygon[data-area-id]:hover {
+      fill-opacity: 0.32 !important;
+      stroke-width: 1.8;
+      stroke-opacity: 1 !important;
+    }
+    #seqOverlay polygon[data-area-id]:not([data-area-id=""]).seq-readonly { cursor: default; }
+    #seqOverlay polygon.seq-readonly:hover { fill-opacity: 0.06 !important; stroke-width: 1.2; }
+    @keyframes seq-pulse-amber {
+      0%, 100% { fill-opacity: 0.13; stroke-opacity: 0.7; }
+      50%      { fill-opacity: 0.26; stroke-opacity: 1; }
+    }
+    #seqOverlay polygon.seq-pulse-amber { animation: seq-pulse-amber 4s ease-in-out infinite; }
+    .seq-card-group { transition: box-shadow 0.4s ease, background 0.4s ease; border-radius: 8px; }
+    .seq-card-group.seq-highlight {
+      box-shadow: 0 0 0 2px rgba(96,165,250,0.5), 0 0 30px rgba(96,165,250,0.25);
+      background: rgba(96,165,250,0.04);
+    }
   </style>
 </head>
 <body class="min-h-screen" style="position:relative">
@@ -344,6 +367,7 @@
       <button onclick="switchTab('live')" id="tabLive" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Live Pour</button>
       <button onclick="switchTab('checklist')" id="tabCheck" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Checklist</button>
       <button onclick="switchTab('embeds')" id="tabEmbeds" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Embeds</button>
+      <button onclick="switchTab('sequence')" id="tabSeq" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Sequences</button>
       <span id="managerBadge" class="hidden text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full text-blue-400/70" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2)">Read Only</span>
     </div>
     <div id="sectionFilters" class="flex gap-1.5 shrink-0">
@@ -373,6 +397,34 @@
 <div id="embedsView" class="hidden max-w-5xl mx-auto px-4 py-5 pb-20" style="position:relative;z-index:1">
   <div id="embedsContent"></div>
 </div>
+
+<!-- FOUNDATION SEQUENCES VIEW -->
+<div id="sequenceView" class="hidden max-w-7xl mx-auto px-4 py-5 pb-20" style="position:relative;z-index:1">
+  <div id="seqMapWrap" class="rounded-xl overflow-hidden mb-4 dot-grid" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06);height:560px;position:relative">
+    <svg id="seqOverlay" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block"></svg>
+  </div>
+  <div id="seqToolbar" class="mb-3 flex items-center justify-between gap-3 px-3 py-2 rounded-lg flex-wrap" style="background:rgba(6,6,14,0.82);border:1px solid rgba(255,255,255,0.06)">
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="text-xs font-black tracking-widest text-white/60 uppercase">Foundation Pours</span>
+      <div id="seqFilterChips" class="flex gap-1.5 ml-2"></div>
+    </div>
+    <div class="flex items-center gap-3 flex-wrap">
+      <label class="text-[10px] flex items-center gap-1.5 text-white/50 cursor-pointer select-none">
+        <input type="checkbox" id="seqShowArchived" onchange="renderSequenceGroups()" class="accent-cyan-500">
+        <span>Show archived</span>
+      </label>
+      <button onclick="showAddFoundationPourModal()" id="seqAddBtn" style="touch-action:manipulation" class="text-xs font-bold px-4 py-2 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 flex items-center gap-1.5">
+        <span class="material-symbols-outlined text-base">add_circle</span>
+        <span>Add Pour</span>
+      </button>
+    </div>
+  </div>
+  <div id="seqGroups" class="space-y-4"></div>
+  <div id="seqArchivedGroups" class="hidden mt-6"></div>
+</div>
+
+<!-- SEQUENCES TOOLTIP (fixed-positioned, sibling to map) -->
+<div id="seqTooltip" class="hidden fixed pointer-events-none z-[1000] px-3 py-2 rounded-lg text-[11px]" style="background:rgba(6,6,14,0.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1);max-width:300px;box-shadow:0 16px 40px rgba(0,0,0,0.5)"></div>
 
 <div id="checklistView" class="hidden max-w-4xl mx-auto px-4 py-6" style="position:relative;z-index:1">
   <div class="flex items-center justify-between mb-5">
@@ -723,6 +775,7 @@ function attachFirebaseListeners() {
     if (val) localStorage.setItem('cup_concrete_order', JSON.stringify(val));
   });
   attachEmbedListener();
+  attachFoundationListeners();
 }
 
 // ── CONFIG ──────────────────────────────────────────────────────────────────
@@ -2132,8 +2185,8 @@ function switchTab(tab) {
   // Manager can see dashboard + live, and pourday if any pour is COMPLETE
   if (isManagerView && tab === 'checklist') return;
   if (isManagerView && tab === 'pourday' && !state.pours.some(p => getPourStatus(p.id) === 'COMPLETE')) return;
-  const views = { dashboard:'dashboardView', checklist:'checklistView', pourday:'pourdayView', live:'liveView', embeds:'embedsView' };
-  const tabs = { dashboard:'tabDash', checklist:'tabCheck', pourday:'tabPour', live:'tabLive', embeds:'tabEmbeds' };
+  const views = { dashboard:'dashboardView', checklist:'checklistView', pourday:'pourdayView', live:'liveView', embeds:'embedsView', sequence:'sequenceView' };
+  const tabs = { dashboard:'tabDash', checklist:'tabCheck', pourday:'tabPour', live:'tabLive', embeds:'tabEmbeds', sequence:'tabSeq' };
   const active = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white';
   const inactive = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60';
 
@@ -2155,6 +2208,7 @@ function switchTab(tab) {
   if (tab === 'pourday') renderPourDay();
   if (tab === 'live') renderLive();
   if (tab === 'embeds') { loadDetailedEmbeds().then(renderEmbedsTab); }
+  if (tab === 'sequence') { renderSequenceMap().then(() => { seqRecolorAreas(); renderSequenceGroups(); }); }
 }
 
 // ── POUR DAY COMMAND CENTER ─────────────────────────────────────────────────
@@ -7554,6 +7608,753 @@ function closeTicketPreview()         { Scanner.closePreview(); }
 function saveTicketPageEdit()         { Scanner.saveEdit(); }
 function retakeTicketPage()           { Scanner.retakeCurrent(); }
 function deleteTicketPage()           { Scanner.deleteCurrent(); }
+
+// ── FOUNDATION SEQUENCES (Firebase-only) ──────────────────────────────────
+// Polygons + phase metadata come from foundation_areas.json (lifted from the
+// lacc-foundation viewer). Per-pour state persists under cup-rtdb/foundation-pours/{key}
+// where key = seq{N}-{areaId}-phase{phaseId} (e.g. seq1-a-phasea).
+const SEQ_COLORS = { 1:'#22d3ee', 2:'#a855f7', 3:'#22c55e' };
+const SEQ_STATUS_COLOR = {
+  COMPLETE: { fill:'#22c55e', stroke:'#15803d' },
+  ORDERED:  { fill:'#f59e0b', stroke:'#b45309' },
+  PENDING:  { fill:'#3b82f6', stroke:'#1d4ed8' },
+  EMPTY:    { fill:'#475569', stroke:'#334155' },
+};
+
+let foundationAreasJson = null;
+let foundationCanvas = { width:1700, height:1700 };
+let foundationPathOfTravel = [];
+let seqAreasJson = [];
+let foundationPours = {};
+let foundationMapRendered = false;
+let seqFilter = 'ALL';
+
+function getSequenceScaffold() {
+  return [
+    { id:1, label:'Sequence 1', color:SEQ_COLORS[1], areas:[
+      { id:'A', label:'Area A', phases:['A','B'] },
+      { id:'B', label:'Area B', phases:['A','B','C','D'] },
+    ]},
+    { id:2, label:'Sequence 2', color:SEQ_COLORS[2], areas:[
+      { id:'A', label:'Area A', phases:['A','B','C','D','E'] },
+    ]},
+    { id:3, label:'Sequence 3', color:SEQ_COLORS[3], areas:[
+      { id:'A', label:'Area A', phases:['A','B','C','D'] },
+      { id:'B', label:'Area B', phases:['A','B','C'] },
+      { id:'C', label:'Area C', phases:['A','B','C-N','C-S','D','E'] },
+      { id:'D', label:'Area D — leave out for laydown', phases:[] },
+    ]},
+  ];
+}
+
+function foundationPourKey(seq, area, phase) {
+  const safe = (s) => String(s).toLowerCase().replace(/[^a-z0-9-]/g, '-');
+  return `seq${seq}-${safe(area)}-phase${safe(phase)}`;
+}
+function escapeHtmlSeq(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function listPoursForArea(seqNum, areaId, includeArchived) {
+  return Object.values(foundationPours).filter(p => {
+    if (!p) return false;
+    if (Number(p.sequence) !== Number(seqNum)) return false;
+    if (String(p.area) !== String(areaId)) return false;
+    if (!includeArchived && p.archived) return false;
+    return true;
+  });
+}
+function aggregateAreaStatus(seqNum, areaId) {
+  const phases = listPoursForArea(seqNum, areaId, false);
+  if (!phases.length) return 'EMPTY';
+  if (phases.every(p => p.status === 'COMPLETE')) return 'COMPLETE';
+  if (phases.some(p => p.status === 'ORDERED')) return 'ORDERED';
+  return 'PENDING';
+}
+
+async function loadFoundationAreas() {
+  if (foundationAreasJson) return foundationAreasJson;
+  try {
+    const r = await fetch('foundation_areas.json');
+    foundationAreasJson = await r.json();
+    foundationCanvas = foundationAreasJson._canvas || { width:1700, height:1700 };
+    foundationPathOfTravel = foundationAreasJson._path_of_travel || [];
+    seqAreasJson = foundationAreasJson.areas || [];
+  } catch (e) {
+    console.warn('foundation_areas.json fetch failed', e);
+    foundationAreasJson = { _canvas:foundationCanvas, areas:[] };
+    seqAreasJson = [];
+  }
+  return foundationAreasJson;
+}
+
+function attachFoundationListeners() {
+  if (!db) return;
+  fbListen('foundation-pours', (val) => {
+    foundationPours = val || {};
+    const view = document.getElementById('sequenceView');
+    if (view && !view.classList.contains('hidden')) {
+      seqRecolorAreas();
+      renderSequenceGroups();
+    }
+  });
+}
+
+// ── SVG MAP ──────────────────────────────────────────────────────────────
+function seqSvgEl(name, attrs, text) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', name);
+  Object.keys(attrs || {}).forEach(k => el.setAttribute(k, attrs[k]));
+  if (text != null) el.textContent = text;
+  return el;
+}
+
+function seqAreaToSeqNum(area) {
+  const m = String(area.section_id).match(/^(\d+)([A-Z]?)/);
+  if (!m) return null;
+  return { seq: parseInt(m[1]), areaId: m[2] || '' };
+}
+
+async function renderSequenceMap() {
+  await loadFoundationAreas();
+  const svg = document.getElementById('seqOverlay');
+  if (!svg) return;
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  const W = foundationCanvas.width || 1700;
+  const H = foundationCanvas.height || 1700;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  // Defs
+  const defs = seqSvgEl('defs', {});
+  const aurora = seqSvgEl('radialGradient', { id:'seqAurora', cx:'20%', cy:'0%', r:'120%' });
+  aurora.appendChild(seqSvgEl('stop', { offset:'0%',  'stop-color':'#1e3a8a', 'stop-opacity':0.45 }));
+  aurora.appendChild(seqSvgEl('stop', { offset:'40%', 'stop-color':'#0f1c3a', 'stop-opacity':0.6 }));
+  aurora.appendChild(seqSvgEl('stop', { offset:'100%','stop-color':'#050a1a', 'stop-opacity':1 }));
+  defs.appendChild(aurora);
+  svg.appendChild(defs);
+
+  svg.appendChild(seqSvgEl('rect', { x:0, y:0, width:W, height:H, fill:'url(#seqAurora)', 'fill-opacity':0.45 }));
+
+  // Dot grid
+  const grid = seqSvgEl('g', { opacity:0.4 });
+  for (let x = 100; x < W; x += 100) {
+    for (let y = 100; y < H; y += 100) {
+      grid.appendChild(seqSvgEl('circle', { cx:x, cy:y, r:0.8, fill:'#1e293b' }));
+    }
+  }
+  svg.appendChild(grid);
+
+  // North arrow
+  if (foundationCanvas.north_arrow) {
+    const na = foundationCanvas.north_arrow;
+    const g = seqSvgEl('g', { transform:`translate(${na.x},${na.y})`, opacity:0.55 });
+    g.appendChild(seqSvgEl('circle', { r:22, fill:'none', stroke:'#475569', 'stroke-width':1 }));
+    g.appendChild(seqSvgEl('polygon', { points:'0,-18 -5,4 0,1 5,4', fill:'#94a3b8' }));
+    g.appendChild(seqSvgEl('text', { y:-28, 'text-anchor':'middle', fill:'#64748b', 'font-size':9, 'font-weight':500, 'letter-spacing':'0.1em' }, 'N'));
+    svg.appendChild(g);
+  }
+
+  // Path of travel
+  if (foundationPathOfTravel && foundationPathOfTravel.length > 1) {
+    const d = foundationPathOfTravel.map((p,i) => (i===0?'M':'L') + p[0] + ',' + p[1]).join(' ');
+    svg.appendChild(seqSvgEl('path', { d, stroke:'#475569', 'stroke-width':1.5, fill:'none', 'stroke-dasharray':'6 8', 'stroke-linecap':'round', 'stroke-opacity':0.55 }));
+  }
+
+  // Areas — non-interactive first
+  const sorted = seqAreasJson.slice().sort((a,b) => (a.interactive?1:0) - (b.interactive?1:0));
+  sorted.forEach(area => seqDrawArea(svg, area));
+
+  // Legend (bottom-left)
+  const legend = seqSvgEl('g', { transform:`translate(60, ${H-130})` });
+  [['#22c55e','Complete'],['#f59e0b','Ordered'],['#3b82f6','Pending'],['#475569','Empty / read-only']].forEach((it,i) => {
+    legend.appendChild(seqSvgEl('circle', { cx:6, cy:i*22, r:4, fill:it[0], 'fill-opacity':0.95 }));
+    legend.appendChild(seqSvgEl('text', { x:18, y:i*22+4, fill:'#94a3b8', 'font-size':11 }, it[1]));
+  });
+  svg.appendChild(legend);
+
+  foundationMapRendered = true;
+}
+
+function seqDrawArea(svg, area) {
+  const points = area.polygon.map(p => p.join(',')).join(' ');
+  const sid = area.section_id;
+  const meta = seqAreaToSeqNum(area);
+  const isFoundation = !!(meta && meta.areaId && /^[A-Z]$/.test(meta.areaId));
+  const isInteractive = !!(area.interactive && isFoundation);
+
+  // Backdrop
+  svg.appendChild(seqSvgEl('polygon', {
+    points, fill:'#0f172a',
+    'fill-opacity': area.interactive ? 0.6 : 0.4,
+    stroke:'none', 'pointer-events':'none',
+  }));
+
+  // Status fill
+  let statusColor;
+  if (isFoundation) {
+    statusColor = SEQ_STATUS_COLOR[aggregateAreaStatus(meta.seq, meta.areaId)];
+  } else {
+    statusColor = { fill:'#64748b', stroke: area.outline_color || '#475569' };
+  }
+  const polyAttrs = {
+    points, fill:statusColor.fill,
+    'fill-opacity': isInteractive ? 0.18 : 0.06,
+    stroke: statusColor.stroke,
+    'stroke-width':1.2, 'stroke-opacity':0.9,
+    'stroke-linejoin':'round', 'stroke-linecap':'round',
+  };
+  if (isInteractive) polyAttrs['data-area-id'] = `${meta.seq}-${meta.areaId}`;
+  const poly = seqSvgEl('polygon', polyAttrs);
+  if (!isInteractive) poly.classList.add('seq-readonly');
+  if (isInteractive) {
+    const status = aggregateAreaStatus(meta.seq, meta.areaId);
+    if (status === 'PENDING' || status === 'ORDERED') poly.classList.add('seq-pulse-amber');
+    poly.addEventListener('mousemove', (e) => seqShowTooltip(e, area, meta));
+    poly.addEventListener('mouseleave', seqHideTooltip);
+    poly.addEventListener('click', () => seqJumpToArea(meta.seq, meta.areaId));
+  }
+  svg.appendChild(poly);
+
+  // Outline
+  svg.appendChild(seqSvgEl('polygon', {
+    points, fill:'none',
+    stroke: area.outline_color || statusColor.stroke,
+    'stroke-width':1, 'stroke-opacity': isInteractive ? 0.4 : 0.25,
+    'stroke-linejoin':'round',
+    'stroke-dasharray': isInteractive ? '0' : '4 6',
+    'pointer-events':'none',
+  }));
+
+  // Label(s)
+  const cx = area.polygon.reduce((s,p) => s + p[0], 0) / area.polygon.length;
+  const cy = area.polygon.reduce((s,p) => s + p[1], 0) / area.polygon.length;
+  const off = area.label_offset || [0,0];
+  let labelText = sid;
+  let labelSize = 32, labelWeight = 600;
+  if (sid === '4') { labelText = 'Zone 4'; labelSize = 24; }
+  if (!isInteractive) { labelSize = 20; labelWeight = 500; }
+  svg.appendChild(seqSvgEl('text', {
+    x: cx + off[0], y: cy + off[1],
+    'text-anchor':'middle', 'dominant-baseline':'middle',
+    fill: isInteractive ? '#f8fafc' : '#94a3b8',
+    'font-size':labelSize, 'font-weight':labelWeight,
+    'font-family':'-apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif',
+    'letter-spacing':'-0.015em', 'pointer-events':'none',
+    opacity: isInteractive ? 0.95 : 0.7,
+  }, labelText));
+
+  if (area.label && isInteractive && area.label !== sid) {
+    svg.appendChild(seqSvgEl('text', {
+      x: cx + off[0], y: cy + off[1] + 22,
+      'text-anchor':'middle', fill:'#64748b',
+      'font-size':11, 'font-weight':400,
+      'letter-spacing':'0.02em', 'pointer-events':'none',
+    }, area.label));
+  }
+  if (area.annotation) {
+    svg.appendChild(seqSvgEl('text', {
+      x: cx + off[0], y: cy + off[1] + (area.label && isInteractive ? 40 : 22),
+      'text-anchor':'middle', fill: isInteractive ? '#86efac' : '#64748b',
+      'font-size':10, 'font-weight':400,
+      'letter-spacing':'0.04em', 'text-transform':'uppercase',
+      'pointer-events':'none', opacity:0.85,
+    }, area.annotation));
+  }
+
+  if (area.phases) {
+    area.phases.forEach(ph => {
+      svg.appendChild(seqSvgEl('text', {
+        x: ph.anchor[0], y: ph.anchor[1],
+        'text-anchor':'middle', 'dominant-baseline':'middle',
+        fill:'#94a3b8', 'font-size':10, 'font-weight':500,
+        'letter-spacing':'0.06em', 'pointer-events':'none', opacity:0.7,
+      }, ph.id.replace(/^Phase\s+/i,'').toUpperCase()));
+    });
+  }
+}
+
+function seqRecolorAreas() {
+  if (!foundationMapRendered) return;
+  document.querySelectorAll('#seqOverlay polygon[data-area-id]').forEach(poly => {
+    const aid = poly.getAttribute('data-area-id');
+    if (!aid) return;
+    const [seq, area] = aid.split('-');
+    const status = aggregateAreaStatus(parseInt(seq), area);
+    const c = SEQ_STATUS_COLOR[status];
+    poly.setAttribute('fill', c.fill);
+    poly.setAttribute('stroke', c.stroke);
+    // Re-apply pulse class based on current status
+    poly.classList.remove('seq-pulse-amber');
+    if (status === 'PENDING' || status === 'ORDERED') poly.classList.add('seq-pulse-amber');
+  });
+}
+
+function seqShowTooltip(evt, area, meta) {
+  const tt = document.getElementById('seqTooltip');
+  if (!tt) return;
+  const phases = listPoursForArea(meta.seq, meta.areaId, false);
+  const total = phases.length;
+  const complete = phases.filter(p => p.status === 'COMPLETE').length;
+  const next = phases
+    .filter(p => p.status !== 'COMPLETE' && p.pour_date)
+    .sort((a,b) => dateSortVal(a.pour_date) - dateSortVal(b.pour_date))[0];
+  const status = aggregateAreaStatus(meta.seq, meta.areaId);
+  const sc = SEQ_STATUS_COLOR[status];
+  tt.innerHTML = `
+    <div class="font-bold text-white/90 mb-1.5">${escapeHtmlSeq(area.label || area.section_id)}</div>
+    <div class="mb-1.5"><span class="px-2 py-0.5 rounded text-[10px] font-bold" style="background:${sc.fill}33;color:${sc.stroke};border:1px solid ${sc.fill}">${status}</span></div>
+    <div class="flex justify-between gap-3 text-white/60"><span>Phases poured</span><span class="mono text-white">${complete} / ${total}</span></div>
+    <div class="flex justify-between gap-3 text-white/60"><span>Next pour</span><span class="mono text-white">${next ? escapeHtmlSeq(next.pour_date) : 'TBD'}</span></div>`;
+  tt.classList.remove('hidden');
+  const x = Math.min(evt.clientX + 16, window.innerWidth - 280);
+  const y = Math.min(evt.clientY + 16, window.innerHeight - 140);
+  tt.style.left = x + 'px';
+  tt.style.top = y + 'px';
+}
+function seqHideTooltip() { document.getElementById('seqTooltip')?.classList.add('hidden'); }
+
+function seqJumpToArea(seqNum, areaId) {
+  const target = document.getElementById(`seqGroup-${seqNum}-${areaId}`);
+  if (!target) return;
+  target.scrollIntoView({ behavior:'smooth', block:'start' });
+  target.classList.add('seq-highlight');
+  setTimeout(() => target.classList.remove('seq-highlight'), 2400);
+}
+
+// ── GROUPED CARDS ─────────────────────────────────────────────────────────
+function setSeqFilter(filter) {
+  seqFilter = filter;
+  renderSequenceGroups();
+}
+
+function renderSequenceGroupChips() {
+  const wrap = document.getElementById('seqFilterChips');
+  if (!wrap) return;
+  const filters = ['ALL', 1, 2, 3];
+  wrap.innerHTML = filters.map(f => {
+    const active = String(seqFilter) === String(f);
+    const color = f === 'ALL' ? '#94a3b8' : SEQ_COLORS[f];
+    const style = active
+      ? `background:${color}33;color:${color};border:1px solid ${color}`
+      : `color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.1);background:transparent`;
+    const label = f === 'ALL' ? 'All' : `Seq ${f}`;
+    const arg = typeof f === 'number' ? f : `'${f}'`;
+    return `<button onclick="setSeqFilter(${arg})" class="px-2.5 py-1 rounded-full text-[10px] font-bold transition-all" style="${style}">${label}</button>`;
+  }).join('');
+}
+
+function renderSequenceGroups() {
+  renderSequenceGroupChips();
+  const showArchived = document.getElementById('seqShowArchived')?.checked;
+  const groupsEl = document.getElementById('seqGroups');
+  const archivedEl = document.getElementById('seqArchivedGroups');
+  if (!groupsEl) return;
+
+  // Build sequence list — start from scaffold, then merge in any user-created
+  // sequences/areas/phases discovered in foundation pours.
+  const scaffold = getSequenceScaffold().map(s => ({ ...s, areas: s.areas.map(a => ({ ...a, phases:[...a.phases] })) }));
+  Object.values(foundationPours).forEach(p => {
+    if (!p) return;
+    let seq = scaffold.find(s => Number(s.id) === Number(p.sequence));
+    if (!seq) {
+      seq = { id:Number(p.sequence), label:`Sequence ${p.sequence}`, color: SEQ_COLORS[p.sequence] || '#94a3b8', areas:[] };
+      scaffold.push(seq);
+    }
+    let area = seq.areas.find(a => a.id === p.area);
+    if (!area) {
+      area = { id:p.area, label:`Area ${p.area}`, phases:[] };
+      seq.areas.push(area);
+    }
+    if (p.phase && !area.phases.includes(p.phase)) area.phases.push(p.phase);
+  });
+  scaffold.sort((a,b) => a.id - b.id);
+  scaffold.forEach(s => s.areas.sort((a,b) => String(a.id).localeCompare(String(b.id))));
+
+  const filtered = scaffold.filter(s => seqFilter === 'ALL' || Number(seqFilter) === s.id);
+
+  let html = '';
+  filtered.forEach(seq => {
+    html += `<div class="rounded-xl overflow-hidden" style="background:rgba(6,6,14,0.5);border:1px solid ${seq.color}33">`;
+    html += `<div class="px-4 py-2.5 flex items-center justify-between" style="background:${seq.color}11;border-bottom:1px solid ${seq.color}22">`;
+    html += `<div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${seq.color};box-shadow:0 0 8px ${seq.color}"></span>`;
+    html += `<span class="text-xs font-black tracking-widest uppercase" style="color:${seq.color}">${escapeHtmlSeq(seq.label)}</span></div>`;
+    const seqPourCount = Object.values(foundationPours).filter(p => p && Number(p.sequence) === seq.id && !p.archived).length;
+    html += `<span class="text-[10px] mono text-white/40">${seqPourCount} pour${seqPourCount===1?'':'s'} active</span>`;
+    html += `</div>`;
+
+    seq.areas.forEach(area => {
+      const areaPours = listPoursForArea(seq.id, area.id, false);
+      const phaseList = area.phases && area.phases.length
+        ? area.phases.slice()
+        : Array.from(new Set(areaPours.map(p => p.phase).filter(Boolean)));
+      // Make sure any user-poured phase shows up too
+      areaPours.forEach(p => { if (p.phase && !phaseList.includes(p.phase)) phaseList.push(p.phase); });
+
+      html += `<div id="seqGroup-${seq.id}-${area.id}" class="seq-card-group p-3" style="border-bottom:1px solid rgba(255,255,255,0.04)">`;
+      html += `<div class="flex items-center justify-between mb-2.5 px-1">`;
+      html += `<span class="text-xs font-bold text-white/70">${escapeHtmlSeq(area.label)}</span>`;
+      html += `<span class="text-[10px] mono text-white/40">${areaPours.length} / ${phaseList.length || 0} phases poured</span>`;
+      html += `</div>`;
+      if (!phaseList.length) {
+        html += `<div class="text-[11px] text-white/30 italic px-2 py-3">No phases scoped yet${(area.label||'').toLowerCase().includes('laydown') ? ' — leave-out for laydown' : ''}.</div>`;
+      } else {
+        html += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">`;
+        phaseList.forEach(phaseId => {
+          const key = foundationPourKey(seq.id, area.id, phaseId);
+          html += renderFoundationPourCard(seq, area, phaseId, foundationPours[key], key);
+        });
+        html += `</div>`;
+      }
+      html += `</div>`;
+    });
+    html += `</div>`;
+  });
+  groupsEl.innerHTML = html;
+
+  // Archived
+  if (archivedEl) {
+    if (showArchived) {
+      archivedEl.classList.remove('hidden');
+      const arch = Object.values(foundationPours).filter(p => p && p.archived);
+      if (!arch.length) {
+        archivedEl.innerHTML = `<div class="text-[11px] text-white/30 italic text-center py-4">No archived pours yet.</div>`;
+      } else {
+        let archHtml = `<div class="text-[10px] font-bold tracking-widest uppercase text-white/40 mb-2">Archived (${arch.length})</div>`;
+        archHtml += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">`;
+        arch.sort((a,b) => String(b.archivedAt || '').localeCompare(String(a.archivedAt || '')));
+        arch.forEach(p => {
+          const seq = scaffold.find(s => Number(s.id) === Number(p.sequence)) || { id:Number(p.sequence), color: SEQ_COLORS[p.sequence] || '#94a3b8' };
+          const area = (seq.areas || []).find(a => a.id === p.area) || { id:p.area, label:`Area ${p.area}` };
+          const key = foundationPourKey(p.sequence, p.area, p.phase);
+          archHtml += renderFoundationPourCard(seq, area, p.phase, p, key);
+        });
+        archHtml += `</div>`;
+        archivedEl.innerHTML = archHtml;
+      }
+    } else {
+      archivedEl.classList.add('hidden');
+      archivedEl.innerHTML = '';
+    }
+  }
+}
+
+function renderFoundationPourCard(seq, area, phaseId, pour, key) {
+  const c = seq.color || '#94a3b8';
+  const status = (pour && pour.status) || 'PENDING';
+  const isPoured = !!pour;
+  const isComplete = status === 'COMPLETE';
+  const isOrdered = status === 'ORDERED' || isComplete;
+  const isArchived = !!(pour && pour.archived);
+  const mix = (pour && pour.mix) || {};
+  const cy = pour ? (+pour.cy || 0) : 0;
+  const trucks = cy ? Math.ceil(cy / 9) : 0;
+  const dateStr = pour && pour.pour_date ? pour.pour_date : '';
+  const notes = pour && pour.notes ? pour.notes : '';
+  const label = pour && pour.label ? pour.label : '';
+  const psi = mix.psi || '';
+  const agg = mix.aggregate || '';
+  const slump = mix.slump || '';
+  const lc3 = !!mix.lc3;
+
+  const borderClass = isComplete ? 'border-blue-500/30' : isOrdered ? 'border-green-500/30' : '';
+  const escapedKey = key.replace(/'/g, "\\'");
+  const phaseLabel = String(phaseId).startsWith('Phase ') ? phaseId : `Phase ${phaseId}`;
+  const metaArg = `{seq:${seq.id},area:'${area.id}',phase:'${String(phaseId).replace(/'/g, "\\'")}'}`;
+
+  let html = `<div class="pour-card rounded-xl p-3 ${borderClass}" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06);border-left:3px solid ${c};${isArchived?'opacity:0.65;':''}">`;
+  // Header
+  html += `<div class="flex items-center justify-between mb-2.5 gap-2">`;
+  html += `<div class="flex items-center gap-1.5 min-w-0 flex-wrap">`;
+  html += `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style="background:${c}22;color:${c}">S${seq.id}·${area.id}</span>`;
+  html += `<span class="mono font-bold text-xs text-white/90 shrink-0">${escapeHtmlSeq(phaseLabel)}</span>`;
+  if (label) html += `<span class="text-[10px] text-white/40 italic truncate">${escapeHtmlSeq(label)}</span>`;
+  html += `</div>`;
+  html += `<div class="flex items-center gap-1.5 shrink-0">`;
+  if (isManagerView) {
+    html += `<span class="text-[10px] mono text-white/40">${escapeHtmlSeq(dateStr) || '—'}</span>`;
+  } else {
+    const dateValue = dateStr ? '2026-' + dateStr.split('/').map(n => String(n).padStart(2,'0')).join('-') : '';
+    html += `<span class="relative inline-flex items-center gap-1 px-2 py-0.5 rounded-md border ${dateStr ? 'border-blue-400/30 bg-blue-500/10 text-blue-300' : 'border-white/15 bg-white/5 text-white/40 border-dashed'} text-[10px] mono cursor-pointer hover:brightness-125 transition-all" title="Set pour date">
+      <span class="material-symbols-outlined" style="font-size:10px">calendar_month</span>
+      <span>${dateStr ? escapeHtmlSeq(dateStr) : 'Date'}</span>
+      <input type="date" value="${dateValue}" class="absolute inset-0 opacity-0 cursor-pointer" style="color-scheme:dark" onchange="if(this.value){const d=this.value.split('-');updateFoundationPourField('${escapedKey}',${metaArg},'pour_date',parseInt(d[1])+'/'+parseInt(d[2]))}">
+    </span>`;
+  }
+  html += `<button onclick="cycleFoundationStatus('${escapedKey}',${metaArg})" ${isManagerView?'disabled':''} class="text-[9px] font-bold px-2 py-0.5 rounded-full transition-all ${isComplete?'bg-blue-500/20 text-blue-400 border border-blue-500/30':isOrdered?'bg-green-500/20 text-green-400 border border-green-500/30':'bg-white/5 text-white/30 border border-white/10 hover:bg-white/10'}">${status}</button>`;
+  html += `</div></div>`;
+
+  // Mix design panel
+  if (isManagerView) {
+    html += `<div class="grid grid-cols-2 gap-1.5 mb-2 text-[10px] px-1">`;
+    html += `<div class="flex justify-between"><span class="text-white/40">PSI</span><span class="mono text-white/80">${escapeHtmlSeq(psi) || '—'}</span></div>`;
+    html += `<div class="flex justify-between"><span class="text-white/40">Slump</span><span class="mono text-white/80">${escapeHtmlSeq(slump) || '—'}</span></div>`;
+    html += `<div class="flex justify-between"><span class="text-white/40">Agg</span><span class="mono text-white/80">${escapeHtmlSeq(agg) || '—'}</span></div>`;
+    html += `<div class="flex justify-between"><span class="text-white/40">LC3</span><span class="mono text-white/80">${lc3 ? '✓' : '—'}</span></div>`;
+    html += `</div>`;
+  } else {
+    const psiOpts = ['','3000','4000','5000','6000','8000'];
+    const aggOpts = ['','3/8"','1/2"','3/4"','1"','1-1/2"'];
+    html += `<div class="grid grid-cols-2 gap-1.5 mb-2 text-[10px] px-1">`;
+    html += `<label class="flex justify-between items-center gap-1"><span class="text-white/40 shrink-0">PSI</span>`;
+    html += `<select onchange="updateFoundationPourField('${escapedKey}',${metaArg},'mix.psi',this.value)" class="mono rounded text-right outline-none text-white/80 px-1" style="background:rgba(20,25,40,0.85);font-size:10px;border:1px solid rgba(255,255,255,0.06)">`;
+    html += psiOpts.map(v => `<option value="${v}" style="background:#1a1a1a"${String(psi)===v?' selected':''}>${v||'—'}</option>`).join('');
+    html += `</select></label>`;
+    html += `<label class="flex justify-between items-center gap-1"><span class="text-white/40 shrink-0">Slump</span>`;
+    html += `<input type="text" placeholder="—" value="${escapeHtmlSeq(slump)}" onblur="updateFoundationPourField('${escapedKey}',${metaArg},'mix.slump',this.value)" class="mono bg-transparent border border-transparent hover:border-white/20 focus:border-white/40 focus:bg-white/5 rounded text-right w-12 px-1 outline-none text-white/80" style="font-size:10px"></label>`;
+    html += `<label class="flex justify-between items-center gap-1"><span class="text-white/40 shrink-0">Agg</span>`;
+    html += `<select onchange="updateFoundationPourField('${escapedKey}',${metaArg},'mix.aggregate',this.value)" class="mono rounded text-right outline-none text-white/80 px-1" style="background:rgba(20,25,40,0.85);font-size:10px;border:1px solid rgba(255,255,255,0.06)">`;
+    html += aggOpts.map(v => `<option value="${v}" style="background:#1a1a1a"${agg===v?' selected':''}>${v||'—'}</option>`).join('');
+    html += `</select></label>`;
+    html += `<label class="flex justify-between items-center gap-1 cursor-pointer"><span class="text-white/40 shrink-0">LC3</span>`;
+    html += `<input type="checkbox" ${lc3?'checked':''} onchange="updateFoundationPourField('${escapedKey}',${metaArg},'mix.lc3',this.checked)" class="accent-cyan-500"></label>`;
+    html += `</div>`;
+  }
+
+  // Volume + bar
+  if (isManagerView) {
+    html += `<div class="flex items-center justify-between mb-2 px-1"><span class="text-[10px] text-white/40">Volume</span><span class="mono text-sm font-bold" style="color:#34D399">${cy} <span class="text-white/40 text-[10px] font-normal">CY</span></span></div>`;
+  } else {
+    html += `<div class="flex items-center justify-between mb-2 px-1"><span class="text-[10px] text-white/40">Volume</span>`;
+    html += `<span class="inline-flex items-center gap-0.5 mono text-sm font-bold" style="color:#34D399">`;
+    html += `<input type="number" min="0" step="1" value="${cy}" onfocus="this.select()" onblur="updateFoundationPourField('${escapedKey}',${metaArg},'cy',+this.value||0)" class="mix-cy-input bg-transparent border border-transparent hover:border-white/20 focus:border-white/40 focus:bg-white/5 rounded text-right w-14 px-1 outline-none mono" style="-moz-appearance:textfield;color:#34D399;font-size:14px;font-weight:700">`;
+    html += `<span class="text-white/40 font-normal text-[10px]">CY</span></span></div>`;
+  }
+  // Volume bar — relative to 250 CY (typical foundation pour size); ceiling at 100%
+  const pct = Math.min(100, Math.round((cy / 250) * 100));
+  html += `<div class="h-1.5 rounded-full bg-white/5 overflow-hidden mb-2"><div class="h-full rounded-full bg-gradient-to-r from-emerald-600 to-emerald-400" style="width:${pct}%;box-shadow:0 0 6px rgba(52,211,153,0.3)"></div></div>`;
+
+  // Notes
+  if (isManagerView) {
+    if (notes) html += `<div class="text-[10px] text-white/50 italic mb-2 px-1">${escapeHtmlSeq(notes)}</div>`;
+  } else {
+    html += `<input type="text" placeholder="+ note" value="${escapeHtmlSeq(notes)}" onblur="updateFoundationPourField('${escapedKey}',${metaArg},'notes',this.value)" class="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-white/30 focus:bg-white/5 rounded px-1.5 py-0.5 text-[10px] text-white/60 mb-2 outline-none">`;
+  }
+
+  // Footer
+  html += `<div class="flex items-center justify-between pt-2 border-t border-white/5">`;
+  html += `<span class="text-[10px] mono text-white/40">${trucks} truck${trucks===1?'':'s'}</span>`;
+  if (!isManagerView) {
+    if (isPoured) {
+      if (isArchived) {
+        html += `<button onclick="unarchiveFoundationPour('${escapedKey}')" class="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25 hover:bg-amber-500/25">Unarchive</button>`;
+      } else {
+        html += `<div class="flex items-center gap-1.5">`;
+        html += `<button onclick="archiveFoundationPour('${escapedKey}')" class="text-[9px] font-bold px-2 py-0.5 rounded bg-white/5 text-white/40 border border-white/10 hover:bg-white/10 hover:text-white/70">Archive</button>`;
+        html += `<button onclick="confirmDeleteFoundationPour('${escapedKey}')" class="text-[9px] font-bold px-2 py-0.5 rounded bg-red-500/10 text-red-400/70 border border-red-500/20 hover:bg-red-500/20 hover:text-red-300">Delete</button>`;
+        html += `</div>`;
+      }
+    } else {
+      html += `<button onclick="createFoundationPour('${escapedKey}',${metaArg})" class="text-[9px] font-bold px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/20">+ Schedule</button>`;
+    }
+  }
+  html += `</div>`;
+  html += `</div>`;
+  return html;
+}
+
+// ── FOUNDATION POUR CRUD ──────────────────────────────────────────────────
+function createFoundationPour(key, meta) {
+  if (isManagerView) return;
+  const now = new Date().toISOString();
+  const pour = {
+    id:key, sequence:meta.seq, area:meta.area, phase:meta.phase,
+    status:'PENDING', archived:false,
+    mix:{}, cy:0, pour_date:'', notes:'',
+    createdAt:now, updatedAt:now,
+  };
+  foundationPours = Object.assign({}, foundationPours, { [key]:pour });
+  fbSet('foundation-pours/' + key, pour);
+  renderSequenceGroups();
+  seqRecolorAreas();
+}
+
+function updateFoundationPourField(key, meta, field, value) {
+  if (isManagerView) return;
+  if (!foundationPours[key]) {
+    createFoundationPour(key, meta);
+  }
+  const pour = Object.assign({}, foundationPours[key]);
+  if (field.startsWith('mix.')) {
+    pour.mix = Object.assign({}, pour.mix || {}, { [field.split('.')[1]]: value });
+  } else {
+    pour[field] = value;
+  }
+  pour.updatedAt = new Date().toISOString();
+  foundationPours = Object.assign({}, foundationPours, { [key]:pour });
+  fbSet('foundation-pours/' + key, pour);
+  seqRecolorAreas();
+}
+
+function cycleFoundationStatus(key, meta) {
+  if (isManagerView) return;
+  if (!foundationPours[key]) createFoundationPour(key, meta);
+  const cur = (foundationPours[key] && foundationPours[key].status) || 'PENDING';
+  const next = cur === 'PENDING' ? 'ORDERED' : cur === 'ORDERED' ? 'COMPLETE' : 'PENDING';
+  updateFoundationPourField(key, meta, 'status', next);
+  renderSequenceGroups();
+}
+
+function archiveFoundationPour(key) {
+  if (isManagerView) return;
+  const pour = foundationPours[key];
+  if (!pour) return;
+  if (!confirm(`Archive ${pour.id}? It will move to the archived list (toggle "Show archived" to view).`)) return;
+  const updated = Object.assign({}, pour, { archived:true, archivedAt:new Date().toISOString() });
+  foundationPours = Object.assign({}, foundationPours, { [key]:updated });
+  fbSet('foundation-pours/' + key, updated);
+  renderSequenceGroups();
+  seqRecolorAreas();
+}
+
+function unarchiveFoundationPour(key) {
+  if (isManagerView) return;
+  const pour = foundationPours[key];
+  if (!pour) return;
+  const updated = Object.assign({}, pour, { archived:false, archivedAt:null });
+  foundationPours = Object.assign({}, foundationPours, { [key]:updated });
+  fbSet('foundation-pours/' + key, updated);
+  renderSequenceGroups();
+  seqRecolorAreas();
+}
+
+function confirmDeleteFoundationPour(key) {
+  if (isManagerView) return;
+  const pour = foundationPours[key];
+  if (!pour) return;
+  if (!confirm(`Delete ${pour.id}? This cannot be undone — use Archive if you just want to hide it.`)) return;
+  const next = Object.assign({}, foundationPours);
+  delete next[key];
+  foundationPours = next;
+  fbSet('foundation-pours/' + key, null);
+  renderSequenceGroups();
+  seqRecolorAreas();
+}
+
+// ── ADD POUR MODAL ────────────────────────────────────────────────────────
+function showAddFoundationPourModal() {
+  if (isManagerView) return;
+  document.getElementById('addFoundationPourModal')?.remove();
+  const scaffold = getSequenceScaffold();
+  const psiOpts = ['','3000','4000','5000','6000','8000'];
+  const aggOpts = ['','3/8"','1/2"','3/4"','1"','1-1/2"'];
+  const modal = document.createElement('div');
+  modal.id = 'addFoundationPourModal';
+  modal.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4';
+  modal.style.cssText = 'background:rgba(0,0,0,0.75);backdrop-filter:blur(8px)';
+  modal.innerHTML = `
+    <div class="rounded-xl p-5 w-full max-w-md max-h-[90vh] overflow-y-auto" style="background:rgba(10,12,20,0.98);border:1px solid rgba(255,255,255,0.1)">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-bold text-white/90">Add Foundation Pour</h3>
+        <button onclick="document.getElementById('addFoundationPourModal').remove()" class="text-white/40 hover:text-white text-xl leading-none">&times;</button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <div class="grid grid-cols-3 gap-2">
+          <div><label class="block text-white/40 mb-1">Sequence</label>
+            <select id="afpSeq" onchange="afpUpdateAreas()" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white">
+              ${scaffold.map(s => `<option value="${s.id}" style="background:#1a1a1a">Seq ${s.id}</option>`).join('')}
+            </select>
+          </div>
+          <div><label class="block text-white/40 mb-1">Area</label>
+            <select id="afpArea" onchange="afpUpdatePhases()" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white"></select>
+          </div>
+          <div><label class="block text-white/40 mb-1">Phase</label>
+            <input id="afpPhase" type="text" list="afpPhaseList" placeholder="A" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono">
+            <datalist id="afpPhaseList"></datalist>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div><label class="block text-white/40 mb-1">Pour Date (M/D)</label><input id="afpDate" type="text" placeholder="5/14" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
+          <div><label class="block text-white/40 mb-1">Volume (CY)</label><input id="afpCy" type="number" step="1" placeholder="150" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div><label class="block text-white/40 mb-1">PSI</label>
+            <select id="afpPsi" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white">
+              ${psiOpts.map(v => `<option value="${v}" style="background:#1a1a1a">${v||'—'}</option>`).join('')}
+            </select>
+          </div>
+          <div><label class="block text-white/40 mb-1">Aggregate</label>
+            <select id="afpAgg" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white">
+              ${aggOpts.map(v => `<option value="${v}" style="background:#1a1a1a">${v||'—'}</option>`).join('')}
+            </select>
+          </div>
+          <div><label class="block text-white/40 mb-1">Slump</label><input id="afpSlump" type="text" placeholder="5" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
+        </div>
+        <label class="flex items-center gap-2 text-white/60 cursor-pointer"><input type="checkbox" id="afpLc3" class="accent-cyan-500"> <span>LC3 mix</span></label>
+        <div><label class="block text-white/40 mb-1">Label / notes (optional)</label><input id="afpNotes" type="text" placeholder="e.g. South pile cap pour" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white"></div>
+      </div>
+      <div class="flex gap-2 mt-5">
+        <button onclick="document.getElementById('addFoundationPourModal').remove()" class="flex-1 py-2 rounded bg-white/5 text-white/60 text-xs font-bold hover:bg-white/10">Cancel</button>
+        <button onclick="submitAddFoundationPour()" class="flex-1 py-2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-bold hover:bg-cyan-500/30">Add Pour</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  afpUpdateAreas();
+}
+
+function afpUpdateAreas() {
+  const scaffold = getSequenceScaffold();
+  const seq = parseInt(document.getElementById('afpSeq').value);
+  const seqDef = scaffold.find(s => s.id === seq);
+  const sel = document.getElementById('afpArea');
+  if (!seqDef || !sel) return;
+  sel.innerHTML = seqDef.areas.map(a => `<option value="${a.id}" style="background:#1a1a1a">${escapeHtmlSeq(a.label)}</option>`).join('')
+                + `<option value="__new" style="background:#1a1a1a">+ New area…</option>`;
+  afpUpdatePhases();
+}
+
+function afpUpdatePhases() {
+  const scaffold = getSequenceScaffold();
+  const seq = parseInt(document.getElementById('afpSeq').value);
+  const seqDef = scaffold.find(s => s.id === seq);
+  let areaId = document.getElementById('afpArea').value;
+  if (areaId === '__new') {
+    const newArea = prompt('New area id (e.g. E):', '');
+    if (!newArea) { document.getElementById('afpArea').value = seqDef.areas[0]?.id || ''; return; }
+    const opt = document.createElement('option');
+    opt.value = newArea.trim().toUpperCase();
+    opt.textContent = `Area ${opt.value}`;
+    opt.style.background = '#1a1a1a';
+    document.getElementById('afpArea').insertBefore(opt, document.getElementById('afpArea').lastChild);
+    document.getElementById('afpArea').value = opt.value;
+    areaId = opt.value;
+  }
+  const area = seqDef && seqDef.areas.find(a => a.id === areaId);
+  const list = document.getElementById('afpPhaseList');
+  if (list) list.innerHTML = (area ? area.phases : ['A','B','C','D','E']).map(p => `<option value="${p}">`).join('');
+  const phaseInput = document.getElementById('afpPhase');
+  if (phaseInput && !phaseInput.value && area && area.phases.length) phaseInput.value = area.phases[0];
+}
+
+function submitAddFoundationPour() {
+  const seq = parseInt(document.getElementById('afpSeq').value);
+  const area = document.getElementById('afpArea').value.trim();
+  const phase = document.getElementById('afpPhase').value.trim();
+  if (!seq || !area || !phase || area === '__new') { alert('Sequence, area, and phase are required.'); return; }
+  const key = foundationPourKey(seq, area, phase);
+  if (foundationPours[key] && !foundationPours[key].archived) {
+    if (!confirm(`A pour already exists for Seq ${seq} ${area} Phase ${phase}. Overwrite its mix/date/volume?`)) return;
+  }
+  const now = new Date().toISOString();
+  const pour = {
+    id:key, sequence:seq, area, phase,
+    status:'PENDING', archived:false,
+    pour_date: document.getElementById('afpDate').value.trim(),
+    cy: parseFloat(document.getElementById('afpCy').value) || 0,
+    mix: {
+      psi: document.getElementById('afpPsi').value || '',
+      aggregate: document.getElementById('afpAgg').value || '',
+      slump: document.getElementById('afpSlump').value.trim(),
+      lc3: document.getElementById('afpLc3').checked,
+    },
+    notes: document.getElementById('afpNotes').value.trim(),
+    createdAt: now, updatedAt: now,
+  };
+  foundationPours = Object.assign({}, foundationPours, { [key]: pour });
+  fbSet('foundation-pours/' + key, pour);
+  document.getElementById('addFoundationPourModal')?.remove();
+  renderSequenceGroups();
+  seqRecolorAreas();
+}
 </script>
 </body>
 </html>
