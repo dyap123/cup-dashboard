@@ -168,8 +168,112 @@
     .bar-glow { position:relative; }
     .bar-glow::after { content:''; position:absolute; inset:0; border-radius:inherit; filter:blur(4px); opacity:0.4; background:inherit; }
     /* Zone map hover */
-    #zoneSvg g:hover rect { filter:brightness(1.4); }
+    #zoneSvg g:hover rect { filter:brightness(1.6) drop-shadow(0 0 18px currentColor); }
     #zoneSvg g { transition:opacity 0.2s ease; }
+    /* ── Zone map immersive lights ───────────────────────────────────────── */
+    @keyframes zmAurora {
+      0%   { transform:translate(-8%, -6%) rotate(0deg) scale(1.05); opacity:0.55; }
+      33%  { transform:translate(8%, 4%) rotate(120deg) scale(1.15); opacity:0.7; }
+      66%  { transform:translate(-4%, 8%) rotate(240deg) scale(1.0);  opacity:0.5; }
+      100% { transform:translate(-8%, -6%) rotate(360deg) scale(1.05); opacity:0.55; }
+    }
+    @keyframes zmAurora2 {
+      0%   { transform:translate(6%, 8%) scale(1.2); opacity:0.45; }
+      50%  { transform:translate(-6%, -8%) scale(1.0); opacity:0.65; }
+      100% { transform:translate(6%, 8%) scale(1.2); opacity:0.45; }
+    }
+    @keyframes zmSweep {
+      0%   { transform:translateX(-110%) skewX(-20deg); }
+      100% { transform:translateX(220%) skewX(-20deg); }
+    }
+    @keyframes zmScan {
+      0%   { transform:translateY(-100%); opacity:0; }
+      8%   { opacity:0.55; }
+      92%  { opacity:0.55; }
+      100% { transform:translateY(2400%); opacity:0; }
+    }
+    @keyframes zmPulseBorder {
+      0%, 100% { box-shadow:0 30px 60px -20px rgba(0,0,0,0.6),
+                          inset 0 1px 0 rgba(255,255,255,0.05),
+                          inset 0 0 60px rgba(60,90,160,0.10),
+                          0 0 0 1px rgba(120,160,255,0.10),
+                          0 0 40px rgba(80,140,220,0.18); }
+      50%      { box-shadow:0 30px 60px -20px rgba(0,0,0,0.6),
+                          inset 0 1px 0 rgba(255,255,255,0.06),
+                          inset 0 0 80px rgba(80,120,200,0.18),
+                          0 0 0 1px rgba(140,180,255,0.18),
+                          0 0 80px rgba(100,160,240,0.30); }
+    }
+    @keyframes zmGridDrift {
+      0%   { background-position:0 0; }
+      100% { background-position:80px 80px; }
+    }
+    @keyframes zmCornerPulse {
+      0%, 100% { opacity:0.45; }
+      50%      { opacity:0.95; }
+    }
+    #zoneMap.alive { animation:zmPulseBorder 6s ease-in-out infinite; }
+    #zoneMap .zm-aurora-a, #zoneMap .zm-aurora-b {
+      position:absolute; inset:-25%; border-radius:50%;
+      pointer-events:none; mix-blend-mode:screen; filter:blur(60px); z-index:0;
+    }
+    #zoneMap .zm-aurora-a {
+      background:conic-gradient(from 0deg,
+        rgba(91,168,217,0.55) 0%, rgba(123,111,199,0.55) 25%,
+        rgba(212,132,42,0.40) 50%, rgba(61,158,107,0.55) 75%,
+        rgba(91,168,217,0.55) 100%);
+      animation:zmAurora 22s linear infinite;
+    }
+    #zoneMap .zm-aurora-b {
+      background:radial-gradient(circle at 30% 70%, rgba(91,168,217,0.55) 0%, transparent 45%),
+                 radial-gradient(circle at 70% 30%, rgba(123,111,199,0.55) 0%, transparent 45%),
+                 radial-gradient(circle at 50% 50%, rgba(212,132,42,0.30) 0%, transparent 55%);
+      animation:zmAurora2 18s ease-in-out infinite;
+    }
+    #zoneMap .zm-sweep {
+      position:absolute; top:-10%; left:0; width:35%; height:120%;
+      background:linear-gradient(90deg, transparent, rgba(255,255,255,0.08) 40%, rgba(180,210,255,0.18) 50%, rgba(255,255,255,0.08) 60%, transparent);
+      mix-blend-mode:screen; pointer-events:none; z-index:5;
+      animation:zmSweep 9s ease-in-out infinite;
+    }
+    #zoneMap .zm-scan {
+      position:absolute; left:0; right:0; top:0; height:2px;
+      background:linear-gradient(90deg, transparent, rgba(140,180,255,0.85) 30%, rgba(200,230,255,1) 50%, rgba(140,180,255,0.85) 70%, transparent);
+      box-shadow:0 0 12px rgba(140,180,255,0.6), 0 0 24px rgba(140,180,255,0.3);
+      pointer-events:none; z-index:5;
+      animation:zmScan 7s linear infinite;
+    }
+    #zoneMap .zm-grid {
+      position:absolute; inset:0; pointer-events:none; z-index:0; opacity:0.18;
+      background-image:
+        linear-gradient(rgba(120,160,220,0.18) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(120,160,220,0.18) 1px, transparent 1px);
+      background-size:80px 80px;
+      mask-image:radial-gradient(ellipse at center, rgba(0,0,0,0.85) 30%, transparent 80%);
+      -webkit-mask-image:radial-gradient(ellipse at center, rgba(0,0,0,0.85) 30%, transparent 80%);
+      animation:zmGridDrift 30s linear infinite;
+    }
+    #zoneMap .zm-particles { position:absolute; inset:0; pointer-events:none; z-index:3; }
+    #zoneMap .zm-corner {
+      position:absolute; width:24px; height:24px; pointer-events:none; z-index:4;
+      border-color:rgba(140,180,255,0.7);
+      animation:zmCornerPulse 3.5s ease-in-out infinite;
+    }
+    #zoneMap .zm-corner.tl { top:10px; left:10px; border-top:2px solid; border-left:2px solid; }
+    #zoneMap .zm-corner.tr { top:10px; right:10px; border-top:2px solid; border-right:2px solid; animation-delay:0.4s; }
+    #zoneMap .zm-corner.bl { bottom:10px; left:10px; border-bottom:2px solid; border-left:2px solid; animation-delay:0.8s; }
+    #zoneMap .zm-corner.br { bottom:10px; right:10px; border-bottom:2px solid; border-right:2px solid; animation-delay:1.2s; }
+    #zoneMap .zm-status {
+      position:absolute; top:14px; right:16px; z-index:6;
+      display:flex; align-items:center; gap:6px;
+      font-family:'JetBrains Mono', monospace; font-size:9px; letter-spacing:2px;
+      color:rgba(140,180,255,0.65); text-transform:uppercase; pointer-events:none;
+    }
+    #zoneMap .zm-status::before {
+      content:''; width:6px; height:6px; border-radius:50%;
+      background:#5BE0A0; box-shadow:0 0 8px #5BE0A0, 0 0 16px rgba(91,224,160,0.6);
+      animation:zmCornerPulse 1.4s ease-in-out infinite;
+    }
     /* Section pill micro-bounce */
     .sec-pill { transition:all 0.2s cubic-bezier(.4,0,.2,1) !important; }
     .sec-pill:active { transform:scale(0.95); }
@@ -654,20 +758,252 @@
   </script>
 
   <!-- ZONE MAP -->
-  <div id="zoneMap" class="hidden relative rounded-2xl overflow-hidden dot-grid"
-       style="height:min(62vh, 560px); min-height:420px;
-              background:radial-gradient(ellipse at 50% 40%, rgba(30,40,70,0.45) 0%, rgba(8,10,18,0.92) 70%, rgba(6,6,14,1) 100%);
-              border:1px solid rgba(255,255,255,0.08);
-              box-shadow:0 30px 60px -20px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04), inset 0 0 60px rgba(60,90,160,0.08);">
-    <svg id="zoneSvg" viewBox="0 0 1000 280" preserveAspectRatio="none" class="w-full h-full relative" style="display:block;z-index:1"></svg>
-    <!-- soft top-edge highlight + bottom vignette for depth -->
-    <div class="pointer-events-none absolute inset-0" style="background:linear-gradient(180deg, rgba(255,255,255,0.04) 0%, transparent 18%, transparent 78%, rgba(0,0,0,0.35) 100%);z-index:2"></div>
+  <div id="zoneMap" class="hidden alive relative rounded-2xl overflow-hidden"
+       style="height:min(64vh, 600px); min-height:460px;
+              background:radial-gradient(ellipse at 50% 40%, rgba(20,28,55,0.85) 0%, rgba(8,10,18,0.97) 70%, rgba(4,4,10,1) 100%);
+              border:1px solid rgba(120,160,220,0.18);">
+    <!-- LAYER 0: aurora gradients -->
+    <div class="zm-aurora-a"></div>
+    <div class="zm-aurora-b"></div>
+    <!-- LAYER 0: animated grid -->
+    <div class="zm-grid"></div>
+    <!-- LAYER 1: floating particle canvas -->
+    <canvas id="zoneSvgParticles" class="zm-particles"></canvas>
+    <!-- LAYER 1: zone svg (sections, labels, slurry hatching) -->
+    <svg id="zoneSvg" viewBox="0 0 1000 280" preserveAspectRatio="none" class="w-full h-full relative" style="display:block;z-index:2"></svg>
+    <!-- LAYER 5: light sweep -->
+    <div class="zm-sweep"></div>
+    <!-- LAYER 5: scan line -->
+    <div class="zm-scan"></div>
+    <!-- LAYER 2: top highlight + bottom vignette -->
+    <div class="pointer-events-none absolute inset-0" style="background:linear-gradient(180deg, rgba(180,210,255,0.05) 0%, transparent 18%, transparent 78%, rgba(0,0,0,0.4) 100%);z-index:4"></div>
+    <!-- HUD corner brackets -->
+    <div class="zm-corner tl"></div>
+    <div class="zm-corner tr"></div>
+    <div class="zm-corner bl"></div>
+    <div class="zm-corner br"></div>
     <!-- caption chip, top-left -->
     <div class="absolute top-3 left-3 px-2.5 py-1 rounded-md text-[10px] font-black tracking-widest uppercase pointer-events-none"
-         style="background:rgba(6,6,14,0.7);backdrop-filter:blur(8px);color:rgba(255,255,255,0.55);border:1px solid rgba(255,255,255,0.08);z-index:3">
-      CUP Site Layout
+         style="background:rgba(6,6,14,0.7);backdrop-filter:blur(8px);color:rgba(140,180,255,0.7);border:1px solid rgba(120,160,220,0.25);z-index:6;letter-spacing:3px">
+      CUP / Site Layout
     </div>
+    <!-- live status, top-right -->
+    <div class="zm-status">LIVE · 4 SECTIONS</div>
   </div>
+
+  <!-- Particle/light system for the zone map -->
+  <script>
+  (function initZoneMapLights(){
+    const canvas = document.getElementById('zoneSvgParticles');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { alpha: true });
+    const wrap = document.getElementById('zoneMap');
+    const SECTION_COLORS = { A:'#3D9E6B', B:'#D4842A', C:'#5BA8D9', D:'#7B6FC7' };
+    // Section bounds in viewBox coords (matches renderZoneMap layout)
+    const ZONES = [
+      { s:'C', x:0,   y:0,   w:240, h:148 },
+      { s:'B', x:244, y:0,   w:352, h:148 },
+      { s:'A', x:600, y:0,   w:400, h:280 },
+      { s:'D', x:0,   y:152, w:596, h:128 },
+    ];
+    let W=0, H=0, dpr=1, particles=[], beams=[], sparks=[], raf=null;
+
+    function resize(){
+      const r = wrap.getBoundingClientRect();
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      W = r.width; H = r.height;
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+    }
+
+    function buildParticles(){
+      particles = [];
+      // Particles per section, scaled by area
+      ZONES.forEach(z => {
+        const color = SECTION_COLORS[z.s];
+        const count = Math.round(z.w * z.h / 4500); // ~10-25 per section
+        for (let i = 0; i < count; i++) {
+          particles.push({
+            zone: z, color,
+            // position in viewBox coords
+            vx: z.x + Math.random()*z.w,
+            vy: z.y + Math.random()*z.h,
+            tx: z.x + Math.random()*z.w,
+            ty: z.y + Math.random()*z.h,
+            r: 1 + Math.random()*2,
+            ph: Math.random()*Math.PI*2,
+            sp: 0.0015 + Math.random()*0.003,
+          });
+        }
+      });
+    }
+
+    function spawnBeam(){
+      const angle = (Math.random()*0.4 - 0.2) + Math.PI/4;
+      beams.push({
+        x: -W*0.3 + Math.random()*W*0.5,
+        y: Math.random()*H,
+        len: W*0.6 + Math.random()*W*0.3,
+        angle, life: 0, max: 80 + Math.random()*60,
+        hue: ['#5BA8D9','#7B6FC7','#5BE0A0'][Math.floor(Math.random()*3)],
+      });
+    }
+
+    function spawnSpark(zone){
+      const color = SECTION_COLORS[zone.s];
+      sparks.push({
+        zone,
+        vx: zone.x + Math.random()*zone.w,
+        vy: zone.y + Math.random()*zone.h,
+        color, life: 0, max: 40 + Math.random()*30,
+        r: 4 + Math.random()*4,
+      });
+    }
+
+    let frame = 0;
+    function draw(){
+      frame++;
+      ctx.clearRect(0, 0, W, H);
+      const t = frame * 0.016;
+      const sx = W / 1000, sy = H / 280;
+
+      // Particles drift, retarget every ~6s
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      particles.forEach(p => {
+        // Drift toward target
+        p.vx += (p.tx - p.vx) * p.sp;
+        p.vy += (p.ty - p.vy) * p.sp;
+        // Tiny shimmer
+        p.vx += Math.sin(t*0.7 + p.ph) * 0.06;
+        p.vy += Math.cos(t*0.5 + p.ph*1.3) * 0.06;
+        if (Math.random() < 0.003) {
+          p.tx = p.zone.x + Math.random()*p.zone.w;
+          p.ty = p.zone.y + Math.random()*p.zone.h;
+        }
+        const px = p.vx * sx, py = p.vy * sy;
+        const a = (0.45 + 0.45 * Math.sin(t*1.6 + p.ph));
+        // Glow ring
+        const g = ctx.createRadialGradient(px, py, 0, px, py, p.r * 6);
+        g.addColorStop(0, p.color + 'cc');
+        g.addColorStop(0.4, p.color + '44');
+        g.addColorStop(1, p.color + '00');
+        ctx.globalAlpha = a * 0.6;
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(px, py, p.r * 6, 0, Math.PI*2); ctx.fill();
+        // Hard core
+        ctx.globalAlpha = a;
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(px, py, p.r, 0, Math.PI*2); ctx.fill();
+      });
+
+      // Connections within same section
+      ctx.lineWidth = 0.6;
+      for (let i = 0; i < particles.length; i++) {
+        const a = particles[i];
+        for (let j = i+1; j < particles.length; j++) {
+          const b = particles[j];
+          if (a.zone !== b.zone) continue;
+          const dx = (a.vx - b.vx) * sx, dy = (a.vy - b.vy) * sy;
+          const d = Math.sqrt(dx*dx + dy*dy);
+          if (d < 60) {
+            ctx.globalAlpha = (1 - d/60) * 0.18;
+            ctx.strokeStyle = a.color;
+            ctx.beginPath();
+            ctx.moveTo(a.vx*sx, a.vy*sy);
+            ctx.lineTo(b.vx*sx, b.vy*sy);
+            ctx.stroke();
+          }
+        }
+      }
+      ctx.restore();
+
+      // Light beams (cyan/purple/green streaks)
+      if (Math.random() < 0.012) spawnBeam();
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      beams = beams.filter(b => {
+        b.life++;
+        const a = Math.sin((b.life / b.max) * Math.PI) * 0.55;
+        if (b.life >= b.max) return false;
+        ctx.globalAlpha = a;
+        const grad = ctx.createLinearGradient(
+          b.x, b.y,
+          b.x + Math.cos(b.angle)*b.len,
+          b.y + Math.sin(b.angle)*b.len,
+        );
+        grad.addColorStop(0, b.hue + '00');
+        grad.addColorStop(0.5, b.hue + 'aa');
+        grad.addColorStop(1, b.hue + '00');
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = b.hue;
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y);
+        ctx.lineTo(b.x + Math.cos(b.angle)*b.len, b.y + Math.sin(b.angle)*b.len);
+        ctx.stroke();
+        return true;
+      });
+      ctx.shadowBlur = 0;
+
+      // Sparks (random burst per section every few seconds)
+      if (Math.random() < 0.03) spawnSpark(ZONES[Math.floor(Math.random()*ZONES.length)]);
+      sparks = sparks.filter(s => {
+        s.life++;
+        const t2 = s.life / s.max;
+        if (t2 >= 1) return false;
+        const a = (1 - t2) * 0.9;
+        const r = s.r * (1 + t2 * 4);
+        const px = s.vx * sx, py = s.vy * sy;
+        ctx.globalAlpha = a;
+        const g = ctx.createRadialGradient(px, py, 0, px, py, r * 2);
+        g.addColorStop(0, s.color + 'ff');
+        g.addColorStop(0.4, s.color + '66');
+        g.addColorStop(1, s.color + '00');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(px, py, r * 2, 0, Math.PI*2); ctx.fill();
+        return true;
+      });
+      ctx.restore();
+
+      ctx.globalAlpha = 1;
+      raf = requestAnimationFrame(draw);
+    }
+
+    function start(){
+      if (!wrap || wrap.classList.contains('hidden')) {
+        // Try again later — zone map is hidden until init done
+        setTimeout(start, 400);
+        return;
+      }
+      resize();
+      buildParticles();
+      if (raf) cancelAnimationFrame(raf);
+      draw();
+    }
+
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => { resize(); buildParticles(); }, 120);
+    });
+
+    start();
+    // Pause when tab hidden — saves CPU when user isn't looking
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (raf) cancelAnimationFrame(raf);
+        raf = null;
+      } else if (!raf) {
+        draw();
+      }
+    });
+  })();
+  </script>
 
   <!-- TIMELINE -->
   <div id="timelineWrap" class="hidden">
