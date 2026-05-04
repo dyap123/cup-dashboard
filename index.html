@@ -393,7 +393,7 @@
 <div class="sticky top-14 z-40 border-b" style="border-color:rgba(50,80,130,0.06);background:rgba(6,8,16,0.85);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%)">
   <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 overflow-x-auto no-scroll">
     <div class="flex gap-1 shrink-0 mr-2">
-      <button onclick="switchTab('dashboard')" id="tabDash" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white">Dashboard</button>
+      <button onclick="switchTab('dashboard')" id="tabDash" style="display:none" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white">Dashboard</button>
       <button onclick="switchTab('pourday')" id="tabPour" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Pour Day</button>
       <button onclick="switchTab('live')" id="tabLive" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Live Pour</button>
       <button onclick="switchTab('checklist')" id="tabCheck" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Checklist</button>
@@ -1866,6 +1866,7 @@ async function init() {
 
     // Auto-switch views
     const viewParam = new URLSearchParams(window.location.search).get('view');
+    const tabParam = new URLSearchParams(window.location.search).get('tab');
     if (viewParam === 'manager') {
       document.querySelector('header')?.remove();
       document.querySelector('.sticky.top-14')?.remove();
@@ -1874,6 +1875,12 @@ async function init() {
       try { renderLive(); } catch (err) { console.error('renderLive error:', err); }
     } else if (viewParam === 'live') {
       try { switchTab('live'); } catch (err) { console.error('switchTab live error:', err); }
+    } else if (tabParam === 'dashboard') {
+      // Legacy dashboard accessible via ?tab=dashboard; tab button is hidden.
+      try { switchTab('dashboard'); } catch (err) { console.error('switchTab dashboard error:', err); }
+    } else {
+      // Default landing tab is Sequences (foundation pour tracker)
+      try { switchTab('sequence'); } catch (err) { console.error('switchTab sequence error:', err); }
     }
 
     try { render(); } catch (err) { console.error('render error:', err); }
@@ -2037,6 +2044,11 @@ function toggleCheck(key) {
   saveCheckState(s);
   renderChecklist();
   render(); // re-render dashboard pour cards (inspection roll-up)
+  // If a foundation pour card is showing, re-render its inspection bar too
+  if (typeof renderSequenceGroups === 'function') {
+    const seqView = document.getElementById('sequenceView');
+    if (seqView && !seqView.classList.contains('hidden')) renderSequenceGroups();
+  }
 }
 function resetChecklist() {
   if (!activeChecklistPour) return;
@@ -2057,6 +2069,10 @@ function markAllInspectionsPassed(pourId) {
   saveCheckState(s);
   if (typeof renderChecklist === 'function') renderChecklist();
   render();
+  if (typeof renderSequenceGroups === 'function') {
+    const seqView = document.getElementById('sequenceView');
+    if (seqView && !seqView.classList.contains('hidden')) renderSequenceGroups();
+  }
 }
 // ── CONCRETE ORDERING CHECKLIST ─────────────────────────────────────────────
 const CONCRETE_ORDER_ITEMS = [
@@ -2080,24 +2096,32 @@ function saveConcreteOrderState(s) {
   } catch (err) { console.warn('fb concrete-order set threw:', err); }
 }
 function concreteOrderKey(pourId, itemKey) { return `${pourId}__${itemKey}`; }
+function _seqRefreshIfOpen() {
+  if (typeof renderSequenceGroups !== 'function') return;
+  const v = document.getElementById('sequenceView');
+  if (v && !v.classList.contains('hidden')) renderSequenceGroups();
+}
 function toggleConcreteOrderItem(pourId, itemKey) {
   const s = getConcreteOrderState();
   const k = concreteOrderKey(pourId, itemKey);
   s[k] = !s[k];
   saveConcreteOrderState(s);
   render();
+  _seqRefreshIfOpen();
 }
 function markAllConcreteOrdered(pourId) {
   const s = getConcreteOrderState();
   CONCRETE_ORDER_ITEMS.forEach(it => { s[concreteOrderKey(pourId, it.key)] = true; });
   saveConcreteOrderState(s);
   render();
+  _seqRefreshIfOpen();
 }
 function resetConcreteOrder(pourId) {
   const s = getConcreteOrderState();
   CONCRETE_ORDER_ITEMS.forEach(it => { delete s[concreteOrderKey(pourId, it.key)]; });
   saveConcreteOrderState(s);
   render();
+  _seqRefreshIfOpen();
 }
 function getConcreteOrderStatus(pourId) {
   const s = getConcreteOrderState();
@@ -7921,6 +7945,9 @@ function seqDrawArea(svg, area) {
   }
   svg.appendChild(poly);
 
+  // CUP Area detail: render footings from DEFAULT_FOOTING_MAPS scaled into the polygon
+  if (!seqEditMode) seqRenderCupDetail(svg, area);
+
   // Outline
   svg.appendChild(seqSvgEl('polygon', {
     points, fill:'none',
@@ -8050,6 +8077,72 @@ function seqDrawArea(svg, area) {
       svg.appendChild(reset);
     }
   }
+}
+
+// CUP Area footing detail — pulls from DEFAULT_FOOTING_MAPS so the CUP read-only
+// areas show the real footing layout (PC pile caps, F footings, GB grade beams)
+// instead of just an outline. One layer drawn between status fill and outline.
+function seqRenderCupDetail(svg, area) {
+  if (typeof DEFAULT_FOOTING_MAPS === 'undefined' || !DEFAULT_FOOTING_MAPS) return;
+  const m = String(area.section_id).match(/^CUP\s+Area\s+([A-D])$/i);
+  if (!m) return;
+  const sec = m[1].toUpperCase();
+  // Map each CUP section to its primary structural pour in DEFAULT_FOOTING_MAPS
+  const primaryPour = { A:'A-4', B:'B-2', C:'C-2', D:'D-4' }[sec];
+  const map = DEFAULT_FOOTING_MAPS[primaryPour];
+  if (!map || !map.footings || !map.footings.length) return;
+
+  const xs = area.polygon.map(p => p[0]);
+  const ys = area.polygon.map(p => p[1]);
+  const polyMinX = Math.min(...xs), polyMaxX = Math.max(...xs);
+  const polyMinY = Math.min(...ys), polyMaxY = Math.max(...ys);
+  const polyW = polyMaxX - polyMinX, polyH = polyMaxY - polyMinY;
+  if (polyW <= 0 || polyH <= 0) return;
+
+  const vb = (map.viewBox || '0 0 1200 500').split(/\s+/).map(Number);
+  const vbW = vb[2] || 1200, vbH = vb[3] || 500;
+  const sx = polyW / vbW, sy = polyH / vbH;
+  const c = (typeof SEC_COLORS !== 'undefined' && SEC_COLORS[sec]) || '#94a3b8';
+
+  // Group with clip-path so detail stays inside the polygon outline (handles non-rect shapes)
+  const clipId = 'seqCupClip_' + sec;
+  const defs = svg.querySelector('defs') || svg.appendChild(seqSvgEl('defs', {}));
+  // Remove old clipPath if re-rendered
+  const oldClip = defs.querySelector('#' + CSS.escape(clipId));
+  if (oldClip) oldClip.remove();
+  const clip = seqSvgEl('clipPath', { id: clipId });
+  clip.appendChild(seqSvgEl('polygon', { points: area.polygon.map(p => p.join(',')).join(' ') }));
+  defs.appendChild(clip);
+
+  const ftGroup = seqSvgEl('g', { 'clip-path': `url(#${clipId})`, opacity: 0.55, 'pointer-events': 'none' });
+  // Optional grid hints
+  (map.gridCols || []).forEach(g => {
+    const x = polyMinX + g.x * sx;
+    ftGroup.appendChild(seqSvgEl('line', { x1:x, y1:polyMinY, x2:x, y2:polyMaxY, stroke:'rgba(255,255,255,0.04)', 'stroke-width':0.4 }));
+  });
+  (map.gridRows || []).forEach(g => {
+    const y = polyMinY + g.y * sy;
+    ftGroup.appendChild(seqSvgEl('line', { x1:polyMinX, y1:y, x2:polyMaxX, y2:y, stroke:'rgba(255,255,255,0.04)', 'stroke-width':0.4 }));
+  });
+  // Footings
+  map.footings.forEach(f => {
+    const x = polyMinX + f.x * sx;
+    const y = polyMinY + f.y * sy;
+    const w = Math.max(1, f.w * sx);
+    const h = Math.max(1, f.h * sy);
+    const isPC = f.type === 'pc';
+    const isGB = f.type === 'gb';
+    ftGroup.appendChild(seqSvgEl('rect', {
+      x, y, width: w, height: h,
+      fill: c,
+      'fill-opacity': isPC ? 0.55 : isGB ? 0.35 : 0.45,
+      stroke: c,
+      'stroke-width': isPC ? 0.6 : 0.4,
+      'stroke-opacity': 0.85,
+      rx: isGB ? 0 : 1,
+    }));
+  });
+  svg.appendChild(ftGroup);
 }
 
 // ── EDIT MODE: drag helpers ─────────────────────────────────────────────
@@ -8588,6 +8681,69 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   // Volume bar — relative to 250 CY (typical foundation pour size); ceiling at 100%
   const pct = Math.min(100, Math.round((cy / 250) * 100));
   html += `<div class="h-1.5 rounded-full bg-white/5 overflow-hidden mb-2"><div class="h-full rounded-full bg-gradient-to-r from-emerald-600 to-emerald-400" style="width:${pct}%;box-shadow:0 0 6px rgba(52,211,153,0.3)"></div></div>`;
+
+  // Inspection bar (reuses CHECKLIST_ITEMS keyed by foundation pourKey)
+  // Only shown for scheduled pours — ghost (unscheduled) cards stay clean.
+  if (isPoured && typeof getInspectionStatus === 'function') {
+    const insp = getInspectionStatus(key);
+    if (insp.ready && insp.total) {
+      const pctI = Math.round(insp.done / insp.total * 100);
+      const clrI = pctI === 100 ? '#41A447' : pctI > 0 ? '#FFBF00' : '#ef4444';
+      html += `<div class="mb-2 p-2 rounded-lg" style="background:${clrI}0a;border:1px solid ${clrI}44">`;
+      html += `<div class="flex items-center justify-between mb-1.5">`;
+      html += `<span class="text-[9px] font-bold uppercase tracking-wider flex items-center gap-1" style="color:${clrI}"><span class="material-symbols-outlined" style="font-size:11px">assignment_turned_in</span>Inspections ${insp.done}/${insp.total}</span>`;
+      html += `<div class="flex items-center gap-1.5">`;
+      if (pctI < 100 && !isManagerView) {
+        html += `<button onclick="event.stopPropagation();markAllInspectionsPassed('${escapedKey}')" class="text-[8px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/25 hover:bg-green-500/25 transition-all uppercase tracking-wider">All ✓</button>`;
+      }
+      html += `<span class="text-[9px] mono font-bold" style="color:${clrI}">${pctI}%</span></div></div>`;
+      html += `<div class="h-1 rounded-full bg-white/5 overflow-hidden mb-1.5"><div class="h-full rounded-full" style="width:${pctI}%;background:${clrI}"></div></div>`;
+      html += `<div class="flex flex-wrap gap-1">`;
+      insp.items.forEach(it => {
+        const short = it.what.length > 22 ? it.what.slice(0, 20) + '…' : it.what;
+        const titleAttr = ` title="${it.what.replace(/"/g, '&quot;')}"`;
+        const baseClass = 'text-[8px] mono px-1.5 py-0.5 rounded ' + (it.done ? 'bg-green-500/15 text-green-400' : 'bg-white/5 text-white/35');
+        if (isManagerView) {
+          html += `<span${titleAttr} class="${baseClass}">${escapeHtmlSeq(short)}${it.done ? ' ✓' : ''}</span>`;
+        } else {
+          const safeWhat = it.what.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+          html += `<button${titleAttr} onclick="event.stopPropagation();toggleCheck(checkKey('${escapedKey}','${safeWhat}'))" style="touch-action:manipulation" class="${baseClass} cursor-pointer hover:brightness-125 active:scale-95 transition-all">${escapeHtmlSeq(short)}${it.done ? ' ✓' : ''}</button>`;
+        }
+      });
+      html += `</div></div>`;
+    }
+  }
+
+  // Concrete order bar (also gated on isPoured)
+  if (isPoured && typeof getConcreteOrderStatus === 'function') {
+    const co = getConcreteOrderStatus(key);
+    if (co && co.total) {
+      const pctC = Math.round(co.done / co.total * 100);
+      const clrC = pctC === 100 ? '#41A447' : pctC > 0 ? '#FFBF00' : '#ef4444';
+      html += `<div class="mb-2 p-2 rounded-lg" style="background:${clrC}0a;border:1px solid ${clrC}44">`;
+      html += `<div class="flex items-center justify-between mb-1.5">`;
+      html += `<span class="text-[9px] font-bold uppercase tracking-wider flex items-center gap-1" style="color:${clrC}"><span class="material-symbols-outlined" style="font-size:11px">local_shipping</span>Concrete Order ${co.done}/${co.total}</span>`;
+      html += `<div class="flex items-center gap-1.5">`;
+      if (pctC < 100 && !isManagerView) {
+        html += `<button onclick="event.stopPropagation();markAllConcreteOrdered('${escapedKey}')" class="text-[8px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/25 hover:bg-green-500/25 transition-all uppercase tracking-wider">All ✓</button>`;
+      }
+      if (pctC === 100 && !isManagerView) {
+        html += `<button onclick="event.stopPropagation();resetConcreteOrder('${escapedKey}')" class="text-[8px] font-bold px-1.5 py-0.5 rounded bg-white/5 text-white/30 border border-white/10 hover:bg-white/10 transition-all uppercase tracking-wider">Reset</button>`;
+      }
+      html += `<span class="text-[9px] mono font-bold" style="color:${clrC}">${pctC}%</span></div></div>`;
+      html += `<div class="h-1 rounded-full bg-white/5 overflow-hidden mb-1.5"><div class="h-full rounded-full" style="width:${pctC}%;background:${clrC}"></div></div>`;
+      html += `<div class="flex flex-wrap gap-1">`;
+      co.items.forEach(it => {
+        const baseClass = 'text-[8px] mono px-1.5 py-0.5 rounded ' + (it.done ? 'bg-green-500/15 text-green-400' : 'bg-white/5 text-white/35');
+        if (isManagerView) {
+          html += `<span title="${escapeHtmlSeq(it.label)}" class="${baseClass}">${escapeHtmlSeq(it.label)}${it.done ? ' ✓' : ''}</span>`;
+        } else {
+          html += `<button title="${escapeHtmlSeq(it.label)}" onclick="event.stopPropagation();toggleConcreteOrderItem('${escapedKey}','${it.key}')" style="touch-action:manipulation" class="${baseClass} cursor-pointer hover:brightness-125 active:scale-95 transition-all">${escapeHtmlSeq(it.label)}${it.done ? ' ✓' : ''}</button>`;
+        }
+      });
+      html += `</div></div>`;
+    }
+  }
 
   // Notes
   if (isManagerView) {
