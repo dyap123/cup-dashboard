@@ -324,12 +324,14 @@
       stroke-width: 1.8;
       stroke-opacity: 1 !important;
     }
-    #seqOverlay polygon[data-cup-area]:hover {
+    #seqOverlay polygon[data-cup-area]:hover,
+    #seqOverlay polygon.seq-branded:hover {
       filter: url(#seqCupGlow) brightness(1.18) !important;
       stroke-width: 3 !important;
       stroke-opacity: 1 !important;
     }
-    #seqOverlay polygon[data-cup-area]:active {
+    #seqOverlay polygon[data-cup-area]:active,
+    #seqOverlay polygon.seq-branded:active {
       filter: url(#seqCupGlow) brightness(0.92) !important;
     }
     #seqOverlay polygon[data-area-id]:not([data-area-id=""]).seq-readonly { cursor: default; }
@@ -466,7 +468,8 @@
   <div id="seqEditPanel" class="hidden mb-3 px-3 py-2 rounded-lg flex items-center justify-between gap-3 flex-wrap text-[11px]">
     <div class="flex items-center gap-2 flex-wrap">
       <span class="font-bold uppercase tracking-wider">Edit Mode</span>
-      <span class="text-white/50">Drag vertices · drag inside to move · double-click body to insert vertex · click vertex × to delete · drag phase letters/labels</span>
+      <span class="text-white/50 hidden md:inline">Drag vertices · drag inside to move · double-click body to insert · click × to delete · drag labels</span>
+      <div id="seqColorSwatches" class="flex items-center gap-1.5 ml-1 flex-wrap"></div>
     </div>
     <div class="flex items-center gap-2">
       <button onclick="showAddSequenceAreaModal()" class="font-bold px-2.5 py-1 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25 flex items-center gap-1"><span class="material-symbols-outlined" style="font-size:14px">add</span>Add Area</button>
@@ -7708,8 +7711,36 @@ let foundationPours = {};
 let foundationMapRendered = false;
 let seqFilter = 'ALL';
 let seqEditMode = false;
-let seqOverrides = {};         // foundation-areas-overrides Firebase node
-let seqSelectedVertex = null;  // {section_id, idx} when a vertex is selected
+let seqOverrides = {};            // foundation-areas-overrides Firebase node
+let seqSelectedVertex = null;     // {section_id, idx} when a vertex is selected
+let seqSequenceColors = {};       // foundation-sequence-colors: { 1:'#hex', 2:'#hex', 3:'#hex' }
+
+// Lighten/darken a hex color toward black or white. factor: 0=black, 1=original, >1=brighter (toward white).
+function _seqShadeColor(hex, factor) {
+  if (typeof hex !== 'string' || hex[0] !== '#') return hex;
+  const h = hex.replace('#','');
+  const full = h.length === 3 ? h.split('').map(c => c+c).join('') : h;
+  let r = parseInt(full.slice(0,2),16);
+  let g = parseInt(full.slice(2,4),16);
+  let b = parseInt(full.slice(4,6),16);
+  if (factor < 1) { r = Math.round(r * factor); g = Math.round(g * factor); b = Math.round(b * factor); }
+  else if (factor > 1) {
+    const t = factor - 1;
+    r = Math.round(r + (255 - r) * t);
+    g = Math.round(g + (255 - g) * t);
+    b = Math.round(b + (255 - b) * t);
+  }
+  return '#' + [r,g,b].map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2,'0')).join('');
+}
+
+// Resolve effective brand color for a polygon (per-area override > per-sequence > none)
+function getAreaBrandColor(area, meta) {
+  const ov = seqOverrides[area.section_id];
+  if (ov && ov.brandColor) return ov.brandColor;
+  const seqNum = (meta && meta.seq) || area.sequence;
+  if (seqNum != null && seqSequenceColors[seqNum]) return seqSequenceColors[seqNum];
+  return null;
+}
 
 function getSequenceScaffold() {
   return [
@@ -7786,6 +7817,14 @@ function attachFoundationListeners() {
     if (foundationMapRendered) {
       renderSequenceMap().then(() => seqRecolorAreas());
     }
+  });
+  fbListen('foundation-sequence-colors', (val) => {
+    seqSequenceColors = val || {};
+    if (foundationMapRendered) {
+      renderSequenceMap().then(() => seqRecolorAreas());
+    }
+    // Refresh edit panel swatch values if visible
+    renderSeqColorSwatches();
   });
 }
 
@@ -7870,6 +7909,23 @@ async function renderSequenceMap() {
   glow.appendChild(seqSvgEl('feDropShadow', { dx:0, dy:3, stdDeviation:6, 'flood-color':'#000', 'flood-opacity':0.55 }));
   defs.appendChild(glow);
 
+  // Per-area gradient defs for any foundation/user-added area that has a
+  // resolved brand color (per-area override OR per-sequence color).
+  getMergedAreas().forEach(area => {
+    const m = seqAreaToSeqNum(area);
+    const isFnd = !!(m && m.areaId && /^[A-Z][A-Z0-9-]*$/.test(m.areaId));
+    const isUser = !!(seqOverrides[area.section_id] && seqOverrides[area.section_id].__userAdded);
+    if (!area.interactive || (!isFnd && !isUser)) return;
+    const brand = getAreaBrandColor(area, m);
+    if (!brand) return;
+    const gradId = 'seqAreaGrad_' + String(area.section_id).replace(/[^a-zA-Z0-9]/g, '_');
+    const dim = _seqShadeColor(brand, 0.18);
+    const g = seqSvgEl('linearGradient', { id: gradId, x1:'0%', y1:'0%', x2:'0%', y2:'100%' });
+    g.appendChild(seqSvgEl('stop', { offset:'0%',  'stop-color': brand, 'stop-opacity': 0.55 }));
+    g.appendChild(seqSvgEl('stop', { offset:'100%','stop-color': dim,   'stop-opacity': 1 }));
+    defs.appendChild(g);
+  });
+
   svg.appendChild(defs);
 
   svg.appendChild(seqSvgEl('rect', { x:0, y:0, width:W, height:H, fill:'url(#seqAurora)', 'fill-opacity':0.45 }));
@@ -7925,8 +7981,12 @@ function seqDrawArea(svg, area) {
   const cupSec = cupMatch ? cupMatch[1].toUpperCase() : null;
   const isInteractive = !!(area.interactive && (isFoundation || isUserAdded || isCupArea));
 
-  // Backdrop — skip for CUP Areas (their gradient IS the backdrop)
-  if (!isCupArea) {
+  // Resolve brand color (per-area > per-sequence > none) for foundation/user areas
+  const brandColor = (isFoundation || isUserAdded) ? getAreaBrandColor(area, meta) : null;
+  const isBranded = !!brandColor;
+
+  // Backdrop — skip for CUP Areas and branded foundation areas (the gradient IS the backdrop)
+  if (!isCupArea && !isBranded) {
     svg.appendChild(seqSvgEl('polygon', {
       points, fill:'#0f172a',
       'fill-opacity': area.interactive ? 0.6 : 0.4,
@@ -7937,11 +7997,18 @@ function seqDrawArea(svg, area) {
 
   // Status fill
   let statusColor;
-  if (isFoundation) {
-    statusColor = SEQ_STATUS_COLOR[aggregateAreaStatus(meta.seq, meta.areaId)];
-  } else if (isCupArea && typeof SEC_COLORS !== 'undefined' && SEC_COLORS[cupSec]) {
+  if (isCupArea && typeof SEC_COLORS !== 'undefined' && SEC_COLORS[cupSec]) {
     // Vibrant gradient block, bright stroke, drop shadow — matches legacy zoneSvg
     statusColor = { fill: `url(#seqCupGrad_${cupSec})`, stroke: SEC_COLORS[cupSec] };
+  } else if (isBranded) {
+    // Foundation/user area with user-assigned brand color: vibrant gradient + status-color stroke
+    const gradId = 'seqAreaGrad_' + String(sid).replace(/[^a-zA-Z0-9]/g, '_');
+    const status = isFoundation
+      ? aggregateAreaStatus(meta.seq, meta.areaId)
+      : (area.sequence != null && area.area ? aggregateAreaStatus(area.sequence, area.area) : 'EMPTY');
+    statusColor = { fill: `url(#${gradId})`, stroke: SEQ_STATUS_COLOR[status].fill };
+  } else if (isFoundation) {
+    statusColor = SEQ_STATUS_COLOR[aggregateAreaStatus(meta.seq, meta.areaId)];
   } else if (isUserAdded && area.sequence != null && area.area) {
     statusColor = SEQ_STATUS_COLOR[aggregateAreaStatus(area.sequence, area.area)];
   } else {
@@ -7949,18 +8016,19 @@ function seqDrawArea(svg, area) {
   }
   const polyAttrs = {
     points, fill:statusColor.fill,
-    'fill-opacity': isCupArea ? 1 : isInteractive ? 0.18 : 0.06,
+    'fill-opacity': (isCupArea || isBranded) ? 1 : isInteractive ? 0.18 : 0.06,
     stroke: statusColor.stroke,
-    'stroke-width': isCupArea ? 2.5 : 1.2,
-    'stroke-opacity': isCupArea ? 1 : 0.9,
+    'stroke-width': (isCupArea || isBranded) ? 2.5 : 1.2,
+    'stroke-opacity': (isCupArea || isBranded) ? 1 : 0.9,
     'stroke-linejoin':'round', 'stroke-linecap':'round',
     'data-edit-poly': sid,
   };
-  if (isCupArea) polyAttrs['filter'] = 'url(#seqCupGlow)';
+  if (isCupArea || isBranded) polyAttrs['filter'] = 'url(#seqCupGlow)';
   if (isInteractive && isFoundation) polyAttrs['data-area-id'] = `${meta.seq}-${meta.areaId}`;
   if (isInteractive && isUserAdded && area.sequence != null && area.area) polyAttrs['data-area-id'] = `${area.sequence}-${area.area}`;
   if (isCupArea) polyAttrs['data-cup-area'] = cupSec;
   const poly = seqSvgEl('polygon', polyAttrs);
+  if (isBranded) poly.classList.add('seq-branded');
   if (!isInteractive) poly.classList.add('seq-readonly');
   if (isInteractive && !seqEditMode) {
     if (isFoundation || (isUserAdded && area.sequence != null && area.area)) {
@@ -7987,8 +8055,8 @@ function seqDrawArea(svg, area) {
 
   // (CUP Areas use a solid section fill — no footing detail overlay.)
 
-  // Outline — skip for CUP (the thick fill stroke is the outline)
-  if (!isCupArea) {
+  // Outline — skip for CUP and branded areas (their thick stroke is the outline)
+  if (!isCupArea && !isBranded) {
     svg.appendChild(seqSvgEl('polygon', {
       points, fill:'none',
       stroke: area.outline_color || statusColor.stroke,
@@ -8435,7 +8503,51 @@ function toggleSeqEditMode() {
   seqSelectedVertex = null;
   // Hide any tooltip that was open in view mode
   seqHideTooltip();
+  renderSeqColorSwatches();
   renderSequenceMap();
+}
+
+// Per-sequence color swatches in the edit panel
+function renderSeqColorSwatches() {
+  const wrap = document.getElementById('seqColorSwatches');
+  if (!wrap) return;
+  const seqs = [1, 2, 3];
+  const defaults = (typeof SEQ_COLORS !== 'undefined') ? SEQ_COLORS : { 1:'#22d3ee', 2:'#a855f7', 3:'#22c55e' };
+  let html = `<span class="text-white/50 ml-2 mr-0.5">Colors:</span>`;
+  seqs.forEach(s => {
+    const cur = seqSequenceColors[s] || defaults[s] || '#22d3ee';
+    const isCustom = !!seqSequenceColors[s];
+    html += `
+      <label class="inline-flex items-center gap-1 cursor-pointer group" title="Set Sequence ${s} color (applies to all areas in Seq ${s})">
+        <span class="text-[10px] text-white/60 group-hover:text-white/90 transition-colors">Seq ${s}</span>
+        <input type="color" value="${cur}" onchange="setSequenceColor(${s}, this.value)"
+               class="w-5 h-5 rounded border ${isCustom ? 'border-white/40' : 'border-white/15'} cursor-pointer p-0"
+               style="background:transparent;${isCustom ? 'box-shadow:0 0 0 1px '+cur+';' : ''}">
+        ${isCustom ? `<button onclick="event.preventDefault();clearSequenceColor(${s})" class="text-white/30 hover:text-red-400 text-[12px] leading-none px-0.5" title="Clear Seq ${s} color">×</button>` : ''}
+      </label>`;
+  });
+  html += `<button onclick="clearAllSequenceColors()" class="ml-1 text-[10px] text-white/40 hover:text-red-400 underline-offset-2 hover:underline" title="Clear all sequence colors">reset</button>`;
+  wrap.innerHTML = html;
+}
+
+function setSequenceColor(seqNum, color) {
+  if (!color) return;
+  seqSequenceColors = Object.assign({}, seqSequenceColors, { [seqNum]: color });
+  fbSet('foundation-sequence-colors/' + seqNum, color);
+  renderSeqColorSwatches();
+}
+function clearSequenceColor(seqNum) {
+  const next = Object.assign({}, seqSequenceColors);
+  delete next[seqNum];
+  seqSequenceColors = next;
+  fbSet('foundation-sequence-colors/' + seqNum, null);
+  renderSeqColorSwatches();
+}
+function clearAllSequenceColors() {
+  if (!confirm('Clear all sequence color overrides? Areas return to status-based coloring.')) return;
+  seqSequenceColors = {};
+  fbSet('foundation-sequence-colors', null);
+  renderSeqColorSwatches();
 }
 
 // ── ADD AREA MODAL ──────────────────────────────────────────────────────
@@ -8514,9 +8626,13 @@ function seqRecolorAreas() {
     const [seq, area] = aid.split('-');
     const status = aggregateAreaStatus(parseInt(seq), area);
     const c = SEQ_STATUS_COLOR[status];
-    poly.setAttribute('fill', c.fill);
-    poly.setAttribute('stroke', c.stroke);
-    // Re-apply pulse class based on current status
+    // Branded polygons keep their gradient fill — only stroke + pulse track status.
+    if (poly.classList.contains('seq-branded')) {
+      poly.setAttribute('stroke', c.fill);
+    } else {
+      poly.setAttribute('fill', c.fill);
+      poly.setAttribute('stroke', c.stroke);
+    }
     poly.classList.remove('seq-pulse-amber');
     if (status === 'PENDING' || status === 'ORDERED') poly.classList.add('seq-pulse-amber');
   });
