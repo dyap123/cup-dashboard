@@ -8422,7 +8422,6 @@ function seqDrawArea(svg, area) {
   const off = area.label_offset || [0,0];
   let labelText = sid;
   let labelSize = 32, labelWeight = 600;
-  if (sid === '4') { labelText = 'Zone 4'; labelSize = 24; }
   if (isCupArea) { labelText = cupSec; labelSize = 84; labelWeight = 900; }
   if (!isInteractive) { labelSize = 20; labelWeight = 500; }
   const labelEl = seqSvgEl('text', {

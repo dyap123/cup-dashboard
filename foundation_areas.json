@@ -47,10 +47,10 @@
       ]
     },
     {
-      "section_id": "4",
-      "label": "Zone 4",
+      "section_id": "4A",
+      "label": "Sequence 4 — Area A",
       "annotation": "already poured",
-      "interactive": false,
+      "interactive": true,
       "outline_color": "#facc15",
       "fill_hint": "yellow",
       "polygon": [
