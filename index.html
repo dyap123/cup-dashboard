@@ -325,9 +325,12 @@
       stroke-opacity: 1 !important;
     }
     #seqOverlay polygon[data-cup-area]:hover {
-      fill-opacity: 0.45 !important;
-      stroke-width: 2;
+      filter: url(#seqCupGlow) brightness(1.18) !important;
+      stroke-width: 3 !important;
       stroke-opacity: 1 !important;
+    }
+    #seqOverlay polygon[data-cup-area]:active {
+      filter: url(#seqCupGlow) brightness(0.92) !important;
     }
     #seqOverlay polygon[data-area-id]:not([data-area-id=""]).seq-readonly { cursor: default; }
     #seqOverlay polygon.seq-readonly:hover { fill-opacity: 0.06 !important; stroke-width: 1.2; }
@@ -7851,6 +7854,22 @@ async function renderSequenceMap() {
   aurora.appendChild(seqSvgEl('stop', { offset:'40%', 'stop-color':'#0f1c3a', 'stop-opacity':0.6 }));
   aurora.appendChild(seqSvgEl('stop', { offset:'100%','stop-color':'#050a1a', 'stop-opacity':1 }));
   defs.appendChild(aurora);
+
+  // Per-CUP-section gradient — bright section color at top fading to SEC_DIM at
+  // bottom. Gives the CUP polygons depth/dimension instead of flat fill.
+  if (typeof SEC_COLORS !== 'undefined' && typeof SEC_DIM !== 'undefined') {
+    ['A','B','C','D'].forEach(s => {
+      const g = seqSvgEl('linearGradient', { id:'seqCupGrad_'+s, x1:'0%', y1:'0%', x2:'0%', y2:'100%' });
+      g.appendChild(seqSvgEl('stop', { offset:'0%',  'stop-color': SEC_COLORS[s] || '#94a3b8', 'stop-opacity': 0.55 }));
+      g.appendChild(seqSvgEl('stop', { offset:'100%','stop-color': SEC_DIM[s]    || '#0f172a', 'stop-opacity': 1 }));
+      defs.appendChild(g);
+    });
+  }
+  // Drop shadow filter — gives CUP polygons lifted depth on hover/at rest
+  const glow = seqSvgEl('filter', { id:'seqCupGlow', x:'-10%', y:'-10%', width:'120%', height:'120%' });
+  glow.appendChild(seqSvgEl('feDropShadow', { dx:0, dy:3, stdDeviation:6, 'flood-color':'#000', 'flood-opacity':0.55 }));
+  defs.appendChild(glow);
+
   svg.appendChild(defs);
 
   svg.appendChild(seqSvgEl('rect', { x:0, y:0, width:W, height:H, fill:'url(#seqAurora)', 'fill-opacity':0.45 }));
@@ -7906,21 +7925,23 @@ function seqDrawArea(svg, area) {
   const cupSec = cupMatch ? cupMatch[1].toUpperCase() : null;
   const isInteractive = !!(area.interactive && (isFoundation || isUserAdded || isCupArea));
 
-  // Backdrop
-  svg.appendChild(seqSvgEl('polygon', {
-    points, fill:'#0f172a',
-    'fill-opacity': area.interactive ? 0.6 : 0.4,
-    stroke:'none', 'pointer-events':'none',
-    'data-edit-poly': sid,
-  }));
+  // Backdrop — skip for CUP Areas (their gradient IS the backdrop)
+  if (!isCupArea) {
+    svg.appendChild(seqSvgEl('polygon', {
+      points, fill:'#0f172a',
+      'fill-opacity': area.interactive ? 0.6 : 0.4,
+      stroke:'none', 'pointer-events':'none',
+      'data-edit-poly': sid,
+    }));
+  }
 
   // Status fill
   let statusColor;
   if (isFoundation) {
     statusColor = SEQ_STATUS_COLOR[aggregateAreaStatus(meta.seq, meta.areaId)];
   } else if (isCupArea && typeof SEC_COLORS !== 'undefined' && SEC_COLORS[cupSec]) {
-    // CUP Areas use the section palette as a solid fill (matches the old zoneSvg)
-    statusColor = { fill: SEC_COLORS[cupSec], stroke: SEC_COLORS[cupSec] };
+    // Vibrant gradient block, bright stroke, drop shadow — matches legacy zoneSvg
+    statusColor = { fill: `url(#seqCupGrad_${cupSec})`, stroke: SEC_COLORS[cupSec] };
   } else if (isUserAdded && area.sequence != null && area.area) {
     statusColor = SEQ_STATUS_COLOR[aggregateAreaStatus(area.sequence, area.area)];
   } else {
@@ -7928,13 +7949,14 @@ function seqDrawArea(svg, area) {
   }
   const polyAttrs = {
     points, fill:statusColor.fill,
-    'fill-opacity': isCupArea ? 0.30 : isInteractive ? 0.18 : 0.06,
+    'fill-opacity': isCupArea ? 1 : isInteractive ? 0.18 : 0.06,
     stroke: statusColor.stroke,
-    'stroke-width': isCupArea ? 1.5 : 1.2,
-    'stroke-opacity': 0.9,
+    'stroke-width': isCupArea ? 2.5 : 1.2,
+    'stroke-opacity': isCupArea ? 1 : 0.9,
     'stroke-linejoin':'round', 'stroke-linecap':'round',
     'data-edit-poly': sid,
   };
+  if (isCupArea) polyAttrs['filter'] = 'url(#seqCupGlow)';
   if (isInteractive && isFoundation) polyAttrs['data-area-id'] = `${meta.seq}-${meta.areaId}`;
   if (isInteractive && isUserAdded && area.sequence != null && area.area) polyAttrs['data-area-id'] = `${area.sequence}-${area.area}`;
   if (isCupArea) polyAttrs['data-cup-area'] = cupSec;
@@ -7965,16 +7987,18 @@ function seqDrawArea(svg, area) {
 
   // (CUP Areas use a solid section fill — no footing detail overlay.)
 
-  // Outline
-  svg.appendChild(seqSvgEl('polygon', {
-    points, fill:'none',
-    stroke: area.outline_color || statusColor.stroke,
-    'stroke-width':1, 'stroke-opacity': isInteractive ? 0.4 : 0.25,
-    'stroke-linejoin':'round',
-    'stroke-dasharray': isInteractive ? '0' : '4 6',
-    'pointer-events':'none',
-    'data-edit-poly': sid,
-  }));
+  // Outline — skip for CUP (the thick fill stroke is the outline)
+  if (!isCupArea) {
+    svg.appendChild(seqSvgEl('polygon', {
+      points, fill:'none',
+      stroke: area.outline_color || statusColor.stroke,
+      'stroke-width':1, 'stroke-opacity': isInteractive ? 0.4 : 0.25,
+      'stroke-linejoin':'round',
+      'stroke-dasharray': isInteractive ? '0' : '4 6',
+      'pointer-events':'none',
+      'data-edit-poly': sid,
+    }));
+  }
 
   // Label(s)
   const cx = area.polygon.reduce((s,p) => s + p[0], 0) / area.polygon.length;
@@ -7983,17 +8007,17 @@ function seqDrawArea(svg, area) {
   let labelText = sid;
   let labelSize = 32, labelWeight = 600;
   if (sid === '4') { labelText = 'Zone 4'; labelSize = 24; }
-  if (isCupArea) { labelText = cupSec; labelSize = 56; labelWeight = 800; }
+  if (isCupArea) { labelText = cupSec; labelSize = 84; labelWeight = 900; }
   if (!isInteractive) { labelSize = 20; labelWeight = 500; }
   const labelEl = seqSvgEl('text', {
     x: cx + off[0], y: cy + off[1],
     'text-anchor':'middle', 'dominant-baseline':'middle',
-    fill: isCupArea ? statusColor.fill : (isInteractive ? '#f8fafc' : '#94a3b8'),
+    fill: isCupArea ? (SEC_COLORS[cupSec] || '#94a3b8') : (isInteractive ? '#f8fafc' : '#94a3b8'),
     'font-size':labelSize, 'font-weight':labelWeight,
     'font-family':'-apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif',
-    'letter-spacing':'-0.015em',
+    'letter-spacing':'-0.025em',
     'pointer-events': seqEditMode && isInteractive ? 'auto' : 'none',
-    opacity: isCupArea ? 0.18 : (isInteractive ? 0.95 : 0.7),
+    opacity: isCupArea ? 0.20 : (isInteractive ? 0.95 : 0.7),
   }, labelText);
   if (seqEditMode && isInteractive) {
     labelEl.classList.add('seq-label-handle');
@@ -8001,34 +8025,35 @@ function seqDrawArea(svg, area) {
   }
   svg.appendChild(labelEl);
 
-  // CUP Area info: total CY in the center, mix breakdown below — pulls from state.refs
+  // CUP Area info: bright CY total + mix breakdown — pulls from state.refs
   if (isCupArea && !seqEditMode) {
     const ref = (typeof state !== 'undefined' && state.refs && state.refs[cupSec]) || {};
     const tot = ref.secTotal != null ? ref.secTotal : '';
     const cy8 = ref.cy8000 || 0;
     const cy5 = ref.cy5000 || 0;
     const slu = ref.slurryVol || 0;
+    const brand = SEC_COLORS[cupSec] || '#94a3b8';
     if (tot !== '') {
       svg.appendChild(seqSvgEl('text', {
-        x: cx + off[0], y: cy + off[1] - 6,
+        x: cx + off[0], y: cy + off[1] - 8,
         'text-anchor':'middle', 'dominant-baseline':'middle',
-        fill: statusColor.fill, 'font-size': 22, 'font-weight': 700,
+        fill: brand, 'font-size': 30, 'font-weight': 700,
         'font-family':'JetBrains Mono, monospace',
-        'letter-spacing':'-0.02em', 'pointer-events':'none',
-        opacity: 0.95,
+        'letter-spacing':'-0.025em', 'pointer-events':'none',
+        opacity: 1,
       }, `${tot} CY`));
       svg.appendChild(seqSvgEl('text', {
-        x: cx + off[0], y: cy + off[1] + 16,
+        x: cx + off[0], y: cy + off[1] + 18,
         'text-anchor':'middle', 'dominant-baseline':'middle',
-        fill:'rgba(255,255,255,0.55)', 'font-size': 11, 'font-weight': 500,
+        fill:'rgba(255,255,255,0.7)', 'font-size': 12, 'font-weight': 600,
         'font-family':'JetBrains Mono, monospace',
-        'pointer-events':'none',
-      }, `8000:${cy8} · 5000:${cy5}${slu ? ` · slurry:${slu}` : ''}`));
+        'letter-spacing':'0.04em', 'pointer-events':'none',
+      }, `8000: ${cy8}  ·  5000: ${cy5}${slu ? `  ·  SLU: ${slu}` : ''}`));
     } else {
       svg.appendChild(seqSvgEl('text', {
-        x: cx + off[0], y: cy + off[1] + 30,
+        x: cx + off[0], y: cy + off[1] + 36,
         'text-anchor':'middle', 'dominant-baseline':'middle',
-        fill:'rgba(255,255,255,0.4)', 'font-size': 10, 'font-weight': 500,
+        fill:'rgba(255,255,255,0.55)', 'font-size': 11, 'font-weight': 500,
         'pointer-events':'none',
       }, `CUP Area ${cupSec}`));
     }
@@ -8554,15 +8579,90 @@ function seqShowCupTooltip(evt, area, sec) {
   tt.style.top = y + 'px';
 }
 
-// Click on a CUP Area → switch to (now hidden) Dashboard tab and apply that section filter
+// Click on a CUP Area → open a modal listing that section's pours
 function seqOpenCupSection(sec) {
-  if (typeof switchTab === 'function') {
-    try { switchTab('dashboard'); } catch (_) {}
-  }
-  if (typeof setSectionFilter === 'function') setSectionFilter(sec);
-  // Make sure the dashboard tab button stays hidden when re-entering this view
-  const tabDash = document.getElementById('tabDash');
-  if (tabDash) tabDash.style.display = 'none';
+  showCupAreaModal(sec);
+}
+
+function closeCupAreaModal() {
+  const m = document.getElementById('cupAreaModal');
+  if (m) m.remove();
+  document.removeEventListener('keydown', _seqCupModalEsc);
+}
+function _seqCupModalEsc(e) { if (e.key === 'Escape') closeCupAreaModal(); }
+
+function showCupAreaModal(sec) {
+  closeCupAreaModal();
+  const c = (typeof SEC_COLORS !== 'undefined' && SEC_COLORS[sec]) || '#94a3b8';
+  const ref = (typeof state !== 'undefined' && state.refs && state.refs[sec]) || {};
+  const allPours = (typeof state !== 'undefined' && Array.isArray(state.pours)) ? state.pours.filter(p => p && p.section === sec) : [];
+  // Sort by date (undated last), then by id
+  allPours.sort((a, b) => {
+    const da = (typeof dateSortVal === 'function' ? dateSortVal(a.date) : 99999);
+    const db = (typeof dateSortVal === 'function' ? dateSortVal(b.date) : 99999);
+    if (da !== db) return da - db;
+    return String(a.id).localeCompare(String(b.id));
+  });
+  const ordered = allPours.filter(p => typeof getPourStatus === 'function' && (getPourStatus(p.id) === 'ORDERED' || getPourStatus(p.id) === 'COMPLETE')).length;
+
+  const rows = allPours.map(p => {
+    const st = typeof getPourStatus === 'function' ? getPourStatus(p.id) : 'PENDING';
+    const stColor = st === 'COMPLETE' ? '#3b82f6' : st === 'ORDERED' ? '#22c55e' : '#94a3b8';
+    const typeLabel = p.type || 'Structural';
+    const dateStr = p.date || '—';
+    const total = p.total != null ? p.total : 0;
+    return `<button onclick="closeCupAreaModal();switchTab('pourday');if(typeof selectChecklistPour==='function')selectChecklistPour('${p.id}')"
+        class="w-full text-left flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg transition-all hover:bg-white/5"
+        style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-left:3px solid ${c}">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <span class="mono font-bold text-sm" style="color:${c}">${p.id}</span>
+        <span class="text-[10px] uppercase tracking-wider text-white/40">${typeLabel}</span>
+        <span class="text-[11px] mono text-white/50">${dateStr}</span>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="mono font-bold text-xs" style="color:#34D399">${total} <span class="text-white/40 font-normal">CY</span></span>
+        <span class="text-[9px] font-bold px-2 py-0.5 rounded-full" style="background:${stColor}22;color:${stColor};border:1px solid ${stColor}55">${st}</span>
+      </div>
+    </button>`;
+  }).join('');
+
+  const m = document.createElement('div');
+  m.id = 'cupAreaModal';
+  m.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4';
+  m.style.cssText = 'background:rgba(0,0,0,0.75);backdrop-filter:blur(8px)';
+  m.addEventListener('click', e => { if (e.target === m) closeCupAreaModal(); });
+  m.innerHTML = `
+    <div class="rounded-xl w-full max-w-md max-h-[88vh] flex flex-col overflow-hidden" style="background:rgba(10,12,20,0.98);border:1px solid rgba(255,255,255,0.1);box-shadow:0 20px 60px rgba(0,0,0,0.5)">
+      <div class="px-5 py-4 flex items-center justify-between gap-3" style="border-bottom:1px solid rgba(255,255,255,0.06);background:linear-gradient(180deg, ${c}22, transparent)">
+        <div class="flex items-center gap-3 min-w-0">
+          <span class="text-2xl font-black" style="color:${c};text-shadow:0 0 16px ${c}66">${sec}</span>
+          <div class="min-w-0">
+            <h3 class="text-sm font-bold text-white/90 truncate">CUP Area ${sec}</h3>
+            <p class="text-[11px] text-white/50 mono">${allPours.length} pour${allPours.length===1?'':'s'} · ${ordered} ordered/complete</p>
+          </div>
+        </div>
+        <button onclick="closeCupAreaModal()" class="text-white/40 hover:text-white text-2xl leading-none px-1">&times;</button>
+      </div>
+      <div class="px-5 py-3 grid grid-cols-3 gap-2 text-[11px]" style="border-bottom:1px solid rgba(255,255,255,0.04)">
+        <div><span class="block text-white/40 uppercase tracking-wider text-[9px]">Total</span><span class="mono font-bold" style="color:${c}">${ref.secTotal != null ? ref.secTotal : '—'} CY</span></div>
+        <div><span class="block text-white/40 uppercase tracking-wider text-[9px]">8000 / 5000</span><span class="mono text-white/80">${ref.cy8000 || 0} / ${ref.cy5000 || 0}</span></div>
+        <div><span class="block text-white/40 uppercase tracking-wider text-[9px]">Slurry</span><span class="mono text-white/80">${ref.slurryVol || 0}</span></div>
+      </div>
+      <div class="flex-1 overflow-y-auto px-5 py-3 space-y-2">
+        ${allPours.length ? rows : `<p class="text-center text-white/30 italic py-6">No pours found in section ${sec}.</p>`}
+      </div>
+      <div class="px-5 py-3 flex items-center gap-2" style="border-top:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.2)">
+        <button onclick="closeCupAreaModal()" class="flex-1 py-2 rounded text-xs font-bold bg-white/5 text-white/60 hover:bg-white/10">Close</button>
+        <button onclick="closeCupAreaModal();if(typeof switchTab==='function')switchTab('dashboard');if(typeof setSectionFilter==='function')setSectionFilter('${sec}');const t=document.getElementById('tabDash');if(t)t.style.display='none';"
+                class="flex-1 py-2 rounded text-xs font-bold flex items-center justify-center gap-1.5"
+                style="background:${c}22;color:${c};border:1px solid ${c}55">
+          <span class="material-symbols-outlined" style="font-size:14px">grid_view</span>
+          Open in Dashboard
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  document.addEventListener('keydown', _seqCupModalEsc);
 }
 
 // ── GROUPED CARDS ─────────────────────────────────────────────────────────
