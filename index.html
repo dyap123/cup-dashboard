@@ -654,8 +654,19 @@
   </script>
 
   <!-- ZONE MAP -->
-  <div id="zoneMap" class="hidden rounded-xl overflow-hidden dot-grid" style="height:280px">
-    <svg id="zoneSvg" viewBox="0 0 1000 280" preserveAspectRatio="none" class="w-full h-full" style="display:block"></svg>
+  <div id="zoneMap" class="hidden relative rounded-2xl overflow-hidden dot-grid"
+       style="height:min(62vh, 560px); min-height:420px;
+              background:radial-gradient(ellipse at 50% 40%, rgba(30,40,70,0.45) 0%, rgba(8,10,18,0.92) 70%, rgba(6,6,14,1) 100%);
+              border:1px solid rgba(255,255,255,0.08);
+              box-shadow:0 30px 60px -20px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04), inset 0 0 60px rgba(60,90,160,0.08);">
+    <svg id="zoneSvg" viewBox="0 0 1000 280" preserveAspectRatio="none" class="w-full h-full relative" style="display:block;z-index:1"></svg>
+    <!-- soft top-edge highlight + bottom vignette for depth -->
+    <div class="pointer-events-none absolute inset-0" style="background:linear-gradient(180deg, rgba(255,255,255,0.04) 0%, transparent 18%, transparent 78%, rgba(0,0,0,0.35) 100%);z-index:2"></div>
+    <!-- caption chip, top-left -->
+    <div class="absolute top-3 left-3 px-2.5 py-1 rounded-md text-[10px] font-black tracking-widest uppercase pointer-events-none"
+         style="background:rgba(6,6,14,0.7);backdrop-filter:blur(8px);color:rgba(255,255,255,0.55);border:1px solid rgba(255,255,255,0.08);z-index:3">
+      CUP Site Layout
+    </div>
   </div>
 
   <!-- TIMELINE -->
@@ -1405,20 +1416,21 @@ function renderZoneMap(pours) {
     const cx = z.x + z.w/2;
     const cy = z.y + z.h/2;
 
-    html += `<g style="cursor:pointer;opacity:${opacity};transition:opacity 0.2s ease" onclick="setSectionFilter('${activeSec===sec?'ALL':sec}')" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=${opacity}">
-      <rect x="${z.x+2}" y="${z.y+2}" width="${z.w-4}" height="${z.h-4}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="${active&&activeSec===sec?2.5:1}" style="transition:all 0.2s ease"/>`;
+    html += `<g style="cursor:pointer;opacity:${opacity};transition:opacity 0.2s ease;filter:${active&&activeSec===sec?`drop-shadow(0 0 12px ${color}88)`:'none'}" onclick="setSectionFilter('${activeSec===sec?'ALL':sec}')" onmouseenter="this.style.opacity=1;this.style.filter='drop-shadow(0 0 16px ${color}aa)'" onmouseleave="this.style.opacity=${opacity};this.style.filter='${active&&activeSec===sec?`drop-shadow(0 0 12px ${color}88)`:'none'}'">
+      <rect x="${z.x+2}" y="${z.y+2}" width="${z.w-4}" height="${z.h-4}" rx="8" fill="${fill}" stroke="${stroke}" stroke-width="${active&&activeSec===sec?3:1.5}" style="transition:all 0.2s ease"/>`;
     // Slurry area indicator — hatched strip along bottom of zone
     if (ref.slurryVol) {
-      const sh = Math.max(18, z.h * 0.2);
-      html += `<rect x="${z.x+3}" y="${z.y+z.h-sh-2}" width="${z.w-6}" height="${sh}" rx="3" fill="url(#slurryHatch)" opacity="${active?0.8:0.3}"/>
-        <text x="${z.x+z.w-10}" y="${z.y+z.h-sh+11}" text-anchor="end" font-family="JetBrains Mono,monospace" font-size="8" fill="${color}" opacity="0.5">SLURRY ${ref.slurryVol} CY</text>`;
+      const sh = Math.max(22, z.h * 0.22);
+      html += `<rect x="${z.x+3}" y="${z.y+z.h-sh-2}" width="${z.w-6}" height="${sh}" rx="3" fill="url(#slurryHatch)" opacity="${active?0.85:0.3}"/>
+        <text x="${z.x+z.w-12}" y="${z.y+z.h-sh+14}" text-anchor="end" font-family="JetBrains Mono,monospace" font-weight="600" font-size="11" fill="${color}" opacity="0.6">SLURRY ${ref.slurryVol} CY</text>`;
     }
-    html += `<text x="${cx}" y="${cy-24}" text-anchor="middle" font-family="Inter,sans-serif" font-weight="900" font-size="${z.h>150?48:36}" fill="${color}" opacity="0.06">${sec}</text>
-      <text x="${cx}" y="${cy}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-weight="700" font-size="${z.h>150?18:15}" fill="${color}">${ref.secTotal||'—'} CY</text>
-      <text x="${cx}" y="${cy+16}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="rgba(255,255,255,0.5)">8000: ${ref.cy8000||0} · 5000: ${ref.cy5000||0}</text>`;
+    // Larger ghost letter + foreground stats — zone map is now a hero element
+    html += `<text x="${cx}" y="${cy-30}" text-anchor="middle" font-family="Inter,sans-serif" font-weight="900" font-size="${z.h>150?96:72}" fill="${color}" opacity="0.10">${sec}</text>
+      <text x="${cx}" y="${cy+4}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-weight="700" font-size="${z.h>150?28:22}" fill="${color}" style="paint-order:stroke;stroke:rgba(0,0,0,0.5);stroke-width:0.5">${ref.secTotal||'—'} CY</text>
+      <text x="${cx}" y="${cy+24}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="13" fill="rgba(255,255,255,0.55)">8000: ${ref.cy8000||0} · 5000: ${ref.cy5000||0}</text>`;
     // Pour dates
     const dates = secPours.map(p => p.date ? `${p.id}: ${p.date}` : '').filter(Boolean);
-    if (dates.length) html += `<text x="${cx}" y="${cy+30}" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" fill="rgba(255,255,255,0.25)">${dates.join(' · ')}</text>`;
+    if (dates.length) html += `<text x="${cx}" y="${cy+42}" text-anchor="middle" font-family="Inter,sans-serif" font-size="11" fill="rgba(255,255,255,0.35)">${dates.join(' · ')}</text>`;
     html += `</g>`;
   }
   svg.innerHTML = html;
