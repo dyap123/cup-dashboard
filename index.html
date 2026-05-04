@@ -416,21 +416,26 @@
       border-color: rgba(0,0,0,0.1) !important;
       color: #1a1a2e;
     }
-    /* Foundation Sequences map */
+    /* ── Foundation Sequences map ───────────────────────────────────────── */
+    /* Snappier transitions everywhere — material-style ease */
     #seqOverlay polygon[data-area-id],
     #seqOverlay polygon[data-cup-area] {
       pointer-events: auto;
       cursor: pointer;
-      transition: fill-opacity 0.18s ease, stroke-width 0.18s ease, stroke-opacity 0.18s ease;
+      transition: fill-opacity 110ms cubic-bezier(.4,0,.2,1),
+                  stroke-width 110ms cubic-bezier(.4,0,.2,1),
+                  stroke-opacity 110ms cubic-bezier(.4,0,.2,1),
+                  filter 110ms cubic-bezier(.4,0,.2,1);
     }
     #seqOverlay polygon[data-area-id]:hover {
-      fill-opacity: 0.32 !important;
-      stroke-width: 1.8;
+      fill-opacity: 0.36 !important;
+      stroke-width: 2;
       stroke-opacity: 1 !important;
+      filter: drop-shadow(0 0 8px rgba(140,180,255,0.5));
     }
     #seqOverlay polygon[data-cup-area]:hover,
     #seqOverlay polygon.seq-branded:hover {
-      filter: url(#seqCupGlow) brightness(1.18) !important;
+      filter: url(#seqCupGlow) brightness(1.22) !important;
       stroke-width: 3 !important;
       stroke-opacity: 1 !important;
     }
@@ -445,6 +450,38 @@
       50%      { fill-opacity: 0.26; stroke-opacity: 1; }
     }
     #seqOverlay polygon.seq-pulse-amber { animation: seq-pulse-amber 4s ease-in-out infinite; }
+
+    /* When editing: dim non-hovered polygons so the active one stands out */
+    #seqOverlay.seq-editing polygon[data-area-id]:not(:hover) {
+      transition: fill-opacity 110ms cubic-bezier(.4,0,.2,1), stroke-opacity 110ms cubic-bezier(.4,0,.2,1);
+      fill-opacity: 0.10;
+      stroke-opacity: 0.4;
+    }
+    /* And the wrap glows amber to make "you're editing" unmissable */
+    #seqMapWrap.seq-editing-wrap {
+      border-color: rgba(245,158,11,0.45) !important;
+      box-shadow: 0 0 0 1px rgba(245,158,11,0.35), 0 0 30px rgba(245,158,11,0.18), 0 30px 60px -20px rgba(0,0,0,0.6) !important;
+      transition: box-shadow 200ms cubic-bezier(.4,0,.2,1), border-color 200ms cubic-bezier(.4,0,.2,1);
+    }
+    /* Floating EDIT MODE pill, top-right of map */
+    #seqEditPill {
+      position: absolute; top: 12px; right: 12px; z-index: 10;
+      display: none; align-items: center; gap: 6px;
+      padding: 5px 10px 5px 8px; border-radius: 999px;
+      background: rgba(245,158,11,0.16); border: 1px solid rgba(245,158,11,0.5);
+      color: #fcd34d; font-size: 10px; font-weight: 800;
+      letter-spacing: 2.5px; text-transform: uppercase;
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 0 18px rgba(245,158,11,0.25);
+      pointer-events: none; user-select: none;
+    }
+    #seqMapWrap.seq-editing-wrap #seqEditPill { display: inline-flex; }
+    #seqEditPill::before {
+      content: ''; width: 6px; height: 6px; border-radius: 50%;
+      background: #fcd34d; box-shadow: 0 0 8px #fcd34d;
+      animation: seqPillPulse 1.4s ease-in-out infinite;
+    }
+    @keyframes seqPillPulse { 0%,100% { opacity:0.5; transform:scale(0.85);} 50% { opacity:1; transform:scale(1.1);} }
     .seq-card-group { transition: box-shadow 0.4s ease, background 0.4s ease; border-radius: 8px; }
     .seq-card-group.seq-highlight {
       box-shadow: 0 0 0 2px rgba(96,165,250,0.5), 0 0 30px rgba(96,165,250,0.25);
@@ -454,33 +491,84 @@
     .seq-edit-active { background: rgba(245,158,11,0.18) !important; color: #fbbf24 !important; border-color: rgba(245,158,11,0.45) !important; }
     #seqOverlay.seq-editing polygon[data-area-id] { cursor: move; }
     #seqOverlay.seq-editing polygon[data-area-id].seq-pulse-amber { animation: none; }
+    /* Vertex handles — bigger, glowier, snappier */
     #seqOverlay .seq-vertex {
       cursor: grab;
-      transition: r 0.15s ease, fill-opacity 0.15s ease;
+      transition: r 90ms cubic-bezier(.4,0,.2,1),
+                  fill-opacity 90ms cubic-bezier(.4,0,.2,1),
+                  filter 90ms cubic-bezier(.4,0,.2,1),
+                  stroke-width 90ms cubic-bezier(.4,0,.2,1);
       pointer-events: auto;
+      filter: drop-shadow(0 0 4px rgba(59,130,246,0.5));
     }
-    #seqOverlay .seq-vertex:hover { fill-opacity: 1; r: 11; }
-    #seqOverlay .seq-vertex.seq-dragging { cursor: grabbing; }
-    #seqOverlay .seq-vertex.seq-selected { stroke: #ef4444; stroke-width: 2.5; }
+    #seqOverlay .seq-vertex:hover {
+      fill-opacity: 1; r: 16; stroke-width: 2.5;
+      filter: drop-shadow(0 0 10px rgba(99,150,255,0.95));
+    }
+    #seqOverlay .seq-vertex.seq-dragging { cursor: grabbing; r: 18; }
+    #seqOverlay .seq-vertex.seq-selected { stroke: #ef4444; stroke-width: 2.5; filter: drop-shadow(0 0 10px rgba(239,68,68,0.7)); }
     #seqOverlay .seq-vertex-x {
       cursor: pointer;
       pointer-events: auto;
+      transition: transform 90ms cubic-bezier(.4,0,.2,1);
     }
+    #seqOverlay .seq-vertex-x:hover { transform-origin: center; transform: scale(1.15); }
     #seqOverlay .seq-phase-handle, #seqOverlay .seq-label-handle {
       cursor: move;
       pointer-events: auto;
+      transition: filter 90ms cubic-bezier(.4,0,.2,1), opacity 90ms cubic-bezier(.4,0,.2,1);
+    }
+    #seqOverlay .seq-phase-handle:hover, #seqOverlay .seq-label-handle:hover {
+      filter: drop-shadow(0 0 6px rgba(255,255,255,0.6));
     }
     #seqOverlay .seq-area-trash {
       cursor: pointer;
       pointer-events: auto;
+      transition: transform 110ms cubic-bezier(.4,0,.2,1);
     }
-    #seqOverlay .seq-area-trash:hover circle { fill: rgba(239,68,68,0.4); }
+    #seqOverlay .seq-area-trash:hover { transform: scale(1.12); }
+    #seqOverlay .seq-area-trash:hover circle { fill: rgba(239,68,68,0.5); }
+    /* Slimmed edit panel */
     #seqEditPanel {
-      background: rgba(245,158,11,0.08);
-      border: 1px solid rgba(245,158,11,0.3);
+      background: rgba(245,158,11,0.06);
+      border: 1px solid rgba(245,158,11,0.25);
       color: rgba(251,191,36,0.9);
+      transition: background 150ms cubic-bezier(.4,0,.2,1), border-color 150ms cubic-bezier(.4,0,.2,1);
     }
-    #seqEditPanel button { transition: all 0.15s ease; }
+    #seqEditPanel button {
+      transition: background 110ms cubic-bezier(.4,0,.2,1),
+                  border-color 110ms cubic-bezier(.4,0,.2,1),
+                  transform 110ms cubic-bezier(.4,0,.2,1),
+                  color 110ms cubic-bezier(.4,0,.2,1);
+    }
+    #seqEditPanel button:hover { transform: translateY(-1px); }
+    #seqEditPanel button:active { transform: translateY(0); }
+    #seqHelpBtn {
+      position: relative; cursor: help;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.4);
+      color: #fcd34d; font-size: 11px; font-weight: 800;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: background 110ms cubic-bezier(.4,0,.2,1), transform 110ms cubic-bezier(.4,0,.2,1);
+    }
+    #seqHelpBtn:hover { background: rgba(251,191,36,0.25); transform: scale(1.1); }
+    #seqHelpBtn:hover #seqHelpBubble,
+    #seqHelpBtn:focus #seqHelpBubble { opacity: 1; pointer-events: auto; transform: translateY(0); }
+    #seqHelpBubble {
+      position: absolute; top: calc(100% + 8px); left: -8px;
+      width: 280px; padding: 10px 12px; border-radius: 8px;
+      background: rgba(6,6,14,0.96); border: 1px solid rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.85); font-size: 10.5px; font-weight: 500;
+      letter-spacing: 0; text-transform: none; line-height: 1.55;
+      opacity: 0; pointer-events: none; transform: translateY(-4px);
+      transition: opacity 120ms cubic-bezier(.4,0,.2,1), transform 120ms cubic-bezier(.4,0,.2,1);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.6); z-index: 20;
+    }
+    #seqHelpBubble kbd {
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 3px; padding: 1px 5px; font-size: 9.5px; font-family: 'JetBrains Mono', monospace;
+    }
   </style>
 </head>
 <body class="min-h-screen" style="position:relative">
@@ -546,8 +634,9 @@
 
 <!-- FOUNDATION SEQUENCES VIEW -->
 <div id="sequenceView" class="hidden max-w-7xl mx-auto px-4 py-5 pb-20" style="position:relative;z-index:1">
-  <div id="seqMapWrap" class="rounded-xl overflow-hidden mb-4 dot-grid" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06);height:560px;position:relative">
+  <div id="seqMapWrap" class="rounded-xl overflow-hidden mb-4 dot-grid" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06);height:min(78vh, 820px);min-height:560px;position:relative;transition:box-shadow 200ms cubic-bezier(.4,0,.2,1), border-color 200ms cubic-bezier(.4,0,.2,1)">
     <svg id="seqOverlay" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block"></svg>
+    <div id="seqEditPill">EDIT MODE</div>
   </div>
   <div id="seqToolbar" class="mb-3 flex items-center justify-between gap-3 px-3 py-2 rounded-lg flex-wrap" style="background:rgba(6,6,14,0.82);border:1px solid rgba(255,255,255,0.06)">
     <div class="flex items-center gap-2 flex-wrap">
@@ -572,8 +661,18 @@
   <div id="seqEditPanel" class="hidden mb-3 px-3 py-2 rounded-lg flex items-center justify-between gap-3 flex-wrap text-[11px]">
     <div class="flex items-center gap-2 flex-wrap">
       <span class="font-bold uppercase tracking-wider">Edit Mode</span>
-      <span class="text-white/50 hidden md:inline">Drag vertices · drag inside to move · double-click body to insert · click × to delete · drag labels</span>
-      <div id="seqColorSwatches" class="flex items-center gap-1.5 ml-1 flex-wrap"></div>
+      <span id="seqHelpBtn" tabindex="0">?
+        <span id="seqHelpBubble">
+          <div style="font-weight:700;color:#fcd34d;letter-spacing:1px;text-transform:uppercase;font-size:10px;margin-bottom:6px">Quick keys</div>
+          <div style="margin-bottom:4px">• Drag a <kbd>vertex</kbd> to reshape</div>
+          <div style="margin-bottom:4px">• Drag inside a polygon to move it</div>
+          <div style="margin-bottom:4px">• <kbd>Double-click</kbd> a polygon edge to insert a vertex</div>
+          <div style="margin-bottom:4px">• Click a vertex then <kbd>×</kbd> to delete it</div>
+          <div style="margin-bottom:4px">• Drag the label / phase pins to reposition them</div>
+          <div>• Click the <kbd>🗑</kbd> on an area to delete the whole area</div>
+        </span>
+      </span>
+      <div id="seqColorSwatches" class="flex items-center gap-1.5 ml-2 flex-wrap"></div>
     </div>
     <div class="flex items-center gap-2">
       <button onclick="showAddSequenceAreaModal()" class="font-bold px-2.5 py-1 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25 flex items-center gap-1"><span class="material-symbols-outlined" style="font-size:14px">add</span>Add Area</button>
@@ -8043,7 +8142,7 @@ function deleteTicketPage()           { Scanner.deleteCurrent(); }
 // Polygons + phase metadata come from foundation_areas.json (lifted from the
 // lacc-foundation viewer). Per-pour state persists under cup-rtdb/foundation-pours/{key}
 // where key = seq{N}-{areaId}-phase{phaseId} (e.g. seq1-a-phasea).
-const SEQ_COLORS = { 1:'#22d3ee', 2:'#a855f7', 3:'#22c55e' };
+const SEQ_COLORS = { 1:'#22d3ee', 2:'#a855f7', 3:'#22c55e', 4:'#facc15' };
 const SEQ_STATUS_COLOR = {
   COMPLETE: { fill:'#22c55e', stroke:'#15803d' },
   ORDERED:  { fill:'#f59e0b', stroke:'#b45309' },
@@ -8104,6 +8203,9 @@ function getSequenceScaffold() {
       { id:'B', label:'Area B', phases:['A','B','C'] },
       { id:'C', label:'Area C', phases:['A','B','C-N','C-S','D','E'] },
       { id:'D', label:'Area D — leave out for laydown', phases:[] },
+    ]},
+    { id:4, label:'Sequence 4 — already poured', color:SEQ_COLORS[4], areas:[
+      { id:'A', label:'Area A', phases:['A','B'] },
     ]},
   ];
 }
@@ -8516,9 +8618,9 @@ function seqDrawArea(svg, area) {
     area.polygon.forEach((v, idx) => {
       const isSelected = !!(seqSelectedVertex && seqSelectedVertex.section_id === sid && seqSelectedVertex.idx === idx);
       const handle = seqSvgEl('circle', {
-        cx: v[0], cy: v[1], r: 9,
-        fill: isSelected ? '#ef4444' : '#3b82f6', 'fill-opacity': 0.75,
-        stroke: '#fff', 'stroke-width': 1.5,
+        cx: v[0], cy: v[1], r: 12,
+        fill: isSelected ? '#ef4444' : '#3b82f6', 'fill-opacity': 0.85,
+        stroke: '#fff', 'stroke-width': 2,
         'data-vertex-section': sid, 'data-vertex-idx': idx,
       });
       handle.classList.add('seq-vertex');
@@ -8847,6 +8949,7 @@ function toggleSeqEditMode() {
   document.getElementById('seqEditBtn')?.classList.toggle('seq-edit-active', seqEditMode);
   document.getElementById('seqEditPanel')?.classList.toggle('hidden', !seqEditMode);
   document.getElementById('seqOverlay')?.classList.toggle('seq-editing', seqEditMode);
+  document.getElementById('seqMapWrap')?.classList.toggle('seq-editing-wrap', seqEditMode);
   seqSelectedVertex = null;
   // Hide any tooltip that was open in view mode
   seqHideTooltip();
@@ -8858,8 +8961,8 @@ function toggleSeqEditMode() {
 function renderSeqColorSwatches() {
   const wrap = document.getElementById('seqColorSwatches');
   if (!wrap) return;
-  const seqs = [1, 2, 3];
-  const defaults = (typeof SEQ_COLORS !== 'undefined') ? SEQ_COLORS : { 1:'#22d3ee', 2:'#a855f7', 3:'#22c55e' };
+  const seqs = [1, 2, 3, 4];
+  const defaults = (typeof SEQ_COLORS !== 'undefined') ? SEQ_COLORS : { 1:'#22d3ee', 2:'#a855f7', 3:'#22c55e', 4:'#facc15' };
   let html = `<span class="text-white/50 ml-2 mr-0.5">Colors:</span>`;
   seqs.forEach(s => {
     const cur = seqSequenceColors[s] || defaults[s] || '#22d3ee';
