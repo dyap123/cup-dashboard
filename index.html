@@ -275,9 +275,25 @@
     .pour-card input[type="date"],
     .pour-card input[type="search"],
     .pour-card select,
-    .pour-card textarea {
+    .pour-card textarea,
+    #addPourModal input[type="text"],
+    #addPourModal input[type="number"],
+    #addPourModal input[type="date"],
+    #addPourModal select,
+    #addPourModal textarea {
       background-color: rgba(20, 25, 40, 0.85) !important;
       color: #fff !important;
+    }
+    /* Modal stays dark even in light mode (its backdrop is enforced dark). */
+    #addPourModal input::placeholder { color: rgba(255,255,255,0.35) !important; }
+    #addPourModal input[type="date"] { color-scheme: dark; }
+    /* Native date-picker calendar icon — make it visible on the dark input. */
+    #addPourModal input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1) opacity(0.6);
+      cursor: pointer;
+    }
+    #addPourModal input[type="date"]::-webkit-calendar-picker-indicator:hover {
+      filter: invert(1) opacity(0.95);
     }
     body.light-mode #pourdayView input[type="text"],
     body.light-mode #pourdayView input[type="number"],
@@ -296,7 +312,8 @@
     }
     /* Webkit autofill — Safari paints its own yellow/white over the input. */
     #pourdayView input:-webkit-autofill,
-    .pour-card input:-webkit-autofill {
+    .pour-card input:-webkit-autofill,
+    #addPourModal input:-webkit-autofill {
       -webkit-box-shadow: 0 0 0 1000px rgba(20, 25, 40, 0.95) inset !important;
       -webkit-text-fill-color: #fff !important;
       caret-color: #fff;
@@ -1046,7 +1063,7 @@ function showAddPourModal() {
           <option value="C" style="background:#1a1a1a">C</option>
           <option value="D" style="background:#1a1a1a">D</option>
         </select></div>
-        <div><label class="block text-white/40 mb-1">Date (M/D)</label><input id="newPourDate" type="text" placeholder="4/21" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
+        <div><label class="block text-white/40 mb-1">Pour Date</label><input id="newPourDate" type="date" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
         <div class="grid grid-cols-3 gap-2">
           <div><label class="block text-white/40 mb-1">8000 CY</label><input id="newPour8000" type="number" step="0.5" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
           <div><label class="block text-white/40 mb-1">5000 CY</label><input id="newPour5000" type="number" step="0.5" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
@@ -1071,10 +1088,15 @@ function submitAddPour() {
   const id = document.getElementById('newPourId').value.trim().toUpperCase();
   if (!/^[A-D]-\d+[A-Z]?$/.test(id)) { alert('Pour ID must match e.g. A-5 or B-12'); return; }
   if (state.pours.find(p => p.id === id)) { alert('Pour ' + id + ' already exists'); return; }
+  // Native <input type="date"> returns YYYY-MM-DD; the rest of the app uses M/D.
+  const rawDate = document.getElementById('newPourDate').value.trim();
+  const dateMD = rawDate
+    ? rawDate.split('-').slice(1).map(n => parseInt(n, 10)).join('/')
+    : '';
   const pour = {
     id,
     section: document.getElementById('newPourSection').value,
-    date: document.getElementById('newPourDate').value.trim(),
+    date: dateMD,
     cy8000: parseFloat(document.getElementById('newPour8000').value) || 0,
     cy5000: parseFloat(document.getElementById('newPour5000').value) || 0,
     slurry: parseFloat(document.getElementById('newPourSlurry').value) || 0,
