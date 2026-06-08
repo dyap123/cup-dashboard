@@ -330,6 +330,9 @@
       color: #1a1a2e;
     }
     /* Foundation Sequences map */
+    .seqmap-btn { color: rgba(255,255,255,0.5); background: transparent; border: 1px solid transparent; transition: all .15s ease; }
+    .seqmap-btn:hover { color: rgba(255,255,255,0.8); }
+    .seqmap-btn.seqmap-on { color: #67e8f9; background: rgba(34,211,238,0.12); border-color: rgba(34,211,238,0.4); }
     #seqOverlay polygon[data-area-id] {
       pointer-events: auto;
       cursor: pointer;
@@ -418,7 +421,14 @@
 <!-- FOUNDATION SEQUENCES VIEW -->
 <div id="sequenceView" class="hidden max-w-7xl mx-auto px-4 py-5 pb-20" style="position:relative;z-index:1">
   <div id="seqMapWrap" class="rounded-xl overflow-hidden mb-4 dot-grid" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06);height:560px;position:relative">
-    <svg id="seqOverlay" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block"></svg>
+    <div id="embedPlanWrap" style="width:100%;height:100%;display:block">
+      <svg id="embedPlanOverlay" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block"></svg>
+    </div>
+    <svg id="seqOverlay" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:none"></svg>
+    <div id="seqMapToggle" class="absolute top-2.5 right-2.5 flex gap-1 p-1 rounded-lg" style="background:rgba(6,6,14,0.7);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(8px)">
+      <button id="seqMapPlanBtn" onclick="setSeqMapMode('plan')" class="seqmap-btn seqmap-on text-[10px] font-bold px-2.5 py-1 rounded">Pour plan</button>
+      <button id="seqMapAreasBtn" onclick="setSeqMapMode('areas')" class="seqmap-btn text-[10px] font-bold px-2.5 py-1 rounded">LACC areas</button>
+    </div>
   </div>
   <div id="seqToolbar" class="mb-3 flex items-center justify-between gap-3 px-3 py-2 rounded-lg flex-wrap" style="background:rgba(6,6,14,0.82);border:1px solid rgba(255,255,255,0.06)">
     <div class="flex items-center gap-2 flex-wrap">
@@ -2230,7 +2240,11 @@ function switchTab(tab) {
   if (tab === 'pourday') renderPourDay();
   if (tab === 'live') renderLive();
   if (tab === 'embeds') { loadDetailedEmbeds().then(renderEmbedsTab); }
-  if (tab === 'sequence') { renderSequenceMap().then(() => { seqRecolorAreas(); renderSequenceGroups(); }); }
+  if (tab === 'sequence') {
+    renderSequenceGroups();
+    if (seqMapMode === 'plan') { renderEmbedPlan(); }
+    else { renderSequenceMap().then(() => seqRecolorAreas()); }
+  }
 }
 
 // ── POUR DAY COMMAND CENTER ─────────────────────────────────────────────────
@@ -7652,6 +7666,8 @@ let seqAreasJson = [];
 let foundationPours = {};          // keyed by embed-tracker zone id
 let foundationMapRendered = false;
 let seqFilter = 'ALL';
+let embedGrid = null;              // embed-tracker/grid config (cols/rows/spacing)
+let seqMapMode = 'plan';          // 'plan' = EmbedYap blueprint | 'areas' = LACC polygons
 
 // embed-tracker naming: numeric sequences read "Seq N"; named ones (South Hall) as-is
 function seqLabelCup(s) { return s != null && /^\d+$/.test(String(s)) ? 'Seq ' + s : String(s == null ? '' : s); }
@@ -7688,7 +7704,99 @@ function zoneToFoundationPour(id, z) {
     archivedAt: z.archivedAt || '',
     color: z.color || '',             // 'R,G,B' for sequence color derivation
     done: !!z.done,
+    // geometry (normalized 0..1 over the EmbedYap blueprint) for the plan map
+    x: z.x, y: z.y, w: z.w, h: z.h,
+    points: Array.isArray(z.points) ? z.points : null,
   };
+}
+
+// ── EmbedYap plan map (blueprint grid + drawn pour zones) ──────────────────
+// Mirrors embed-tracker app/blueprint.jsx: a 1600×1200 SVG grid drawn from the
+// shared editable grid config (embed-tracker/grid), with Pours zones (normalized
+// 0..1) overlaid and colored by sequence.
+const EY_BP_W = 1600, EY_BP_H = 1200;
+const EY_PLAN_DEFAULT = { x0:0.085, x1:0.945, y0:0.10, y1:0.93 };
+const EY_COLS_DEFAULT = Array.from({ length:26 }, (_, i) => String.fromCharCode(65 + i));   // A..Z
+const EY_ROWS_DEFAULT = (() => { const a = []; for (let r = 33; r >= 8; r--) a.push(String(r)); return a; })();
+function eyCols() { return (embedGrid && embedGrid.cols) || EY_COLS_DEFAULT; }
+function eyRows() { return (embedGrid && embedGrid.rows) || EY_ROWS_DEFAULT; }
+function eyPlan() { return (embedGrid && embedGrid.plan) || EY_PLAN_DEFAULT; }
+function eyCumFrac(weights, n) {
+  if (n <= 1) return [0];
+  if (!weights || weights.length !== n - 1) return Array.from({ length:n }, (_, i) => i / (n - 1));
+  const tot = weights.reduce((a, b) => a + (+b || 0), 0) || 1; let acc = 0; const out = [0];
+  for (let i = 0; i < weights.length; i++) { acc += (+weights[i] || 0); out.push(acc / tot); }
+  return out;
+}
+function eyColX(i) { const c = eyCols(), pl = eyPlan(); const f = eyCumFrac(embedGrid && embedGrid.colW, c.length); return pl.x0 + (pl.x1 - pl.x0) * (f[i] != null ? f[i] : 0); }
+function eyRowY(i) { const r = eyRows(), pl = eyPlan(); const f = eyCumFrac(embedGrid && embedGrid.rowH, r.length); return pl.y0 + (pl.y1 - pl.y0) * (f[i] != null ? f[i] : 0); }
+function eyZonePts(p) {   // -> array of [x,y] in 0..1
+  if (Array.isArray(p.points) && p.points.length >= 3) return p.points;
+  const x = +p.x || 0, y = +p.y || 0, w = +p.w || 0, h = +p.h || 0;
+  return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+}
+
+function setSeqMapMode(mode) {
+  seqMapMode = mode;
+  const plan = document.getElementById('embedPlanWrap');
+  const areas = document.getElementById('seqOverlay');
+  const bp = document.getElementById('seqMapPlanBtn');
+  const ba = document.getElementById('seqMapAreasBtn');
+  if (plan) plan.style.display = mode === 'plan' ? 'block' : 'none';
+  if (areas) areas.style.display = mode === 'plan' ? 'none' : 'block';
+  if (bp) { bp.classList.toggle('seqmap-on', mode === 'plan'); }
+  if (ba) { ba.classList.toggle('seqmap-on', mode === 'areas'); }
+  if (mode === 'plan') renderEmbedPlan();
+  else { renderSequenceMap().then(() => seqRecolorAreas()); }
+}
+
+function renderEmbedPlan() {
+  const svg = document.getElementById('embedPlanOverlay');
+  if (!svg) return;
+  const W = EY_BP_W, H = EY_BP_H;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const COLS = eyCols(), ROWS = eyRows();
+  const cx = i => eyColX(i) * W, cy = i => eyRowY(i) * H;
+  const left = cx(0), right = cx(COLS.length - 1), top = cy(0), bot = cy(ROWS.length - 1);
+  const line = 'rgba(150,170,205,0.16)', lineMaj = 'rgba(150,170,205,0.30)';
+  const navyLine = 'rgba(96,140,210,0.22)', lbl = 'rgba(170,188,218,0.55)';
+  const esc = escapeHtmlSeq;
+  let s = '';
+
+  // background + footprint + structural grid (faithful-but-lean blueprint)
+  s += `<defs><radialGradient id="eybg" cx="42%" cy="36%" r="85%"><stop offset="0%" stop-color="#19222F"/><stop offset="55%" stop-color="#121925"/><stop offset="100%" stop-color="#0C111A"/></radialGradient></defs>`;
+  s += `<rect width="${W}" height="${H}" fill="url(#eybg)"/>`;
+  s += `<rect x="${left-26}" y="${top-26}" width="${(right+26)-(left-26)}" height="${(bot+26)-(top-26)}" fill="rgba(30,58,107,0.10)" stroke="${navyLine}" stroke-width="2"/>`;
+  COLS.forEach((c, i) => { s += `<line x1="${cx(i)}" y1="${top-26}" x2="${cx(i)}" y2="${bot+26}" stroke="${i%3===0?lineMaj:line}" stroke-width="${i%3===0?1.4:1}" ${i%3===0?'':'stroke-dasharray="2 7"'}/>`; });
+  ROWS.forEach((r, i) => { s += `<line x1="${left-26}" y1="${cy(i)}" x2="${right+26}" y2="${cy(i)}" stroke="${i%4===0?lineMaj:line}" stroke-width="${i%4===0?1.4:1}" ${i%4===0?'':'stroke-dasharray="2 7"'}/>`; });
+  // edge labels
+  COLS.forEach((c, i) => { if (i % 2 === 0 || i === COLS.length - 1) s += `<text x="${cx(i)}" y="${top-40}" fill="${lbl}" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">${esc(c)}</text>`; });
+  ROWS.forEach((r, i) => { if (i % 2 === 0 || i === ROWS.length - 1) s += `<text x="${left-44}" y="${cy(i)+4}" fill="${lbl}" font-size="13" font-family="'JetBrains Mono',monospace" text-anchor="middle">${esc(r)}</text>`; });
+
+  // pour zones — colored by sequence, respecting the active filter
+  const pours = Object.values(foundationPours).filter(p => p && !p.archived && (seqFilter === 'ALL' || String(seqFilter) === String(p.sequence)));
+  pours.forEach(p => {
+    const pts = eyZonePts(p);
+    const col = seqColor(p.sequence, p.color);
+    const dpts = pts.map(([x, y]) => `${(x*W).toFixed(1)},${(y*H).toFixed(1)}`).join(' ');
+    const complete = p.status === 'COMPLETE';
+    s += `<polygon points="${dpts}" fill="${col}" fill-opacity="${complete?0.30:0.16}" stroke="${col}" stroke-width="3" ${complete?'':'stroke-dasharray="9 9"'}/>`;
+  });
+  // labels (separate pass so they sit on top)
+  pours.forEach(p => {
+    const pts = eyZonePts(p);
+    const minx = Math.min(...pts.map(q => q[0])), miny = Math.min(...pts.map(q => q[1]));
+    const col = seqColor(p.sequence, p.color);
+    const text = `${seqLabelCup(p.sequence)} · ${p.area}${p.phase ? ' · Ph ' + p.phase : ''}${p.pour_date ? ' · ' + mdFromIso(p.pour_date) : ''}`;
+    const tx = (minx * W) + 4, ty = (miny * H) + 18;
+    s += `<rect x="${tx-3}" y="${ty-14}" width="${text.length*7.3+8}" height="19" rx="3" fill="${col}" fill-opacity="0.92"/>`;
+    s += `<text x="${tx+1}" y="${ty}" fill="#06140e" font-size="13" font-weight="700" font-family="'JetBrains Mono',monospace">${esc(text)}</text>`;
+  });
+
+  if (!pours.length) {
+    s += `<text x="${W/2}" y="${H/2}" fill="rgba(255,255,255,0.4)" font-size="22" font-family="'JetBrains Mono',monospace" text-anchor="middle">No pour zones drawn yet — draw them in the embed-tracker app</text>`;
+  }
+  svg.innerHTML = s;
 }
 
 function escapeHtmlSeq(s) {
@@ -7745,7 +7853,14 @@ function attachFoundationListeners() {
     if (view && !view.classList.contains('hidden')) {
       seqRecolorAreas();
       renderSequenceGroups();
+      renderEmbedPlan();
     }
+  });
+  // editable blueprint grid (cols/rows/spacing) the EmbedYap plan is drawn on
+  fbListen('embed-tracker/grid', (val) => {
+    embedGrid = (val && val.cols && val.rows) ? val : null;
+    const view = document.getElementById('sequenceView');
+    if (view && !view.classList.contains('hidden')) renderEmbedPlan();
   });
 }
 
