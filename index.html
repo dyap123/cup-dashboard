@@ -7845,7 +7845,8 @@ function attachFoundationListeners() {
     const mapped = {};
     Object.keys(all).forEach(id => {
       const z = all[id];
-      if (!z || z.layer !== 'Pours' || !z.pour || !z.area) return;
+      // pour layer in embed-tracker (legacy 'Pours'/'WCG' folded into 'WCG Pours')
+      if (!z || !(z.layer === 'Pours' || z.layer === 'WCG' || z.layer === 'WCG Pours') || !z.pour || !z.area) return;
       mapped[id] = zoneToFoundationPour(id, z);
     });
     foundationPours = mapped;
