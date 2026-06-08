@@ -3942,14 +3942,37 @@ function getTodaysPours() {
   return state.pours.filter(p => p.date === todayStr);
 }
 
+// map a sequence pour (embed-tracker zone) into the Pour Day pour shape
+function seqPourToPourDay(p) {
+  const cy = +p.cy || 0;
+  return {
+    id: p.id, section: String(p.area || '').toUpperCase(), date: mdFromIso(p.pour_date || ''),
+    cy8000: 0, cy5000: 0, slurry: 0, total: cy, trucks: Math.ceil(cy / 9),
+    type: 'Structural', label: p.name || '', name: p.name || '', status: p.status,
+    sequence: p.sequence, phase: p.phase, isSequence: true,
+  };
+}
+// Pour Day works off both the legacy order pours and the new sequence pours
+function pourDayPours() {
+  const seq = Object.values(foundationPours || {}).filter(p => p && !p.archived).map(seqPourToPourDay);
+  return (state.pours || []).concat(seq);
+}
+// friendly pill/header label (legacy pours keep their id; sequence pours show name/seq·area)
+function pourDayLabel(p) {
+  if (!p) return '';
+  if (p.isSequence) return p.name || (seqLabelCup(p.sequence) + '·' + (p.section || '?'));
+  return p.id;
+}
+
 function getActivePour() {
-  if (pourDay.activePourId) return state.pours.find(p => p.id === pourDay.activePourId);
+  const pours = pourDayPours();
+  if (pourDay.activePourId) { const f = pours.find(p => p.id === pourDay.activePourId); if (f) return f; }
   const todays = getTodaysPours();
   if (todays.length) return todays[0];
-  // Fall back to next upcoming
-  const upcoming = state.pours.filter(p => p.date && parseDateMD(p.date)).sort((a,b) => dateSortVal(a.date) - dateSortVal(b.date));
+  // Fall back to next upcoming (across legacy + sequence pours)
+  const upcoming = pours.filter(p => p.date && parseDateMD(p.date)).sort((a,b) => dateSortVal(a.date) - dateSortVal(b.date));
   const now = new Date(); now.setHours(0,0,0,0);
-  return upcoming.find(p => { const pd = parseDateMD(p.date); return pd && new Date(2026,pd[0]-1,pd[1])>=now; }) || upcoming[0];
+  return upcoming.find(p => { const pd = parseDateMD(p.date); return pd && new Date(2026,pd[0]-1,pd[1])>=now; }) || upcoming[0] || pours[0];
 }
 
 function selectPourDay(pourId) {
@@ -4969,11 +4992,10 @@ function renderPourDay() {
   const pct = ordered > 0 ? Math.min(100, Math.round(delivered / ordered * 100)) : 0;
   let h = '';
 
-  // Pour selector — grouped by date, chronological
-  const allPours = state.pours.filter(p => p.date);
+  // Pour selector — grouped by date, chronological (legacy + sequence pours)
   const datedGroups = {};
   const undatedPours = [];
-  state.pours.forEach(p => {
+  pourDayPours().forEach(p => {
     if (p.date) {
       (datedGroups[p.date] = datedGroups[p.date] || []).push(p);
     } else {
@@ -4992,7 +5014,7 @@ function renderPourDay() {
       const pc = SEC_COLORS[p.section] || '#888';
       const active = p.id === pour.id;
       const tag = p.userAdded ? ' <span class="text-amber-400/70">+</span>' : '';
-      h += '<button onclick="selectPourDay(\'' + p.id + '\')" class="w-full px-2 py-1 rounded text-[10px] mono font-bold transition-all ' + (active?'text-white':'text-white/40 hover:text-white/70') + '" style="' + (active?'background:'+pc+'33;border:1px solid '+pc+'55':'background:'+pc+'10;border:1px solid '+pc+'22') + '">' + p.id + tag + '</button>';
+      h += '<button onclick="selectPourDay(\'' + p.id + '\')" class="w-full px-2 py-1 rounded text-[10px] mono font-bold transition-all ' + (active?'text-white':'text-white/40 hover:text-white/70') + '" style="' + (active?'background:'+pc+'33;border:1px solid '+pc+'55':'background:'+pc+'10;border:1px solid '+pc+'22') + '">' + escapeHtmlSeq(pourDayLabel(p)) + tag + '</button>';
     });
     h += '</div></div>';
   });
@@ -5004,7 +5026,7 @@ function renderPourDay() {
       const pc = SEC_COLORS[p.section] || '#888';
       const active = p.id === pour.id;
       const tag = p.userAdded ? ' <span class="text-amber-400/70">+</span>' : '';
-      h += '<button onclick="selectPourDay(\'' + p.id + '\')" class="w-full px-2 py-1 rounded text-[10px] mono font-bold transition-all ' + (active?'text-white':'text-white/30 hover:text-white/60') + '" style="' + (active?'background:'+pc+'33;border:1px solid '+pc+'55':'background:'+pc+'10;border:1px solid '+pc+'22') + '">' + p.id + tag + '</button>';
+      h += '<button onclick="selectPourDay(\'' + p.id + '\')" class="w-full px-2 py-1 rounded text-[10px] mono font-bold transition-all ' + (active?'text-white':'text-white/30 hover:text-white/60') + '" style="' + (active?'background:'+pc+'33;border:1px solid '+pc+'55':'background:'+pc+'10;border:1px solid '+pc+'22') + '">' + escapeHtmlSeq(pourDayLabel(p)) + tag + '</button>';
     });
     h += '</div></div>';
   }
@@ -5017,8 +5039,8 @@ function renderPourDay() {
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-lg flex items-center justify-center text-xl font-black" style="background:${c}22;color:${c}">${pour.section}</div>
       <div class="flex-1">
-        <div class="text-base font-bold text-white">${pour.id} — ${typeDesc}</div>
-        <div class="text-xs text-white/40 mono">${pour.date} · ${ordered} CY ordered · ${expectedTrucks} trucks expected</div>
+        <div class="text-base font-bold text-white">${escapeHtmlSeq(pourDayLabel(pour))} — ${typeDesc}</div>
+        <div class="text-xs text-white/40 mono">${pour.date || 'no date'} · ${ordered} CY ordered · ${expectedTrucks} trucks expected</div>
       </div>
       <div class="flex flex-col items-end gap-1">
         <span class="text-[8px] font-bold text-white/30 uppercase tracking-wider">Area</span>
@@ -7999,6 +8021,9 @@ function attachFoundationListeners() {
       renderSequenceGroups();
       renderEmbedPlan();
     }
+    // keep Pour Day in sync (it now also lists the sequence pours)
+    const pdView = document.getElementById('pourdayView');
+    if (pdView && !pdView.classList.contains('hidden') && !mapEditMode && !isPourDayBusy()) renderPourDay();
   });
   // editable blueprint grid (cols/rows/spacing) the EmbedYap plan is drawn on
   fbListen('embed-tracker/grid', (val) => {
