@@ -381,13 +381,18 @@
 <!-- TAB BAR + FILTER BAR -->
 <div class="sticky top-14 z-40 border-b" style="border-color:rgba(50,80,130,0.06);background:rgba(6,8,16,0.85);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%)">
   <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 overflow-x-auto no-scroll">
-    <div class="flex gap-1 shrink-0 mr-2">
-      <button onclick="switchTab('dashboard')" id="tabDash" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white">Dashboard</button>
-      <button onclick="switchTab('pourday')" id="tabPour" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Pour Day</button>
+    <div class="flex gap-1 shrink-0 mr-2 items-center">
+      <button onclick="switchTab('sequence')" id="tabSeq" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white">Sequences</button>
       <button onclick="switchTab('live')" id="tabLive" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Live Pour</button>
-      <button onclick="switchTab('checklist')" id="tabCheck" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Checklist</button>
       <button onclick="switchTab('embeds')" id="tabEmbeds" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Embeds</button>
-      <button onclick="switchTab('sequence')" id="tabSeq" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Sequences</button>
+      <div class="relative">
+        <button onclick="toggleLegacyMenu(event)" id="tabLegacy" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60 flex items-center gap-1">Legacy <span class="material-symbols-outlined" style="font-size:14px">expand_more</span></button>
+        <div id="legacyMenu" class="hidden absolute left-0 mt-1 z-50 rounded-lg overflow-hidden" style="background:rgba(12,14,22,0.98);border:1px solid rgba(255,255,255,0.1);min-width:130px;box-shadow:0 10px 30px -10px rgba(0,0,0,0.8)">
+          <button onclick="switchTab('dashboard'); closeLegacyMenu()" id="tabDash" class="block w-full text-left px-3 py-2 text-xs font-bold text-white/70 hover:bg-white/10">Dashboard</button>
+          <button onclick="switchTab('pourday'); closeLegacyMenu()" id="tabPour" class="block w-full text-left px-3 py-2 text-xs font-bold text-white/70 hover:bg-white/10">Pour Day</button>
+          <button onclick="switchTab('checklist'); closeLegacyMenu()" id="tabCheck" class="block w-full text-left px-3 py-2 text-xs font-bold text-white/70 hover:bg-white/10">Checklist</button>
+        </div>
+      </div>
       <span id="managerBadge" class="hidden text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full text-blue-400/70" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2)">Read Only</span>
     </div>
     <div id="sectionFilters" class="flex gap-1.5 shrink-0">
@@ -424,11 +429,7 @@
     <div id="embedPlanWrap" style="width:100%;height:100%;display:block">
       <svg id="embedPlanOverlay" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block"></svg>
     </div>
-    <svg id="seqOverlay" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:none"></svg>
-    <div id="seqMapToggle" class="absolute top-2.5 right-2.5 flex gap-1 p-1 rounded-lg" style="background:rgba(6,6,14,0.7);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(8px)">
-      <button id="seqMapPlanBtn" onclick="setSeqMapMode('plan')" class="seqmap-btn seqmap-on text-[10px] font-bold px-2.5 py-1 rounded">Pour plan</button>
-      <button id="seqMapAreasBtn" onclick="setSeqMapMode('areas')" class="seqmap-btn text-[10px] font-bold px-2.5 py-1 rounded">LACC areas</button>
-    </div>
+    <span class="absolute top-2.5 right-3 text-[10px] font-bold tracking-widest uppercase text-white/30 pointer-events-none">Pour plan</span>
   </div>
   <div id="seqToolbar" class="mb-3 flex items-center justify-between gap-3 px-3 py-2 rounded-lg flex-wrap" style="background:rgba(6,6,14,0.82);border:1px solid rgba(255,255,255,0.06)">
     <div class="flex items-center gap-2 flex-wrap">
@@ -440,10 +441,10 @@
         <input type="checkbox" id="seqShowArchived" onchange="renderSequenceGroups()" class="accent-cyan-500">
         <span>Show archived</span>
       </label>
-      <a href="https://dyap123.github.io/embed-tracker/" target="_blank" rel="noopener" id="seqAddBtn" style="touch-action:manipulation" class="text-xs font-bold px-4 py-2 rounded-lg bg-cyan-500/10 text-cyan-300/90 border border-cyan-500/30 hover:bg-cyan-500/20 flex items-center gap-1.5" title="Pours are created in the embed-tracker app (draw a Pours-layer zone)">
-        <span class="material-symbols-outlined text-base">open_in_new</span>
-        <span>Add in embed-tracker</span>
-      </a>
+      <button onclick="showAddFoundationPourModal()" id="seqAddBtn" style="touch-action:manipulation" class="text-xs font-bold px-4 py-2 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 flex items-center gap-1.5" title="Create a pour (name + date); draw its box later in the embed-tracker app">
+        <span class="material-symbols-outlined text-base">add_circle</span>
+        <span>Add pour</span>
+      </button>
     </div>
   </div>
   <div id="seqGroups" class="space-y-4"></div>
@@ -1860,6 +1861,9 @@ async function init() {
       try { renderLive(); } catch (err) { console.error('renderLive error:', err); }
     } else if (viewParam === 'live') {
       try { switchTab('live'); } catch (err) { console.error('switchTab live error:', err); }
+    } else {
+      // default landing → Sequences (Dashboard/Pour Day/Checklist moved to Legacy ▾)
+      try { switchTab('sequence'); } catch (err) { console.error('switchTab sequence error:', err); }
     }
 
     try { render(); } catch (err) { console.error('render error:', err); }
@@ -2213,20 +2217,28 @@ function renderChecklist() {
   el.innerHTML = html;
 }
 
+function toggleLegacyMenu(e) { if (e) e.stopPropagation(); document.getElementById('legacyMenu')?.classList.toggle('hidden'); }
+function closeLegacyMenu() { document.getElementById('legacyMenu')?.classList.add('hidden'); }
+document.addEventListener('click', () => closeLegacyMenu());
+
 function switchTab(tab) {
   // Manager can see dashboard + live, and pourday if any pour is COMPLETE
   if (isManagerView && tab === 'checklist') return;
   if (isManagerView && tab === 'pourday' && !state.pours.some(p => getPourStatus(p.id) === 'COMPLETE')) return;
   const views = { dashboard:'dashboardView', checklist:'checklistView', pourday:'pourdayView', live:'liveView', embeds:'embedsView', sequence:'sequenceView' };
-  const tabs = { dashboard:'tabDash', checklist:'tabCheck', pourday:'tabPour', live:'tabLive', embeds:'tabEmbeds', sequence:'tabSeq' };
+  const topTabs = { live:'tabLive', embeds:'tabEmbeds', sequence:'tabSeq' };   // dashboard/pourday/checklist live in Legacy ▾
   const active = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white';
   const inactive = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60';
+  const legacyActive = active + ' flex items-center gap-1';
+  const legacyInactive = inactive + ' flex items-center gap-1';
+  const isLegacy = (tab === 'dashboard' || tab === 'pourday' || tab === 'checklist');
 
   Object.values(views).forEach(id => document.getElementById(id)?.classList.add('hidden'));
-  Object.values(tabs).forEach(id => { const el = document.getElementById(id); if (el) el.className = inactive; });
+  Object.values(topTabs).forEach(id => { const el = document.getElementById(id); if (el) el.className = inactive; });
+  const legEl = document.getElementById('tabLegacy'); if (legEl) legEl.className = isLegacy ? legacyActive : legacyInactive;
 
   document.getElementById(views[tab])?.classList.remove('hidden');
-  const tabEl = document.getElementById(tabs[tab]); if (tabEl) tabEl.className = active;
+  if (!isLegacy) { const tabEl = document.getElementById(topTabs[tab]); if (tabEl) tabEl.className = active; }
   document.getElementById('footer')?.classList.toggle('hidden', tab !== 'dashboard');
 
   // Show/hide dashboard-only filters
@@ -2242,8 +2254,7 @@ function switchTab(tab) {
   if (tab === 'embeds') { loadDetailedEmbeds().then(renderEmbedsTab); }
   if (tab === 'sequence') {
     renderSequenceGroups();
-    if (seqMapMode === 'plan') { renderEmbedPlan(); }
-    else { renderSequenceMap().then(() => seqRecolorAreas()); }
+    renderEmbedPlan();
   }
 }
 
@@ -7691,6 +7702,9 @@ function zoneToFoundationPour(id, z) {
   const mix = z.mix || {};
   return {
     id,
+    name: z.name || '',               // pour name (set in CUP or embed-tracker)
+    checklist: Array.isArray(z.checklist) ? z.checklist : null,
+    placed: (Array.isArray(z.points) && z.points.length >= 3) || (+z.w > 0 && +z.h > 0),
     sequence: z.pour,                 // '1'..'4' | 'South Hall' (STRING)
     area: z.area,                     // 'A'-'D'
     phase: z.phase || '',             // '1'-'4'
@@ -7773,8 +7787,10 @@ function renderEmbedPlan() {
   COLS.forEach((c, i) => { if (i % 2 === 0 || i === COLS.length - 1) s += `<text x="${cx(i)}" y="${top-40}" fill="${lbl}" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">${esc(c)}</text>`; });
   ROWS.forEach((r, i) => { if (i % 2 === 0 || i === ROWS.length - 1) s += `<text x="${left-44}" y="${cy(i)+4}" fill="${lbl}" font-size="13" font-family="'JetBrains Mono',monospace" text-anchor="middle">${esc(r)}</text>`; });
 
-  // pour zones — colored by sequence, respecting the active filter
-  const pours = Object.values(foundationPours).filter(p => p && !p.archived && (seqFilter === 'ALL' || String(seqFilter) === String(p.sequence)));
+  // pour zones — colored by sequence, respecting the active filter.
+  // Skip pours with no box yet (created in CUP, not placed in the embed-tracker).
+  const ehasGeom = (p) => (Array.isArray(p.points) && p.points.length >= 3) || (+p.w > 0 && +p.h > 0);
+  const pours = Object.values(foundationPours).filter(p => p && !p.archived && ehasGeom(p) && (seqFilter === 'ALL' || String(seqFilter) === String(p.sequence)));
   pours.forEach(p => {
     const pts = eyZonePts(p);
     const col = seqColor(p.sequence, p.color);
@@ -8183,6 +8199,21 @@ function renderSequenceGroups() {
   }
 }
 
+const PREPOUR_DEFAULTS = ['Bill Carr Surveyors', 'Temperature sensors installed', 'ACC pre-pour checklist'];
+function pourChecklistItems(pour) {
+  return (pour && Array.isArray(pour.checklist) && pour.checklist.length) ? pour.checklist : PREPOUR_DEFAULTS.map(t => ({ text: t, done: false }));
+}
+function toggleFoundationChecklist(key, idx) {
+  if (isManagerView) return;
+  const pour = foundationPours[key]; if (!pour) return;
+  const items = pourChecklistItems(pour).map((it, i) => i === idx ? Object.assign({}, it, { done: !it.done }) : it);
+  pour.checklist = items;
+  foundationPours = Object.assign({}, foundationPours, { [key]: pour });
+  fbSet('embed-tracker/zones/' + key + '/checklist', items);
+  fbSet('embed-tracker/zones/' + key + '/updatedAt', new Date().toISOString());
+  renderSequenceGroups();
+}
+
 function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   const c = seq.color || '#94a3b8';
   const status = (pour && pour.status) || 'PENDING';
@@ -8200,6 +8231,8 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   const agg = mix.aggregate || '';
   const slump = mix.slump || '';
   const lc3 = !!mix.lc3;
+  const pourName = (pour && pour.name) ? pour.name : '';
+  const placed = !!(pour && pour.placed);
 
   const borderClass = isComplete ? 'border-blue-500/30' : isOrdered ? 'border-green-500/30' : '';
   const escapedKey = key.replace(/'/g, "\\'");
@@ -8211,7 +8244,9 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   html += `<div class="flex items-center justify-between mb-2.5 gap-2">`;
   html += `<div class="flex items-center gap-1.5 min-w-0 flex-wrap">`;
   html += `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style="background:${c}22;color:${c}">${escapeHtmlSeq(seqLabelCup(seq.id))}·${escapeHtmlSeq(area.id)}</span>`;
-  html += `<span class="mono font-bold text-xs text-white/90 shrink-0">${escapeHtmlSeq(phaseLabel)}</span>`;
+  if (pourName) html += `<span class="font-bold text-xs text-white/90 truncate">${escapeHtmlSeq(pourName)}</span>`;
+  else html += `<span class="mono font-bold text-xs text-white/90 shrink-0">${escapeHtmlSeq(phaseLabel)}</span>`;
+  if (!placed) html += `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0" style="background:rgba(245,158,11,0.12);color:#fbbf24;border:1px solid rgba(245,158,11,0.3)" title="Draw its box in the embed-tracker app to place it">UNPLACED</span>`;
   if (label) html += `<span class="text-[10px] text-white/40 italic truncate">${escapeHtmlSeq(label)}</span>`;
   html += `</div>`;
   html += `<div class="flex items-center gap-1.5 shrink-0">`;
@@ -8240,17 +8275,17 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
     const aggOpts = ['','3/8"','1/2"','3/4"','1"','1-1/2"'];
     html += `<div class="grid grid-cols-2 gap-1.5 mb-2 text-[10px] px-1">`;
     html += `<label class="flex justify-between items-center gap-1"><span class="text-white/40 shrink-0">PSI</span>`;
-    html += `<select onchange="updateFoundationPourField('','mix.psi',this.value)" class="mono rounded text-right outline-none text-white/80 px-1" style="background:rgba(20,25,40,0.85);font-size:10px;border:1px solid rgba(255,255,255,0.06)">`;
+    html += `<select onchange="updateFoundationPourField('${escapedKey}','mix.psi',this.value)" class="mono rounded text-right outline-none text-white/80 px-1" style="background:rgba(20,25,40,0.85);font-size:10px;border:1px solid rgba(255,255,255,0.06)">`;
     html += psiOpts.map(v => `<option value="${v}" style="background:#1a1a1a"${String(psi)===v?' selected':''}>${v||'—'}</option>`).join('');
     html += `</select></label>`;
     html += `<label class="flex justify-between items-center gap-1"><span class="text-white/40 shrink-0">Slump</span>`;
-    html += `<input type="text" placeholder="—" value="${escapeHtmlSeq(slump)}" onblur="updateFoundationPourField('','mix.slump',this.value)" class="mono bg-transparent border border-transparent hover:border-white/20 focus:border-white/40 focus:bg-white/5 rounded text-right w-12 px-1 outline-none text-white/80" style="font-size:10px"></label>`;
+    html += `<input type="text" placeholder="—" value="${escapeHtmlSeq(slump)}" onblur="updateFoundationPourField('${escapedKey}','mix.slump',this.value)" class="mono bg-transparent border border-transparent hover:border-white/20 focus:border-white/40 focus:bg-white/5 rounded text-right w-12 px-1 outline-none text-white/80" style="font-size:10px"></label>`;
     html += `<label class="flex justify-between items-center gap-1"><span class="text-white/40 shrink-0">Agg</span>`;
-    html += `<select onchange="updateFoundationPourField('','mix.aggregate',this.value)" class="mono rounded text-right outline-none text-white/80 px-1" style="background:rgba(20,25,40,0.85);font-size:10px;border:1px solid rgba(255,255,255,0.06)">`;
+    html += `<select onchange="updateFoundationPourField('${escapedKey}','mix.aggregate',this.value)" class="mono rounded text-right outline-none text-white/80 px-1" style="background:rgba(20,25,40,0.85);font-size:10px;border:1px solid rgba(255,255,255,0.06)">`;
     html += aggOpts.map(v => `<option value="${v}" style="background:#1a1a1a"${agg===v?' selected':''}>${v||'—'}</option>`).join('');
     html += `</select></label>`;
     html += `<label class="flex justify-between items-center gap-1 cursor-pointer"><span class="text-white/40 shrink-0">LC3</span>`;
-    html += `<input type="checkbox" ${lc3?'checked':''} onchange="updateFoundationPourField('','mix.lc3',this.checked)" class="accent-cyan-500"></label>`;
+    html += `<input type="checkbox" ${lc3?'checked':''} onchange="updateFoundationPourField('${escapedKey}','mix.lc3',this.checked)" class="accent-cyan-500"></label>`;
     html += `</div>`;
   }
 
@@ -8260,7 +8295,7 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   } else {
     html += `<div class="flex items-center justify-between mb-2 px-1"><span class="text-[10px] text-white/40">Volume</span>`;
     html += `<span class="inline-flex items-center gap-0.5 mono text-sm font-bold" style="color:#34D399">`;
-    html += `<input type="number" min="0" step="1" value="${cy}" onfocus="this.select()" onblur="updateFoundationPourField('','cy',+this.value||0)" class="mix-cy-input bg-transparent border border-transparent hover:border-white/20 focus:border-white/40 focus:bg-white/5 rounded text-right w-14 px-1 outline-none mono" style="-moz-appearance:textfield;color:#34D399;font-size:14px;font-weight:700">`;
+    html += `<input type="number" min="0" step="1" value="${cy}" onfocus="this.select()" onblur="updateFoundationPourField('${escapedKey}','cy',+this.value||0)" class="mix-cy-input bg-transparent border border-transparent hover:border-white/20 focus:border-white/40 focus:bg-white/5 rounded text-right w-14 px-1 outline-none mono" style="-moz-appearance:textfield;color:#34D399;font-size:14px;font-weight:700">`;
     html += `<span class="text-white/40 font-normal text-[10px]">CY</span></span></div>`;
   }
   // Volume bar — relative to 250 CY (typical foundation pour size); ceiling at 100%
@@ -8271,8 +8306,18 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   if (isManagerView) {
     if (notes) html += `<div class="text-[10px] text-white/50 italic mb-2 px-1">${escapeHtmlSeq(notes)}</div>`;
   } else {
-    html += `<input type="text" placeholder="+ note" value="${escapeHtmlSeq(notes)}" onblur="updateFoundationPourField('','notes',this.value)" class="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-white/30 focus:bg-white/5 rounded px-1.5 py-0.5 text-[10px] text-white/60 mb-2 outline-none">`;
+    html += `<input type="text" placeholder="+ note" value="${escapeHtmlSeq(notes)}" onblur="updateFoundationPourField('${escapedKey}','notes',this.value)" class="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-white/30 focus:bg-white/5 rounded px-1.5 py-0.5 text-[10px] text-white/60 mb-2 outline-none">`;
   }
+
+  // Pre-pour checklist (the pour-day function on each sequence pour)
+  const clItems = pourChecklistItems(pour);
+  const clDone = clItems.filter(i => i.done).length;
+  html += `<div class="mb-2 pt-2 border-t border-white/5">`;
+  html += `<div class="flex items-center justify-between mb-1"><span class="text-[9px] font-bold uppercase tracking-widest text-white/40">Pre-pour</span><span class="text-[10px] mono ${clDone===clItems.length&&clItems.length?'text-green-400':'text-white/40'}">${clDone}/${clItems.length}</span></div>`;
+  clItems.forEach((it, i) => {
+    html += `<label class="flex items-center gap-2 py-0.5 ${isManagerView?'':'cursor-pointer'}"><input type="checkbox" ${it.done?'checked':''} ${isManagerView?'disabled':''} onchange="toggleFoundationChecklist('${escapedKey}',${i})" class="accent-cyan-500 shrink-0"><span class="text-[10px] ${it.done?'text-white/40 line-through':'text-white/70'}">${escapeHtmlSeq(it.text)}</span></label>`;
+  });
+  html += `</div>`;
 
   // Footer
   html += `<div class="flex items-center justify-between pt-2 border-t border-white/5">`;
@@ -8348,11 +8393,78 @@ function unarchiveFoundationPour(key) {
 }
 
 // ── ADD POUR MODAL ────────────────────────────────────────────────────────
-// Pours are created in the embed-tracker app (draw a 'Pours'-layer zone), so the
-// old CUP "Add Foundation Pour" modal is retired. Keep a stub that points there
-// in case any legacy handler still calls it.
+// Creates a pour (name + date + seq/area/phase + CY + mix) as a geometry-less
+// embed-tracker zone. You give it a location later by drawing its box in the
+// embed-tracker app and selecting it.
 function showAddFoundationPourModal() {
-  window.open('https://dyap123.github.io/embed-tracker/', '_blank', 'noopener');
+  if (isManagerView) return;
+  document.getElementById('addFoundationPourModal')?.remove();
+  const seqOpts = ['1','2','3','4','South Hall','CUP'];
+  const areaOpts = ['A','B','C','D'];
+  const phaseOpts = ['1','2','3','4'];
+  const psiOpts = ['','3000','4000','5000','6000','8000'];
+  const aggOpts = ['','3/8"','1/2"','3/4"','1"','1-1/2"'];
+  const sel = (id,opts) => `<select id="${id}" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white">${opts.map(v=>`<option value="${v}" style="background:#1a1a1a">${v||'—'}</option>`).join('')}</select>`;
+  const modal = document.createElement('div');
+  modal.id = 'addFoundationPourModal';
+  modal.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4';
+  modal.style.cssText = 'background:rgba(0,0,0,0.75);backdrop-filter:blur(8px)';
+  modal.innerHTML = `
+    <div class="rounded-xl p-5 w-full max-w-md max-h-[90vh] overflow-y-auto" style="background:rgba(10,12,20,0.98);border:1px solid rgba(255,255,255,0.1)">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-bold text-white/90">Add Pour</h3>
+        <button onclick="document.getElementById('addFoundationPourModal').remove()" class="text-white/40 hover:text-white text-xl leading-none">&times;</button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <div><label class="block text-white/40 mb-1">Pour name</label><input id="afpName" type="text" placeholder="e.g. South footing pour 1" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white"></div>
+        <div class="grid grid-cols-2 gap-2">
+          <div><label class="block text-white/40 mb-1">Pour date</label><input id="afpDate" type="date" style="color-scheme:dark" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white"></div>
+          <div><label class="block text-white/40 mb-1">Volume (CY)</label><input id="afpCy" type="number" step="1" placeholder="150" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div><label class="block text-white/40 mb-1">Sequence</label>${sel('afpSeq',seqOpts)}</div>
+          <div><label class="block text-white/40 mb-1">Area</label>${sel('afpArea',areaOpts)}</div>
+          <div><label class="block text-white/40 mb-1">Phase</label>${sel('afpPhase',phaseOpts)}</div>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div><label class="block text-white/40 mb-1">PSI</label>${sel('afpPsi',psiOpts)}</div>
+          <div><label class="block text-white/40 mb-1">Aggregate</label>${sel('afpAgg',aggOpts)}</div>
+          <div><label class="block text-white/40 mb-1">Slump</label><input id="afpSlump" type="text" placeholder="5" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
+        </div>
+        <label class="flex items-center gap-2 text-white/60 cursor-pointer"><input type="checkbox" id="afpLc3" class="accent-cyan-500"> <span>LC3 mix</span></label>
+        <p class="text-[10px] text-white/30 leading-relaxed">This pour appears in the embed-tracker right away. Give it a location by drawing its box there and selecting it.</p>
+      </div>
+      <div class="flex gap-2 mt-5">
+        <button onclick="document.getElementById('addFoundationPourModal').remove()" class="flex-1 py-2 rounded bg-white/5 text-white/60 text-xs font-bold hover:bg-white/10">Cancel</button>
+        <button onclick="submitAddFoundationPour()" class="flex-1 py-2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-bold hover:bg-cyan-500/30">Add Pour</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  setTimeout(()=>document.getElementById('afpName')?.focus(), 50);
+}
+
+function submitAddFoundationPour() {
+  const val = id => (document.getElementById(id)?.value || '').trim();
+  const name = val('afpName');
+  if (!name) { alert('Enter a pour name.'); return; }
+  const id = 'Z' + Math.random().toString(36).slice(2, 9);
+  const pour = {
+    name,
+    date: val('afpDate'),                 // 'YYYY-MM-DD'
+    pour: val('afpSeq') || '1',           // sequence
+    area: val('afpArea') || 'A',
+    phase: val('afpPhase') || '1',
+    cy: parseFloat(val('afpCy')) || 0,
+    mix: { psi: val('afpPsi'), aggregate: val('afpAgg'), slump: val('afpSlump'), lc3: !!document.getElementById('afpLc3')?.checked },
+    status: 'PENDING',
+    layer: 'WCG Pours',
+    createdAt: new Date().toISOString(),
+  };
+  fbSet('embed-tracker/zones/' + id, pour);
+  // optimistic: show immediately
+  foundationPours = Object.assign({}, foundationPours, { [id]: zoneToFoundationPour(id, pour) });
+  document.getElementById('addFoundationPourModal')?.remove();
+  renderSequenceGroups();
 }
 </script>
 </body>
