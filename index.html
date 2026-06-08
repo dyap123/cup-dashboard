@@ -2763,6 +2763,22 @@ const MIX_DESIGNS = {
   'S80S662L2': { code:'S80S662L2', psi:0, maxAgg:'3/8"', slump:'10"', lc3:false, label:'Slurry Backfill (8sk)' },
 };
 let mixDesignsLive = {};   // shared library from Firebase `mix-designs`
+// nicer value formatting for mix designs
+function fmtPsi(psi) { const n = parseInt(psi, 10); return (!n || n <= 0) ? 'Slurry' : (n.toLocaleString() + ' PSI'); }
+function mixSummary(d) {
+  if (!d) return '';
+  const parts = [fmtPsi(d.psi)];
+  if (d.maxAgg) parts.push(d.maxAgg + ' agg');
+  if (d.slump) parts.push(d.slump + ' slump');
+  if (d.lc3) parts.push('LC3');
+  return parts.join('  ·  ');
+}
+// resolve a pour's applied mix-design codes (falls back to a single legacy mix.code)
+function pourMixCodes(pour) {
+  if (pour && Array.isArray(pour.mixCodes)) return pour.mixCodes.filter(Boolean);
+  if (pour && pour.mix && pour.mix.code) return [pour.mix.code];
+  return [];
+}
 function getMixDesigns() {
   let local = {};
   const saved = localStorage.getItem('cup_mix_designs');
@@ -2805,20 +2821,15 @@ function renderMixDesigns() {
     const code = String(d.code || '');
     const ek = code.replace(/'/g, "\\'");
     return `<div class="rounded-xl p-3" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06);border-left:3px solid #38bdf8">
-      <div class="flex items-center justify-between gap-2 mb-1.5">
-        <span class="font-bold text-xs text-white/90 truncate">${escapeHtmlSeq(d.label || code || '—')}</span>
+      <div class="flex items-center justify-between gap-2 mb-1">
+        <span class="font-bold text-sm text-white/90 truncate">${escapeHtmlSeq(d.label || code || '—')}</span>
         ${!isManagerView ? `<div class="flex items-center gap-1 shrink-0">
           <button onclick="showMixDesignModal('${ek}')" class="text-white/40 hover:text-white" title="Edit"><span class="material-symbols-outlined" style="font-size:15px">edit</span></button>
           <button onclick="deleteMixDesign('${ek}')" class="text-red-400/60 hover:text-red-300" title="Delete"><span class="material-symbols-outlined" style="font-size:15px">delete</span></button>
         </div>` : ''}
       </div>
-      <div class="mono text-[10px] text-cyan-300/80 mb-2">${escapeHtmlSeq(code)}</div>
-      <div class="grid grid-cols-2 gap-1 text-[10px]">
-        <div class="flex justify-between"><span class="text-white/40">PSI</span><span class="mono text-white/80">${escapeHtmlSeq(String(d.psi||'—'))}</span></div>
-        <div class="flex justify-between"><span class="text-white/40">Agg</span><span class="mono text-white/80">${escapeHtmlSeq(d.maxAgg||'—')}</span></div>
-        <div class="flex justify-between"><span class="text-white/40">Slump</span><span class="mono text-white/80">${escapeHtmlSeq(d.slump||'—')}</span></div>
-        <div class="flex justify-between"><span class="text-white/40">LC3</span><span class="mono text-white/80">${d.lc3?'✓':'—'}</span></div>
-      </div>
+      <div class="text-[12px] text-cyan-200/90 font-semibold mb-1.5">${escapeHtmlSeq(mixSummary(d))}</div>
+      ${code ? `<div class="mono text-[10px] text-white/35">${escapeHtmlSeq(code)}</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -2874,14 +2885,35 @@ function applyMixToAddForm(code) {
   const lc3 = document.getElementById('afpLc3'); if (lc3) lc3.checked = !!d.lc3;
 }
 // apply a saved design to an existing pour card (writes mix leaf fields)
-function applyMixDesign(key, code) {
+// mirror the "primary" (first) mix design onto the single `mix` field so the
+// embed-tracker pour readout stays meaningful
+function syncPrimaryMix(key, codes) {
+  const first = codes[0] ? getMixDesigns()[codes[0]] : null;
+  if (first) fbSet('embed-tracker/zones/' + key + '/mix', { psi: first.psi != null ? String(first.psi) : '', aggregate: first.maxAgg || '', slump: first.slump || '', lc3: !!first.lc3, code: first.code });
+  else fbSet('embed-tracker/zones/' + key + '/mix', null);
+}
+function addMixToPour(key, code) {
   if (isManagerView || !code) return;
-  const d = getMixDesigns()[code]; if (!d) return;
-  updateFoundationPourField(key, 'mix.psi', d.psi != null ? String(d.psi) : '');
-  updateFoundationPourField(key, 'mix.aggregate', d.maxAgg || '');
-  updateFoundationPourField(key, 'mix.slump', d.slump || '');
-  updateFoundationPourField(key, 'mix.lc3', !!d.lc3);
-  updateFoundationPourField(key, 'mix.code', code);
+  const pour = foundationPours[key]; if (!pour) return;
+  const codes = pourMixCodes(pour).slice();
+  if (codes.includes(code)) return;
+  codes.push(code);
+  pour.mixCodes = codes;
+  foundationPours = Object.assign({}, foundationPours, { [key]: pour });
+  fbSet('embed-tracker/zones/' + key + '/mixCodes', codes);
+  syncPrimaryMix(key, codes);
+  fbSet('embed-tracker/zones/' + key + '/updatedAt', new Date().toISOString());
+  renderSequenceGroups();
+}
+function removeMixFromPour(key, code) {
+  if (isManagerView) return;
+  const pour = foundationPours[key]; if (!pour) return;
+  const codes = pourMixCodes(pour).filter(c => c !== code);
+  pour.mixCodes = codes;
+  foundationPours = Object.assign({}, foundationPours, { [key]: pour });
+  fbSet('embed-tracker/zones/' + key + '/mixCodes', codes.length ? codes : null);
+  syncPrimaryMix(key, codes);
+  fbSet('embed-tracker/zones/' + key + '/updatedAt', new Date().toISOString());
   renderSequenceGroups();
 }
 
@@ -7858,7 +7890,8 @@ function zoneToFoundationPour(id, z) {
     area: z.area,                     // 'A'-'D'
     phase: z.phase || '',             // '1'-'4'
     status: z.status || (z.done ? 'COMPLETE' : 'PENDING'),
-    mix: { psi: mix.psi || '', aggregate: mix.aggregate || '', slump: mix.slump || '', lc3: !!mix.lc3 },
+    mix: { psi: mix.psi || '', aggregate: mix.aggregate || '', slump: mix.slump || '', lc3: !!mix.lc3, code: mix.code || '' },
+    mixCodes: Array.isArray(z.mixCodes) ? z.mixCodes.filter(Boolean) : null,
     cy: +z.cy || 0,
     pour_date: z.date || '',          // canonical 'YYYY-MM-DD'
     notes: z.notes || '',
@@ -8418,40 +8451,36 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   html += `<button onclick="cycleFoundationStatus('${escapedKey}')" ${isManagerView?'disabled':''} class="text-[9px] font-bold px-2 py-0.5 rounded-full transition-all ${isComplete?'bg-blue-500/20 text-blue-400 border border-blue-500/30':isOrdered?'bg-green-500/20 text-green-400 border border-green-500/30':'bg-white/5 text-white/30 border border-white/10 hover:bg-white/10'}">${status}</button>`;
   html += `</div></div>`;
 
-  // Mix design panel
-  if (isManagerView) {
-    html += `<div class="grid grid-cols-2 gap-1.5 mb-2 text-[10px] px-1">`;
-    html += `<div class="flex justify-between"><span class="text-white/40">PSI</span><span class="mono text-white/80">${escapeHtmlSeq(psi) || '—'}</span></div>`;
-    html += `<div class="flex justify-between"><span class="text-white/40">Slump</span><span class="mono text-white/80">${escapeHtmlSeq(slump) || '—'}</span></div>`;
-    html += `<div class="flex justify-between"><span class="text-white/40">Agg</span><span class="mono text-white/80">${escapeHtmlSeq(agg) || '—'}</span></div>`;
-    html += `<div class="flex justify-between"><span class="text-white/40">LC3</span><span class="mono text-white/80">${lc3 ? '✓' : '—'}</span></div>`;
-    html += `</div>`;
+  // Mix designs — one or more per pour, applied from the library
+  const designsAll = getMixDesigns();
+  const codes = pourMixCodes(pour);
+  html += `<div class="mb-2 px-1">`;
+  html += `<div class="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1">Mix design${codes.length>1?'s':''}</div>`;
+  html += `<div class="flex flex-wrap gap-1.5 mb-1.5">`;
+  if (codes.length) {
+    codes.forEach(code => {
+      const d = designsAll[code] || { code, label: code, psi: 0 };
+      html += `<span class="inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-lg" style="background:rgba(56,189,248,0.12);color:#7dd3fc;border:1px solid rgba(56,189,248,0.28)">
+        <span class="font-bold">${escapeHtmlSeq(d.label || code)}</span><span class="text-cyan-200/60">${escapeHtmlSeq(fmtPsi(d.psi))}</span>
+        ${!isManagerView ? `<button onclick="removeMixFromPour('${escapedKey}','${String(code).replace(/'/g,"\\'")}')" class="text-cyan-200/50 hover:text-white" title="Remove">&times;</button>` : ''}
+      </span>`;
+    });
   } else {
-    const psiOpts = ['','3000','4000','5000','6000','8000'];
-    const aggOpts = ['','3/8"','1/2"','3/4"','1"','1-1/2"'];
-    const mixCode = (mix && mix.code) || '';
-    const designs = Object.values(getMixDesigns());
-    if (designs.length) {
-      html += `<select onchange="applyMixDesign('${escapedKey}',this.value)" class="w-full mb-1.5 rounded text-white/80 px-1.5 py-1 outline-none" style="background:rgba(20,25,40,0.85);font-size:10px;border:1px solid rgba(255,255,255,0.06)">`;
-      html += `<option value="" style="background:#1a1a1a">${mixCode?escapeHtmlSeq('Mix: '+mixCode):'Apply mix design…'}</option>`;
-      html += designs.map(d=>`<option value="${String(d.code||'').replace(/"/g,'&quot;')}" style="background:#1a1a1a">${escapeHtmlSeq((d.label||d.code||'—')+' · '+(d.psi||'—')+' PSI')}</option>`).join('');
-      html += `</select>`;
-    }
-    html += `<div class="grid grid-cols-2 gap-1.5 mb-2 text-[10px] px-1">`;
-    html += `<label class="flex justify-between items-center gap-1"><span class="text-white/40 shrink-0">PSI</span>`;
-    html += `<select onchange="updateFoundationPourField('${escapedKey}','mix.psi',this.value)" class="mono rounded text-right outline-none text-white/80 px-1" style="background:rgba(20,25,40,0.85);font-size:10px;border:1px solid rgba(255,255,255,0.06)">`;
-    html += psiOpts.map(v => `<option value="${v}" style="background:#1a1a1a"${String(psi)===v?' selected':''}>${v||'—'}</option>`).join('');
-    html += `</select></label>`;
-    html += `<label class="flex justify-between items-center gap-1"><span class="text-white/40 shrink-0">Slump</span>`;
-    html += `<input type="text" placeholder="—" value="${escapeHtmlSeq(slump)}" onblur="updateFoundationPourField('${escapedKey}','mix.slump',this.value)" class="mono bg-transparent border border-transparent hover:border-white/20 focus:border-white/40 focus:bg-white/5 rounded text-right w-12 px-1 outline-none text-white/80" style="font-size:10px"></label>`;
-    html += `<label class="flex justify-between items-center gap-1"><span class="text-white/40 shrink-0">Agg</span>`;
-    html += `<select onchange="updateFoundationPourField('${escapedKey}','mix.aggregate',this.value)" class="mono rounded text-right outline-none text-white/80 px-1" style="background:rgba(20,25,40,0.85);font-size:10px;border:1px solid rgba(255,255,255,0.06)">`;
-    html += aggOpts.map(v => `<option value="${v}" style="background:#1a1a1a"${agg===v?' selected':''}>${v||'—'}</option>`).join('');
-    html += `</select></label>`;
-    html += `<label class="flex justify-between items-center gap-1 cursor-pointer"><span class="text-white/40 shrink-0">LC3</span>`;
-    html += `<input type="checkbox" ${lc3?'checked':''} onchange="updateFoundationPourField('${escapedKey}','mix.lc3',this.checked)" class="accent-cyan-500"></label>`;
-    html += `</div>`;
+    html += `<span class="text-[10px] text-white/30 italic">No mix design set</span>`;
   }
+  html += `</div>`;
+  if (!isManagerView) {
+    const avail = Object.values(designsAll).filter(d => !codes.includes(d.code));
+    if (avail.length) {
+      html += `<select onchange="addMixToPour('${escapedKey}',this.value); this.value=''" class="w-full rounded text-white/80 px-2 py-1 outline-none" style="background:rgba(20,25,40,0.85);font-size:10px;border:1px solid rgba(255,255,255,0.06)">`;
+      html += `<option value="" style="background:#1a1a1a">+ Add mix design…</option>`;
+      html += avail.map(d => `<option value="${String(d.code||'').replace(/"/g,'&quot;')}" style="background:#1a1a1a">${escapeHtmlSeq((d.label||d.code||'—') + ' · ' + fmtPsi(d.psi))}</option>`).join('');
+      html += `</select>`;
+    } else {
+      html += `<button onclick="showMixDesignModal()" class="text-[10px] text-cyan-300/70 hover:text-cyan-200">+ Create a mix design</button>`;
+    }
+  }
+  html += `</div>`;
 
   // Volume + bar
   if (isManagerView) {
@@ -8593,7 +8622,7 @@ function showAddFoundationPourModal() {
         <div><label class="block text-white/40 mb-1">Mix design (optional)</label>
           <select id="afpMix" onchange="applyMixToAddForm(this.value)" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white">
             <option value="" style="background:#1a1a1a">— choose a saved design —</option>
-            ${Object.values(getMixDesigns()).map(d=>`<option value="${String(d.code||'').replace(/"/g,'&quot;')}" style="background:#1a1a1a">${escapeHtmlSeq((d.label||d.code||'—')+' · '+(d.psi||'—')+' PSI')}</option>`).join('')}
+            ${Object.values(getMixDesigns()).map(d=>`<option value="${String(d.code||'').replace(/"/g,'&quot;')}" style="background:#1a1a1a">${escapeHtmlSeq((d.label||d.code||'—')+' · '+fmtPsi(d.psi))}</option>`).join('')}
           </select>
         </div>
         <div class="grid grid-cols-3 gap-2">
@@ -8626,6 +8655,7 @@ function submitAddFoundationPour() {
     phase: val('afpPhase') || '1',
     cy: parseFloat(val('afpCy')) || 0,
     mix: { psi: val('afpPsi'), aggregate: val('afpAgg'), slump: val('afpSlump'), lc3: !!document.getElementById('afpLc3')?.checked, code: val('afpMix') },
+    mixCodes: val('afpMix') ? [val('afpMix')] : [],
     status: 'PENDING',
     layer: 'WCG Pours',
     createdAt: new Date().toISOString(),
