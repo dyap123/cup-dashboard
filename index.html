@@ -62,6 +62,11 @@
     .mono { font-family:'JetBrains Mono',monospace; }
     .no-scroll::-webkit-scrollbar { display:none; }
     .no-scroll { -ms-overflow-style:none; scrollbar-width:none; }
+    .slim-scroll::-webkit-scrollbar { height:6px; width:6px; }
+    .slim-scroll::-webkit-scrollbar-track { background:transparent; }
+    .slim-scroll::-webkit-scrollbar-thumb { background:linear-gradient(90deg,rgba(59,130,246,0.35),rgba(120,140,170,0.3)); border-radius:6px; }
+    .slim-scroll::-webkit-scrollbar-thumb:hover { background:rgba(120,150,200,0.5); }
+    .slim-scroll { scrollbar-width:thin; scrollbar-color:rgba(120,140,170,0.3) transparent; }
     .dot-grid { background-image:radial-gradient(rgba(255,255,255,0.04) 1px,transparent 1px); background-size:20px 20px; }
     @keyframes pulse2 { 0%,100%{opacity:1} 50%{opacity:.4} }
     .pulse { animation:pulse2 1.8s ease-in-out infinite; }
@@ -2771,7 +2776,7 @@ function mixSummary(d) {
   if (d.maxAgg) parts.push(d.maxAgg + ' agg');
   if (d.slump) parts.push(d.slump + ' slump');
   if (d.lc3) parts.push('LC3');
-  return parts.join('  ·  ');
+  return parts.join(' · ');
 }
 // resolve a pour's applied mix-design codes (falls back to a single legacy mix.code)
 function pourMixCodes(pour) {
@@ -5058,7 +5063,7 @@ function renderPourDay() {
   const sortedDates = Object.keys(datedGroups).sort((a,b) => dateSortVal(a) - dateSortVal(b));
   h += '<div class="mb-4"><div class="text-[10px] font-bold text-white/30 uppercase tracking-wider mb-2">Select Pour</div>';
   // Horizontal: dates as columns, pour pills stacked under each
-  h += '<div class="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 snap-x">';
+  h += '<div class="flex gap-2 overflow-x-auto slim-scroll pb-2 -mx-1 px-1 snap-x">';
   sortedDates.forEach(d => {
     h += '<div class="flex-none min-w-[84px] snap-start">';
     h += '<div class="mono text-[10px] font-bold text-blue-300/80 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-center mb-1.5 sticky top-0">' + d + '</div>';
@@ -8497,16 +8502,19 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
       const pct = Math.round((v / maxQ) * 100);
       const st = mixBarStyle(d.psi);
       const ek = String(code).replace(/'/g, "\\'");
-      html += `<div class="mb-2 ${v===0?'opacity-60':''}">`;
-      html += `<div class="flex justify-between items-center gap-2 mb-1">`;
-      html += `<span class="min-w-0 truncate text-[11px]"><span class="font-bold ${st.text}">${escapeHtmlSeq(d.label || code)}</span> <span class="text-white/35">${escapeHtmlSeq(mixSummary(d))}</span></span>`;
+      html += `<div class="mb-2 ${v===0?'opacity-70':''}">`;
+      html += `<div class="flex justify-between items-end gap-2 mb-1">`;
+      html += `<span class="min-w-0">
+        <span class="block font-semibold text-white/90 text-[11.5px] leading-tight truncate">${escapeHtmlSeq(d.label || code)}</span>
+        <span class="block ${st.text} text-[9.5px] leading-tight truncate" style="opacity:.85">${escapeHtmlSeq(mixSummary(d))}</span>
+      </span>`;
       if (isManagerView) {
-        html += `<span class="mono ${st.text} font-semibold shrink-0 text-[11px]">${v} <span class="text-white/40 font-normal text-[9px]">CY</span></span>`;
+        html += `<span class="mono font-bold shrink-0 text-[12px] ${st.text}">${v}<span class="text-white/40 font-normal text-[9px] ml-0.5">CY</span></span>`;
       } else {
         html += `<span class="inline-flex items-center gap-1 shrink-0">
-          <input type="number" min="0" step="0.5" value="${v}" onfocus="this.select()" onblur="setMixQty('${escapedKey}','${ek}',+this.value||0)" onkeydown="if(event.key==='Enter')this.blur()" class="mix-cy-input mono ${st.text} font-semibold bg-transparent border border-transparent hover:border-white/20 focus:border-white/40 focus:bg-white/5 rounded text-right w-12 px-1 outline-none text-[11px]" style="-moz-appearance:textfield">
+          <input type="number" min="0" step="0.5" value="${v}" onfocus="this.select()" onblur="setMixQty('${escapedKey}','${ek}',+this.value||0)" onkeydown="if(event.key==='Enter')this.blur()" class="mix-cy-input mono font-bold ${st.text} bg-transparent border-0 border-b border-transparent hover:border-white/20 focus:border-white/40 rounded-none text-right w-11 px-0 outline-none text-[12px]" style="-moz-appearance:textfield">
           <span class="text-white/40 text-[9px]">CY</span>
-          <button onclick="removeMixFromPour('${escapedKey}','${ek}')" class="text-white/25 hover:text-white ml-0.5" title="Remove">&times;</button>
+          <button onclick="removeMixFromPour('${escapedKey}','${ek}')" class="text-white/25 hover:text-white ml-0.5 text-sm leading-none" title="Remove">&times;</button>
         </span>`;
       }
       html += `</div>`;
@@ -8546,7 +8554,7 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   if (isManagerView) {
     if (notes) html += `<div class="text-[10px] text-white/50 italic mb-2 px-1">${escapeHtmlSeq(notes)}</div>`;
   } else {
-    html += `<input type="text" placeholder="+ note" value="${escapeHtmlSeq(notes)}" onblur="updateFoundationPourField('${escapedKey}','notes',this.value)" class="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-white/30 focus:bg-white/5 rounded px-1.5 py-0.5 text-[10px] text-white/60 mb-2 outline-none">`;
+    html += `<input type="text" placeholder="+ note" value="${escapeHtmlSeq(notes)}" onblur="updateFoundationPourField('${escapedKey}','notes',this.value)" class="block w-full bg-transparent border-0 border-b border-dashed border-white/10 focus:border-white/30 px-0 py-0.5 text-[9.5px] italic text-white/45 mb-1.5 outline-none">`;
   }
 
   // Pre-pour checklist — legacy inspections look (red → amber → green, chip items)
