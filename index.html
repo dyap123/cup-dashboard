@@ -2892,6 +2892,15 @@ function syncPrimaryMix(key, codes) {
   if (first) fbSet('embed-tracker/zones/' + key + '/mix', { psi: first.psi != null ? String(first.psi) : '', aggregate: first.maxAgg || '', slump: first.slump || '', lc3: !!first.lc3, code: first.code });
   else fbSet('embed-tracker/zones/' + key + '/mix', null);
 }
+// legacy-style bar color per mix, bucketed by PSI (8000 red·orange, 5000 blue·cyan, slurry gray)
+function mixBarStyle(psi) {
+  const n = parseInt(psi, 10) || 0;
+  if (n >= 8000) return { bar: 'from-red-600 to-orange-400', glow: 'rgba(239,68,68,0.3)', text: 'text-red-300' };
+  if (n >= 6000) return { bar: 'from-amber-500 to-yellow-400', glow: 'rgba(245,158,11,0.3)', text: 'text-amber-300' };
+  if (n >= 5000) return { bar: 'from-blue-600 to-cyan-400', glow: 'rgba(59,130,246,0.3)', text: 'text-blue-300' };
+  if (n > 0) return { bar: 'from-emerald-600 to-green-400', glow: 'rgba(16,185,129,0.3)', text: 'text-emerald-300' };
+  return { bar: 'from-gray-500 to-gray-400', glow: 'rgba(148,163,184,0.2)', text: 'text-gray-300' };
+}
 function addMixToPour(key, code) {
   if (isManagerView || !code) return;
   const pour = foundationPours[key]; if (!pour) return;
@@ -2909,10 +2918,22 @@ function removeMixFromPour(key, code) {
   if (isManagerView) return;
   const pour = foundationPours[key]; if (!pour) return;
   const codes = pourMixCodes(pour).filter(c => c !== code);
-  pour.mixCodes = codes;
+  const qty = Object.assign({}, pour.mixQty || {}); delete qty[code];
+  pour.mixCodes = codes; pour.mixQty = qty;
   foundationPours = Object.assign({}, foundationPours, { [key]: pour });
   fbSet('embed-tracker/zones/' + key + '/mixCodes', codes.length ? codes : null);
+  fbSet('embed-tracker/zones/' + key + '/mixQty', Object.keys(qty).length ? qty : null);
   syncPrimaryMix(key, codes);
+  fbSet('embed-tracker/zones/' + key + '/updatedAt', new Date().toISOString());
+  renderSequenceGroups();
+}
+function setMixQty(key, code, v) {
+  if (isManagerView) return;
+  const pour = foundationPours[key]; if (!pour) return;
+  const qty = Object.assign({}, pour.mixQty || {}); qty[code] = +v || 0;
+  pour.mixQty = qty;
+  foundationPours = Object.assign({}, foundationPours, { [key]: pour });
+  fbSet('embed-tracker/zones/' + key + '/mixQty', qty);
   fbSet('embed-tracker/zones/' + key + '/updatedAt', new Date().toISOString());
   renderSequenceGroups();
 }
@@ -7892,6 +7913,7 @@ function zoneToFoundationPour(id, z) {
     status: z.status || (z.done ? 'COMPLETE' : 'PENDING'),
     mix: { psi: mix.psi || '', aggregate: mix.aggregate || '', slump: mix.slump || '', lc3: !!mix.lc3, code: mix.code || '' },
     mixCodes: Array.isArray(z.mixCodes) ? z.mixCodes.filter(Boolean) : null,
+    mixQty: (z.mixQty && typeof z.mixQty === 'object') ? z.mixQty : {},
     cy: +z.cy || 0,
     pour_date: z.date || '',          // canonical 'YYYY-MM-DD'
     notes: z.notes || '',
@@ -8402,6 +8424,16 @@ function toggleFoundationChecklist(key, idx) {
   fbSet('embed-tracker/zones/' + key + '/updatedAt', new Date().toISOString());
   renderSequenceGroups();
 }
+function markAllPrePour(key) {
+  if (isManagerView) return;
+  const pour = foundationPours[key]; if (!pour) return;
+  const items = pourChecklistItems(pour).map(it => Object.assign({}, it, { done: true }));
+  pour.checklist = items;
+  foundationPours = Object.assign({}, foundationPours, { [key]: pour });
+  fbSet('embed-tracker/zones/' + key + '/checklist', items);
+  fbSet('embed-tracker/zones/' + key + '/updatedAt', new Date().toISOString());
+  renderSequenceGroups();
+}
 
 function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   const c = seq.color || '#94a3b8';
@@ -8451,24 +8483,39 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   html += `<button onclick="cycleFoundationStatus('${escapedKey}')" ${isManagerView?'disabled':''} class="text-[9px] font-bold px-2 py-0.5 rounded-full transition-all ${isComplete?'bg-blue-500/20 text-blue-400 border border-blue-500/30':isOrdered?'bg-green-500/20 text-green-400 border border-green-500/30':'bg-white/5 text-white/30 border border-white/10 hover:bg-white/10'}">${status}</button>`;
   html += `</div></div>`;
 
-  // Mix designs — one or more per pour, applied from the library
+  // Mix designs — one or more per pour, each with its own CY quantity + filled bar
   const designsAll = getMixDesigns();
   const codes = pourMixCodes(pour);
+  const mixQty = (pour && pour.mixQty) || {};
+  const maxQ = Math.max(1, ...codes.map(c => +mixQty[c] || 0));
   html += `<div class="mb-2 px-1">`;
-  html += `<div class="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1">Mix design${codes.length>1?'s':''}</div>`;
-  html += `<div class="flex flex-wrap gap-1.5 mb-1.5">`;
+  html += `<div class="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">Mix design${codes.length>1?'s':''}</div>`;
   if (codes.length) {
     codes.forEach(code => {
       const d = designsAll[code] || { code, label: code, psi: 0 };
-      html += `<span class="inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-lg" style="background:rgba(56,189,248,0.12);color:#7dd3fc;border:1px solid rgba(56,189,248,0.28)">
-        <span class="font-bold">${escapeHtmlSeq(d.label || code)}</span><span class="text-cyan-200/60">${escapeHtmlSeq(fmtPsi(d.psi))}</span>
-        ${!isManagerView ? `<button onclick="removeMixFromPour('${escapedKey}','${String(code).replace(/'/g,"\\'")}')" class="text-cyan-200/50 hover:text-white" title="Remove">&times;</button>` : ''}
-      </span>`;
+      const v = +mixQty[code] || 0;
+      const pct = Math.round((v / maxQ) * 100);
+      const st = mixBarStyle(d.psi);
+      const ek = String(code).replace(/'/g, "\\'");
+      html += `<div class="mb-2 ${v===0?'opacity-60':''}">`;
+      html += `<div class="flex justify-between items-center gap-2 mb-1">`;
+      html += `<span class="min-w-0 truncate text-[11px]"><span class="font-bold ${st.text}">${escapeHtmlSeq(d.label || code)}</span> <span class="text-white/35">${escapeHtmlSeq(mixSummary(d))}</span></span>`;
+      if (isManagerView) {
+        html += `<span class="mono ${st.text} font-semibold shrink-0 text-[11px]">${v} <span class="text-white/40 font-normal text-[9px]">CY</span></span>`;
+      } else {
+        html += `<span class="inline-flex items-center gap-1 shrink-0">
+          <input type="number" min="0" step="0.5" value="${v}" onfocus="this.select()" onblur="setMixQty('${escapedKey}','${ek}',+this.value||0)" onkeydown="if(event.key==='Enter')this.blur()" class="mix-cy-input mono ${st.text} font-semibold bg-transparent border border-transparent hover:border-white/20 focus:border-white/40 focus:bg-white/5 rounded text-right w-12 px-1 outline-none text-[11px]" style="-moz-appearance:textfield">
+          <span class="text-white/40 text-[9px]">CY</span>
+          <button onclick="removeMixFromPour('${escapedKey}','${ek}')" class="text-white/25 hover:text-white ml-0.5" title="Remove">&times;</button>
+        </span>`;
+      }
+      html += `</div>`;
+      html += `<div class="h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r ${st.bar} bar-animate" style="width:${pct}%;box-shadow:0 0 6px ${st.glow}"></div></div>`;
+      html += `</div>`;
     });
   } else {
-    html += `<span class="text-[10px] text-white/30 italic">No mix design set</span>`;
+    html += `<div class="text-[10px] text-white/30 italic mb-1.5">No mix design set</div>`;
   }
-  html += `</div>`;
   if (!isManagerView) {
     const avail = Object.values(designsAll).filter(d => !codes.includes(d.code));
     if (avail.length) {
@@ -8476,7 +8523,7 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
       html += `<option value="" style="background:#1a1a1a">+ Add mix design…</option>`;
       html += avail.map(d => `<option value="${String(d.code||'').replace(/"/g,'&quot;')}" style="background:#1a1a1a">${escapeHtmlSeq((d.label||d.code||'—') + ' · ' + fmtPsi(d.psi))}</option>`).join('');
       html += `</select>`;
-    } else {
+    } else if (!codes.length) {
       html += `<button onclick="showMixDesignModal()" class="text-[10px] text-cyan-300/70 hover:text-cyan-200">+ Create a mix design</button>`;
     }
   }
@@ -8502,15 +8549,26 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
     html += `<input type="text" placeholder="+ note" value="${escapeHtmlSeq(notes)}" onblur="updateFoundationPourField('${escapedKey}','notes',this.value)" class="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-white/30 focus:bg-white/5 rounded px-1.5 py-0.5 text-[10px] text-white/60 mb-2 outline-none">`;
   }
 
-  // Pre-pour checklist (the pour-day function on each sequence pour)
+  // Pre-pour checklist — legacy inspections look (red → amber → green, chip items)
   const clItems = pourChecklistItems(pour);
+  const clTotal = clItems.length;
   const clDone = clItems.filter(i => i.done).length;
-  html += `<div class="mb-2 pt-2 border-t border-white/5">`;
-  html += `<div class="flex items-center justify-between mb-1"><span class="text-[9px] font-bold uppercase tracking-widest text-white/40">Pre-pour</span><span class="text-[10px] mono ${clDone===clItems.length&&clItems.length?'text-green-400':'text-white/40'}">${clDone}/${clItems.length}</span></div>`;
+  const pctC = clTotal ? Math.round(clDone / clTotal * 100) : 0;
+  const clr = pctC === 100 ? '#41A447' : pctC > 0 ? '#FFBF00' : '#ef4444';
+  html += `<div class="mb-2 p-2 rounded-lg transition-all" style="background:${clr}0a;border:1px solid ${clr}44">`;
+  html += `<div class="flex items-center justify-between mb-1.5">`;
+  html += `<span class="text-[9px] font-bold uppercase tracking-wider flex items-center gap-1" style="color:${clr}"><span class="material-symbols-outlined" style="font-size:11px">assignment_turned_in</span>Pre-pour ${clDone}/${clTotal}</span>`;
+  html += `<div class="flex items-center gap-1.5">`;
+  if (pctC < 100 && !isManagerView) html += `<button onclick="markAllPrePour('${escapedKey}')" class="text-[8px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/25 hover:bg-green-500/25 transition-all uppercase tracking-wider">All ✓</button>`;
+  html += `<span class="text-[9px] mono font-bold" style="color:${clr}">${pctC}%</span></div></div>`;
+  html += `<div class="h-1 rounded-full bg-white/5 overflow-hidden mb-1.5"><div class="h-full rounded-full" style="width:${pctC}%;background:${clr}"></div></div>`;
+  html += `<div class="flex flex-wrap gap-1">`;
   clItems.forEach((it, i) => {
-    html += `<label class="flex items-center gap-2 py-0.5 ${isManagerView?'':'cursor-pointer'}"><input type="checkbox" ${it.done?'checked':''} ${isManagerView?'disabled':''} onchange="toggleFoundationChecklist('${escapedKey}',${i})" class="accent-cyan-500 shrink-0"><span class="text-[10px] ${it.done?'text-white/40 line-through':'text-white/70'}">${escapeHtmlSeq(it.text)}</span></label>`;
+    const baseClass = 'text-[8px] mono px-1.5 py-0.5 rounded ' + (it.done ? 'bg-green-500/15 text-green-400' : 'bg-white/5 text-white/35');
+    if (isManagerView) html += `<span class="${baseClass}">${escapeHtmlSeq(it.text)}${it.done?' ✓':''}</span>`;
+    else html += `<button onclick="toggleFoundationChecklist('${escapedKey}',${i})" style="touch-action:manipulation" class="${baseClass} cursor-pointer hover:brightness-125 active:scale-95 transition-all">${escapeHtmlSeq(it.text)}${it.done?' ✓':''}</button>`;
   });
-  html += `</div>`;
+  html += `</div></div>`;
 
   // Footer
   html += `<div class="flex items-center justify-between pt-2 border-t border-white/5">`;
