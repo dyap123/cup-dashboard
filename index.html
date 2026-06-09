@@ -67,6 +67,14 @@
     .slim-scroll::-webkit-scrollbar-thumb { background:linear-gradient(90deg,rgba(59,130,246,0.35),rgba(120,140,170,0.3)); border-radius:6px; }
     .slim-scroll::-webkit-scrollbar-thumb:hover { background:rgba(120,150,200,0.5); }
     .slim-scroll { scrollbar-width:thin; scrollbar-color:rgba(120,140,170,0.3) transparent; }
+    /* polished form fields (modals in the pours sections) */
+    .fld { width:100%; background:linear-gradient(180deg,rgba(14,18,28,0.7),rgba(10,13,20,0.7)); border:1px solid rgba(255,255,255,0.09); border-radius:9px; padding:8px 11px; color:#fff; font-size:13px; outline:none; transition:border-color .15s ease, box-shadow .15s ease, background .15s ease; box-shadow:inset 0 1px 2px rgba(0,0,0,0.28); }
+    .fld::placeholder { color:rgba(255,255,255,0.22); }
+    .fld:hover { border-color:rgba(255,255,255,0.18); }
+    .fld:focus { border-color:rgba(59,130,246,0.6); background:linear-gradient(180deg,rgba(16,21,33,0.92),rgba(11,15,24,0.92)); box-shadow:inset 0 1px 2px rgba(0,0,0,0.28), 0 0 0 3px rgba(59,130,246,0.16); }
+    select.fld { -webkit-appearance:none; appearance:none; background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.4)' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>"); background-repeat:no-repeat; background-position:right 10px center; padding-right:28px; }
+    body.light-mode .fld { background:rgba(255,255,255,0.9); border-color:rgba(0,0,0,0.12); color:#0b0f18; box-shadow:inset 0 1px 2px rgba(0,0,0,0.05); }
+    body.light-mode .fld::placeholder { color:rgba(0,0,0,0.3); }
     .dot-grid { background-image:radial-gradient(rgba(255,255,255,0.04) 1px,transparent 1px); background-size:20px 20px; }
     @keyframes pulse2 { 0%,100%{opacity:1} 50%{opacity:.4} }
     .pulse { animation:pulse2 1.8s ease-in-out infinite; }
@@ -1087,20 +1095,20 @@ function showAddPourModal() {
         <button onclick="document.getElementById('addPourModal').remove()" class="text-white/40 hover:text-white">&times;</button>
       </div>
       <div class="space-y-3 text-xs">
-        <div><label class="block text-white/40 mb-1">Pour ID (e.g. A-5)</label><input id="newPourId" type="text" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono" placeholder="A-5"></div>
-        <div><label class="block text-white/40 mb-1">Section</label><select id="newPourSection" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white">
+        <div><label class="block text-white/40 mb-1">Pour ID (e.g. A-5)</label><input id="newPourId" type="text" class="fld mono" placeholder="A-5"></div>
+        <div><label class="block text-white/40 mb-1">Section</label><select id="newPourSection" class="fld">
           <option value="A" style="background:#1a1a1a">A</option>
           <option value="B" style="background:#1a1a1a">B</option>
           <option value="C" style="background:#1a1a1a">C</option>
           <option value="D" style="background:#1a1a1a">D</option>
         </select></div>
-        <div><label class="block text-white/40 mb-1">Pour Date</label><input id="newPourDate" type="date" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
+        <div><label class="block text-white/40 mb-1">Pour Date</label><input id="newPourDate" type="date" class="fld mono"></div>
         <div class="grid grid-cols-3 gap-2">
-          <div><label class="block text-white/40 mb-1">8000 CY</label><input id="newPour8000" type="number" step="0.5" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
-          <div><label class="block text-white/40 mb-1">5000 CY</label><input id="newPour5000" type="number" step="0.5" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
-          <div><label class="block text-white/40 mb-1">Slurry CY</label><input id="newPourSlurry" type="number" step="0.5" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
+          <div><label class="block text-white/40 mb-1">8000 CY</label><input id="newPour8000" type="number" step="0.5" class="fld mono"></div>
+          <div><label class="block text-white/40 mb-1">5000 CY</label><input id="newPour5000" type="number" step="0.5" class="fld mono"></div>
+          <div><label class="block text-white/40 mb-1">Slurry CY</label><input id="newPourSlurry" type="number" step="0.5" class="fld mono"></div>
         </div>
-        <div><label class="block text-white/40 mb-1">Label (optional)</label><input id="newPourLabel" type="text" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white" placeholder="e.g. North slab"></div>
+        <div><label class="block text-white/40 mb-1">Label (optional)</label><input id="newPourLabel" type="text" class="fld" placeholder="e.g. North slab"></div>
       </div>
       <div class="flex gap-2 mt-5">
         <button onclick="document.getElementById('addPourModal').remove()" class="flex-1 py-2 rounded bg-white/5 text-white/60 text-xs font-bold hover:bg-white/10">Cancel</button>
@@ -2852,12 +2860,12 @@ function showMixDesignModal(editCode) {
       <div class="flex items-center justify-between mb-4"><h3 class="text-sm font-bold text-white/90">${editCode?'Edit':'Add'} Mix Design</h3>
         <button onclick="document.getElementById('mixDesignModal').remove()" class="text-white/40 hover:text-white text-xl leading-none">&times;</button></div>
       <div class="space-y-3 text-xs">
-        <div><label class="block text-white/40 mb-1">Mix code</label><input id="mdCode" type="text" ${editCode?'readonly':''} value="${v(d.code)}" placeholder="e.g. O80D739K1" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono ${editCode?'opacity-60':''}"></div>
-        <div><label class="block text-white/40 mb-1">Name / label</label><input id="mdLabel" type="text" value="${v(d.label)}" placeholder="e.g. 8000 PSI Structural" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white"></div>
+        <div><label class="block text-white/40 mb-1">Mix code</label><input id="mdCode" type="text" ${editCode?'readonly':''} value="${v(d.code)}" placeholder="e.g. O80D739K1" class="fld mono ${editCode?'opacity-60':''}"></div>
+        <div><label class="block text-white/40 mb-1">Name / label</label><input id="mdLabel" type="text" value="${v(d.label)}" placeholder="e.g. 8000 PSI Structural" class="fld"></div>
         <div class="grid grid-cols-3 gap-2">
-          <div><label class="block text-white/40 mb-1">PSI</label><input id="mdPsi" type="number" value="${v(d.psi)}" placeholder="8000" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
-          <div><label class="block text-white/40 mb-1">Max agg</label><input id="mdAgg" type="text" value="${v(d.maxAgg)}" placeholder='3/4"' class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
-          <div><label class="block text-white/40 mb-1">Slump</label><input id="mdSlump" type="text" value="${v(d.slump)}" placeholder='8"' class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
+          <div><label class="block text-white/40 mb-1">PSI</label><input id="mdPsi" type="number" value="${v(d.psi)}" placeholder="8000" class="fld mono"></div>
+          <div><label class="block text-white/40 mb-1">Max agg</label><input id="mdAgg" type="text" value="${v(d.maxAgg)}" placeholder='3/4"' class="fld mono"></div>
+          <div><label class="block text-white/40 mb-1">Slump</label><input id="mdSlump" type="text" value="${v(d.slump)}" placeholder='8"' class="fld mono"></div>
         </div>
         <label class="flex items-center gap-2 text-white/60 cursor-pointer"><input type="checkbox" id="mdLc3" ${d.lc3?'checked':''} class="accent-cyan-500"> <span>LC3 mix</span></label>
       </div>
@@ -8691,7 +8699,7 @@ function showAddFoundationPourModal() {
   const phaseOpts = ['1','2','3','4'];
   const psiOpts = ['','3000','4000','5000','6000','8000'];
   const aggOpts = ['','3/8"','1/2"','3/4"','1"','1-1/2"'];
-  const sel = (id,opts) => `<select id="${id}" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white">${opts.map(v=>`<option value="${v}" style="background:#1a1a1a">${v||'—'}</option>`).join('')}</select>`;
+  const sel = (id,opts) => `<select id="${id}" class="fld">${opts.map(v=>`<option value="${v}" style="background:#1a1a1a">${v||'—'}</option>`).join('')}</select>`;
   const modal = document.createElement('div');
   modal.id = 'addFoundationPourModal';
   modal.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4';
@@ -8703,10 +8711,10 @@ function showAddFoundationPourModal() {
         <button onclick="document.getElementById('addFoundationPourModal').remove()" class="text-white/40 hover:text-white text-xl leading-none">&times;</button>
       </div>
       <div class="space-y-3 text-xs">
-        <div><label class="block text-white/40 mb-1">Pour name</label><input id="afpName" type="text" placeholder="e.g. South footing pour 1" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white"></div>
+        <div><label class="block text-white/40 mb-1">Pour name</label><input id="afpName" type="text" placeholder="e.g. South footing pour 1" class="fld"></div>
         <div class="grid grid-cols-2 gap-2">
-          <div><label class="block text-white/40 mb-1">Pour date</label><input id="afpDate" type="date" style="color-scheme:dark" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white"></div>
-          <div><label class="block text-white/40 mb-1">Volume (CY)</label><input id="afpCy" type="number" step="1" placeholder="150" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
+          <div><label class="block text-white/40 mb-1">Pour date</label><input id="afpDate" type="date" style="color-scheme:dark" class="fld"></div>
+          <div><label class="block text-white/40 mb-1">Volume (CY)</label><input id="afpCy" type="number" step="1" placeholder="150" class="fld mono"></div>
         </div>
         <div class="grid grid-cols-3 gap-2">
           <div><label class="block text-white/40 mb-1">Sequence</label>${sel('afpSeq',seqOpts)}</div>
@@ -8714,7 +8722,7 @@ function showAddFoundationPourModal() {
           <div><label class="block text-white/40 mb-1">Phase</label>${sel('afpPhase',phaseOpts)}</div>
         </div>
         <div><label class="block text-white/40 mb-1">Mix design (optional)</label>
-          <select id="afpMix" onchange="applyMixToAddForm(this.value)" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white">
+          <select id="afpMix" onchange="applyMixToAddForm(this.value)" class="fld">
             <option value="" style="background:#1a1a1a">— choose a saved design —</option>
             ${Object.values(getMixDesigns()).map(d=>`<option value="${String(d.code||'').replace(/"/g,'&quot;')}" style="background:#1a1a1a">${escapeHtmlSeq((d.label||d.code||'—')+' · '+fmtPsi(d.psi))}</option>`).join('')}
           </select>
@@ -8722,7 +8730,7 @@ function showAddFoundationPourModal() {
         <div class="grid grid-cols-3 gap-2">
           <div><label class="block text-white/40 mb-1">PSI</label>${sel('afpPsi',psiOpts)}</div>
           <div><label class="block text-white/40 mb-1">Aggregate</label>${sel('afpAgg',aggOpts)}</div>
-          <div><label class="block text-white/40 mb-1">Slump</label><input id="afpSlump" type="text" placeholder="5" class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white mono"></div>
+          <div><label class="block text-white/40 mb-1">Slump</label><input id="afpSlump" type="text" placeholder="5" class="fld mono"></div>
         </div>
         <label class="flex items-center gap-2 text-white/60 cursor-pointer"><input type="checkbox" id="afpLc3" class="accent-cyan-500"> <span>LC3 mix</span></label>
         <p class="text-[10px] text-white/30 leading-relaxed">This pour appears in the embed-tracker right away. Give it a location by drawing its box there and selecting it.</p>
