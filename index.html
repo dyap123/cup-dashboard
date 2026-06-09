@@ -7896,7 +7896,9 @@ let seqAreasJson = [];
 let foundationPours = {};          // keyed by embed-tracker zone id
 let foundationMapRendered = false;
 let seqFilter = 'ALL';
-let seqSortMode = 'seq';   // 'seq' = group by sequence/area | 'date' = chronological
+let seqSortMode = 'seq';   // 'seq' = group by sequence/area | 'date' = calendar
+let seqCalYM = null;        // {y, m} month shown in the calendar view
+let seqCalDay = null;       // selected ISO day (shows its pours below the grid)
 let embedGrid = null;              // embed-tracker/grid config (cols/rows/spacing)
 let seqMapMode = 'plan';          // 'plan' = EmbedYap blueprint | 'areas' = LACC polygons
 
@@ -8345,6 +8347,71 @@ function setSeqSort(mode) {
   if (d) d.className = mode === 'date' ? on : off;
   renderSequenceGroups();
 }
+function _isoToday() { const n = new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); }
+function seqCalNav(d) { if (!seqCalYM) return; let y=seqCalYM.y, mo=seqCalYM.m+d; if(mo<1){mo=12;y--;} if(mo>12){mo=1;y++;} seqCalYM={y,m:mo}; seqCalDay=null; renderSequenceGroups(); }
+function seqCalToday() { const n=new Date(); seqCalYM={y:n.getFullYear(),m:n.getMonth()+1}; seqCalDay=_isoToday(); renderSequenceGroups(); }
+function seqCalSelect(iso) { seqCalDay = (seqCalDay===iso?null:iso); renderSequenceGroups(); }
+// month-grid calendar dashboard (used by the "By date" sort)
+function renderPourCalendar(pours) {
+  const byDate = {}; const undated = [];
+  pours.forEach(p => { if (p.pour_date && /^\d{4}-\d{2}-\d{2}$/.test(p.pour_date)) (byDate[p.pour_date] = byDate[p.pour_date] || []).push(p); else undated.push(p); });
+  if (!seqCalYM) {
+    const dated = Object.keys(byDate).sort(); const t = _isoToday();
+    const pick = dated.find(d => d >= t) || dated[dated.length-1];
+    const m = pick && /^(\d{4})-(\d{2})/.exec(pick); const now = new Date();
+    seqCalYM = m ? { y:+m[1], m:+m[2] } : { y:now.getFullYear(), m:now.getMonth()+1 };
+  }
+  const { y, m } = seqCalYM;
+  const first = new Date(y, m-1, 1).getDay(), days = new Date(y, m, 0).getDate(), todayIso = _isoToday();
+  const seqColOf = p => seqColor(p.sequence, p.color);
+  const chip = p => { const col = seqColOf(p); const done = p.status==='COMPLETE';
+    return `<div class="rounded px-1 py-0.5 text-[8.5px] leading-tight truncate" title="${escapeHtmlSeq((p.name||pourCalName(p))+' · '+(p.status||''))}" style="background:${col}22;border-left:2px solid ${col};color:#e7eef7;${done?'opacity:0.6;':''}">${escapeHtmlSeq(pourCalName(p))}</div>`; };
+  let h = '';
+  // header
+  h += `<div class="flex items-center justify-between mb-3 px-1">
+    <div class="flex items-center gap-2">
+      <button onclick="seqCalNav(-1)" class="w-7 h-7 rounded-lg grid place-items-center text-white/60 hover:bg-white/10"><span class="material-symbols-outlined" style="font-size:18px">chevron_left</span></button>
+      <span class="text-sm font-black tracking-wide text-white/90">${_afpMON[m-1]} ${y}</span>
+      <button onclick="seqCalNav(1)" class="w-7 h-7 rounded-lg grid place-items-center text-white/60 hover:bg-white/10"><span class="material-symbols-outlined" style="font-size:18px">chevron_right</span></button>
+    </div>
+    <button onclick="seqCalToday()" class="text-[10px] font-bold px-2.5 py-1 rounded-md bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25">Today</button>
+  </div>`;
+  // weekday header
+  h += `<div class="grid grid-cols-7 gap-1 mb-1">` + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(w => `<div class="text-center text-[9px] font-bold uppercase tracking-wider text-white/30">${w}</div>`).join('') + `</div>`;
+  // day cells
+  h += `<div class="grid grid-cols-7 gap-1">`;
+  for (let i=0;i<first;i++) h += `<div class="rounded-lg" style="min-height:78px;background:rgba(255,255,255,0.015)"></div>`;
+  for (let dd=1;dd<=days;dd++) {
+    const iso = `${y}-${String(m).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+    const ps = byDate[iso] || []; const isToday = iso===todayIso; const isSel = iso===seqCalDay;
+    const clickable = ps.length > 0;
+    const border = isSel ? 'rgba(34,211,238,0.7)' : isToday ? 'rgba(34,211,238,0.4)' : 'rgba(255,255,255,0.05)';
+    h += `<div ${clickable?`onclick="seqCalSelect('${iso}')" style="cursor:pointer;`:'style="'}min-height:78px;background:${isSel?'rgba(34,211,238,0.08)':'rgba(6,6,14,0.6)'};border:1px solid ${border}" class="rounded-lg p-1 flex flex-col gap-0.5 overflow-hidden">`;
+    h += `<div class="text-[10px] mono ${isToday?'text-cyan-300 font-bold':'text-white/40'}">${dd}</div>`;
+    ps.slice(0,3).forEach(p => { h += chip(p); });
+    if (ps.length > 3) h += `<div class="text-[8px] text-white/40 px-1">+${ps.length-3} more</div>`;
+    h += `</div>`;
+  }
+  h += `</div>`;
+  // selected-day full cards
+  const selPours = seqCalDay ? (byDate[seqCalDay] || []) : [];
+  if (selPours.length) {
+    const card = p => renderFoundationPourCard({ id:String(p.sequence), color:seqColOf(p) }, { id:p.area, label:'Area '+p.area }, p.phase, p, p.id);
+    const ps = selPours.slice().sort((a,b) => seqCompare(a.sequence,b.sequence) || String(a.area).localeCompare(String(b.area)));
+    h += `<div class="mt-4 pt-3 border-t border-white/10"><div class="flex items-center gap-2 mb-2 px-1"><span class="material-symbols-outlined text-cyan-400" style="font-size:16px">event</span><span class="text-xs font-black tracking-widest uppercase text-cyan-300">${escapeHtmlSeq(fmtDateHeader(seqCalDay))}</span><span class="text-[10px] mono text-white/30">${ps.length} pour${ps.length===1?'':'s'}</span></div>`;
+    h += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">${ps.map(card).join('')}</div></div>`;
+  } else {
+    h += `<div class="mt-4 pt-3 border-t border-white/10 text-center text-[11px] text-white/30 py-2">Tap a day with pours to see its cards.</div>`;
+  }
+  // undated pours
+  if (undated.length) {
+    const card = p => renderFoundationPourCard({ id:String(p.sequence), color:seqColOf(p) }, { id:p.area, label:'Area '+p.area }, p.phase, p, p.id);
+    h += `<div class="mt-4 pt-3 border-t border-white/10"><div class="flex items-center gap-2 mb-2 px-1"><span class="material-symbols-outlined text-white/30" style="font-size:16px">event_busy</span><span class="text-xs font-black tracking-widest uppercase text-white/35">No date</span><span class="text-[10px] mono text-white/30">${undated.length}</span></div>`;
+    h += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">${undated.map(card).join('')}</div></div>`;
+  }
+  return h;
+}
+function pourCalName(p) { return p.name || (seqLabelCup(p.sequence) + '·' + (p.area||'') + (p.phase?(' Ph'+p.phase):'')); }
 
 function renderSequenceGroupChips() {
   const wrap = document.getElementById('seqFilterChips');
@@ -8386,23 +8453,9 @@ function renderSequenceGroups() {
   if (!sequences.length) {
     html = `<div class="text-center py-10 px-4"><div class="text-sm text-white/50 mb-1">No pours yet</div><div class="text-[11px] text-white/30">Add pour zones in the <a href="https://dyap123.github.io/embed-tracker/" target="_blank" class="text-cyan-400 hover:underline">embed-tracker app</a> (Pours layer).</div></div>`;
   } else if (seqSortMode === 'date') {
-    // chronological: group by pour date, undated last
+    // calendar dashboard: month grid + selected-day cards
     const fActive = active.filter(p => seqFilter === 'ALL' || String(seqFilter) === String(p.sequence));
-    const groups = {}; const undated = [];
-    fActive.forEach(p => { if (p.pour_date) (groups[p.pour_date] = groups[p.pour_date] || []).push(p); else undated.push(p); });
-    const sortP = arr => arr.sort((a,b) => seqCompare(a.sequence,b.sequence) || String(a.area).localeCompare(String(b.area)) || String(a.phase).localeCompare(String(b.phase)));
-    const card = p => renderFoundationPourCard({ id:String(p.sequence), color:seqColor(p.sequence,p.color) }, { id:p.area, label:'Area '+p.area }, p.phase, p, p.id);
-    Object.keys(groups).sort().forEach(d => {
-      const ps = sortP(groups[d]);
-      html += `<div class="mb-4"><div class="flex items-center gap-2 mb-2 px-1"><span class="material-symbols-outlined text-cyan-400" style="font-size:16px">event</span><span class="text-xs font-black tracking-widest uppercase text-cyan-300">${escapeHtmlSeq(fmtDateHeader(d))}</span><span class="text-[10px] mono text-white/30">${ps.length} pour${ps.length===1?'':'s'}</span></div>`;
-      html += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">${ps.map(card).join('')}</div></div>`;
-    });
-    if (undated.length) {
-      const ps = sortP(undated);
-      html += `<div class="mb-4"><div class="flex items-center gap-2 mb-2 px-1"><span class="material-symbols-outlined text-white/30" style="font-size:16px">event_busy</span><span class="text-xs font-black tracking-widest uppercase text-white/35">No date</span><span class="text-[10px] mono text-white/30">${ps.length} pour${ps.length===1?'':'s'}</span></div>`;
-      html += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">${ps.map(card).join('')}</div></div>`;
-    }
-    groupsEl.innerHTML = html;
+    groupsEl.innerHTML = `<div class="rounded-xl p-3" style="background:rgba(6,6,14,0.5);border:1px solid rgba(255,255,255,0.06)">${renderPourCalendar(fActive)}</div>`;
   }
   if (seqSortMode !== 'date') filtered.forEach(seq => {
     const areas = Object.values(seq.areas).sort((a,b) => String(a.id).localeCompare(String(b.id)));
@@ -8428,7 +8481,7 @@ function renderSequenceGroups() {
     });
     html += `</div>`;
   });
-  groupsEl.innerHTML = html;
+  if (seqSortMode !== 'date' || !sequences.length) groupsEl.innerHTML = html;
 
   // Archived
   if (archivedEl) {
