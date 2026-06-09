@@ -8357,6 +8357,8 @@ function toggleSeqArchived() {
     b.style.border = '1px solid ' + (seqShowArchived ? 'rgba(34,211,238,0.4)' : 'rgba(255,255,255,0.06)'); }
   renderSequenceGroups();
 }
+let mixAddOpenKey = null;
+function toggleMixAdd(key) { mixAddOpenKey = (mixAddOpenKey === key ? null : key); renderSequenceGroups(); }
 function _isoToday() { const n = new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); }
 function seqCalNav(d) { if (!seqCalYM) return; let y=seqCalYM.y, mo=seqCalYM.m+d; if(mo<1){mo=12;y--;} if(mo>12){mo=1;y++;} seqCalYM={y,m:mo}; seqCalDay=null; renderSequenceGroups(); }
 function seqCalToday() { const n=new Date(); seqCalYM={y:n.getFullYear(),m:n.getMonth()+1}; seqCalDay=_isoToday(); renderSequenceGroups(); }
@@ -8519,7 +8521,7 @@ function renderSequenceGroups() {
   }
 }
 
-const PREPOUR_DEFAULTS = ['Bill Carr Surveyors', 'SME Bill Carr', 'Temperature sensors installed', 'ACC pre-pour checklist', 'LADBS inspection', 'Twining', 'Batch plant', 'WSP'];
+const PREPOUR_DEFAULTS = ['Bill Carr Surveyors', 'SME Bill Carr', 'Temperature sensors installed', 'ACC pre-pour checklist', 'LADBS inspection', 'LADBS Soils Inspection', 'Twining', 'Batch plant', 'WSP'];
 function pourChecklistItems(pour) {
   const stored = (pour && Array.isArray(pour.checklist)) ? pour.checklist : [];
   const have = new Set(stored.map(i => i && i.text));
@@ -8657,10 +8659,19 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   if (!isManagerView) {
     const avail = Object.values(designsAll).filter(d => !codes.includes(d.code));
     if (avail.length) {
-      html += `<select onchange="addMixToPour('${escapedKey}',this.value); this.value=''" class="fld fld-sm">`;
-      html += `<option value="" style="background:#1a1a1a">+ Add mix design…</option>`;
-      html += avail.map(d => `<option value="${String(d.code||'').replace(/"/g,'&quot;')}" style="background:#1a1a1a">${escapeHtmlSeq((d.label||d.code||'—') + ' · ' + fmtPsi(d.psi))}</option>`).join('');
-      html += `</select>`;
+      const open = mixAddOpenKey === key;
+      html += `<button onclick="toggleMixAdd('${escapedKey}')" class="w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-all" style="background:linear-gradient(180deg,rgba(34,211,238,0.12),rgba(34,211,238,0.04));border:1px solid rgba(34,211,238,0.28);color:#7dd3fc"><span class="flex items-center gap-1"><span class="material-symbols-outlined" style="font-size:14px">add</span>Add mix design</span><span class="material-symbols-outlined" style="font-size:16px;transition:transform .15s;transform:${open?'rotate(180deg)':'none'}">expand_more</span></button>`;
+      if (open) {
+        html += `<div class="mt-1 rounded-lg overflow-hidden" style="background:rgba(8,11,18,0.99);border:1px solid rgba(255,255,255,0.1);box-shadow:0 10px 24px -12px rgba(0,0,0,0.8)">`;
+        avail.forEach((d, i) => {
+          const ms = mixBarStyle(d.psi); const dek = String(d.code||'').replace(/'/g, "\\'");
+          html += `<button onclick="addMixToPour('${escapedKey}','${dek}')" class="w-full text-left px-2.5 py-2 flex items-center justify-between gap-2 hover:bg-white/5 transition-colors" style="${i<avail.length-1?'border-bottom:1px solid rgba(255,255,255,0.05)':''}">
+            <span class="min-w-0"><span class="block text-[11px] font-bold text-white/90 truncate">${escapeHtmlSeq(d.label||d.code||'—')}</span><span class="block text-[9px] text-white/35 truncate">${escapeHtmlSeq(mixSummary(d))}</span></span>
+            <span class="inline-flex items-center gap-1.5 shrink-0"><span class="w-1.5 h-1.5 rounded-full bg-gradient-to-r ${ms.bar}"></span><span class="text-[10px] mono ${ms.text}">${escapeHtmlSeq(fmtPsi(d.psi))}</span></span>
+          </button>`;
+        });
+        html += `</div>`;
+      }
     } else if (!codes.length) {
       html += `<button onclick="showMixDesignModal()" class="text-[10px] text-cyan-300/70 hover:text-cyan-200">+ Create a mix design</button>`;
     }
