@@ -8509,7 +8509,7 @@ function renderSequenceGroups() {
   }
 }
 
-const PREPOUR_DEFAULTS = ['Bill Carr Surveyors', 'Temperature sensors installed', 'ACC pre-pour checklist', 'LADBS inspection', 'Twining', 'Batch plant', 'WSP'];
+const PREPOUR_DEFAULTS = ['Bill Carr Surveyors', 'SME Bill Carr', 'Temperature sensors installed', 'ACC pre-pour checklist', 'LADBS inspection', 'Twining', 'Batch plant', 'WSP'];
 function pourChecklistItems(pour) {
   const stored = (pour && Array.isArray(pour.checklist)) ? pour.checklist : [];
   const have = new Set(stored.map(i => i && i.text));
