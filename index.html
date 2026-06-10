@@ -8,29 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <!-- perf: precompiled Tailwind (was cdn.tailwindcss.com runtime JIT). Rebuild after class changes: npm run build:css -->
+  <link rel="stylesheet" href="assets/tw.css">
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            "bg": "#000000",
-            "card": "#06060E",
-            "sa": "#4A8EFF",
-            "sb": "#41A447",
-            "sc": "#FFBF00",
-            "sd": "#8B5CF6",
-          },
-          fontFamily: {
-            sans: ['Inter', 'system-ui', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace'],
-          },
-        },
-      },
-    };
-  </script>
   <style>
     /* Hide spinner arrows on inline mix-CY inputs (Webkit) */
     .mix-cy-input::-webkit-outer-spin-button,
@@ -60,6 +41,10 @@
       z-index: 0;
     }
     .mono { font-family:'JetBrains Mono',monospace; }
+    /* perf: kill backdrop-filter blur app-wide (huge paint cost on CPU-only machines);
+       panels keep their translucent backgrounds, just no per-frame blur. */
+    *, *::before, *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001s !important; animation-iteration-count: 1 !important; transition-duration: .001s !important; } }
     .no-scroll::-webkit-scrollbar { display:none; }
     .no-scroll { -ms-overflow-style:none; scrollbar-width:none; }
     .slim-scroll::-webkit-scrollbar { height:6px; width:6px; }
@@ -6139,7 +6124,7 @@ function toggleAlfred() {
     el.style.transition = 'right 0.3s cubic-bezier(.4,0,.2,1)';
     el.style.right = pad;
   });
-  if (alfredOpen && !brainInit) initBrain();
+  if (alfredOpen) { if (!brainInit) initBrain(); else drawBrain(); }
   // Tap/click outside the sidebar to close
   if (alfredOpen) {
     setTimeout(() => document.addEventListener('pointerdown', alfredOutsideClick), 0);
@@ -6344,7 +6329,8 @@ function drawBrain() {
   const bootEl = document.getElementById('brainBootText');
   if (bootEl) bootEl.style.opacity = boot < 0.5 ? 1 : Math.max(0, 1 - (boot-0.5)*4);
 
-  requestAnimationFrame(drawBrain);
+  // perf: only keep the 60fps loop running while the Alfred panel is open (browser auto-pauses RAF when the tab is hidden)
+  if (alfredOpen) requestAnimationFrame(drawBrain);
 }
 
 function highlightBrainNode(name) {
