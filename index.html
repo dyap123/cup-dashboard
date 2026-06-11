@@ -5016,10 +5016,15 @@ function renderMapSection() {
     var svgMinH = Math.max(maxY * 0.8, 500);
     mh += '<div style="height:80vh;min-height:' + svgMinH + 'px;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y">'
       + '<svg id="mapSvg" viewBox="' + dynViewBox + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:800px;min-height:' + svgMinH + 'px;touch-action:none">'
-      + '<rect width="' + maxX + '" height="' + maxY + '" fill="#080c14"/>'
-      + '<defs><pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.6" fill="rgba(255,255,255,0.06)"/></pattern>' + clipDefs + '</defs>'
+      + '<defs>'
+        + '<radialGradient id="ftgBg" cx="42%" cy="32%" r="92%"><stop offset="0%" stop-color="#141B27"/><stop offset="55%" stop-color="#0C111A"/><stop offset="100%" stop-color="#070A11"/></radialGradient>'
+        + '<radialGradient id="ftgVig" cx="50%" cy="50%" r="75%"><stop offset="62%" stop-color="#05070C" stop-opacity="0"/><stop offset="100%" stop-color="#05070C" stop-opacity="0.45"/></radialGradient>'
+        + '<pattern id="fgrid" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="0.6" fill="rgba(255,255,255,0.06)"/></pattern>' + clipDefs
+      + '</defs>'
+      + '<rect width="' + maxX + '" height="' + maxY + '" fill="url(#ftgBg)"/>'
       + '<rect width="' + maxX + '" height="' + maxY + '" fill="url(#fgrid)"/>'
       + gridColsSvg + gridRowsSvg + ftgSvg
+      + '<rect width="' + maxX + '" height="' + maxY + '" fill="url(#ftgVig)" pointer-events="none"/>'
       + '</svg></div>';
     // Legend
     mh += '<div class="px-4 py-2 border-t border-white/5 flex items-center gap-3 text-[9px] flex-wrap">'
@@ -8211,7 +8216,11 @@ function renderEmbedPlan() {
   let s = '';
 
   // background + footprint + structural grid (faithful-but-lean blueprint)
-  s += `<defs><radialGradient id="eybg" cx="42%" cy="36%" r="85%"><stop offset="0%" stop-color="#19222F"/><stop offset="55%" stop-color="#121925"/><stop offset="100%" stop-color="#0C111A"/></radialGradient></defs>`;
+  s += `<defs>`
+    + `<radialGradient id="eybg" cx="42%" cy="36%" r="85%"><stop offset="0%" stop-color="#19222F"/><stop offset="55%" stop-color="#121925"/><stop offset="100%" stop-color="#0C111A"/></radialGradient>`
+    + `<radialGradient id="eyVignette" cx="50%" cy="50%" r="72%"><stop offset="60%" stop-color="#05070C" stop-opacity="0"/><stop offset="100%" stop-color="#05070C" stop-opacity="0.5"/></radialGradient>`
+    + `<filter id="pourGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter>`
+    + `</defs>`;
   s += `<rect width="${W}" height="${H}" fill="url(#eybg)"/>`;
   s += `<rect x="${left-26}" y="${top-26}" width="${(right+26)-(left-26)}" height="${(bot+26)-(top-26)}" fill="rgba(30,58,107,0.10)" stroke="${navyLine}" stroke-width="2"/>`;
   COLS.forEach((c, i) => { s += `<line x1="${cx(i)}" y1="${top-26}" x2="${cx(i)}" y2="${bot+26}" stroke="${i%3===0?lineMaj:line}" stroke-width="${i%3===0?1.4:1}" ${i%3===0?'':'stroke-dasharray="2 7"'}/>`; });
@@ -8224,12 +8233,19 @@ function renderEmbedPlan() {
   // Skip pours with no box yet (created in CUP, not placed in the embed-tracker).
   const ehasGeom = (p) => (Array.isArray(p.points) && p.points.length >= 3) || (+p.w > 0 && +p.h > 0);
   const pours = Object.values(foundationPours).filter(p => p && !p.archived && ehasGeom(p) && (seqFilter === 'ALL' || String(seqFilter) === String(p.sequence)));
+  // one vertical gradient per distinct sequence colour (top brighter → bottom dim) for depth
+  const zgId = (col) => 'zg_' + col.replace(/[^a-z0-9]/gi, '');
+  const usedCols = {}; pours.forEach(p => { usedCols[seqColor(p.sequence, p.color)] = true; });
+  let zdefs = '';
+  Object.keys(usedCols).forEach(col => { zdefs += `<linearGradient id="${zgId(col)}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${col}" stop-opacity="0.36"/><stop offset="100%" stop-color="${col}" stop-opacity="0.12"/></linearGradient>`; });
+  if (zdefs) s += `<defs>${zdefs}</defs>`;
   pours.forEach(p => {
     const pts = eyZonePts(p);
     const col = seqColor(p.sequence, p.color);
     const dpts = pts.map(([x, y]) => `${(x*W).toFixed(1)},${(y*H).toFixed(1)}`).join(' ');
     const complete = p.status === 'COMPLETE';
-    s += `<polygon points="${dpts}" fill="${col}" fill-opacity="${complete?0.30:0.16}" stroke="${col}" stroke-width="3" ${complete?'':'stroke-dasharray="9 9"'}/>`;
+    if (complete) s += `<polygon points="${dpts}" fill="${col}" fill-opacity="0.5" filter="url(#pourGlow)"/>`;   // soft glow under finished pours
+    s += `<polygon points="${dpts}" fill="${complete ? col : 'url(#'+zgId(col)+')'}" fill-opacity="${complete?0.34:1}" stroke="${col}" stroke-width="${complete?3:2.5}" stroke-linejoin="round" ${complete?'':'stroke-dasharray="9 9"'}/>`;
   });
   // labels (separate pass so they sit on top) — compact "#N" by default; tap to expand the full name/info
   const pourNos = cupPourNo();
@@ -8243,7 +8259,7 @@ function renderEmbedPlan() {
     const tx = (minx * W) + 4, ty = (miny * H) + 18;
     const safeId = String(p.id).replace(/'/g, "\\'");
     s += `<g style="cursor:pointer" onclick="toggleEmbedPourLabel('${safeId}')"><title>${esc(expanded ? 'Tap to collapse' : full)}</title>`;
-    s += `<rect x="${tx-3}" y="${ty-14}" width="${text.length*7.3+8}" height="19" rx="3" fill="${col}" fill-opacity="0.92"/>`;
+    s += `<rect x="${tx-3}" y="${ty-15}" width="${text.length*7.3+8}" height="20" rx="4" fill="${col}" fill-opacity="0.95" stroke="rgba(6,16,12,0.55)" stroke-width="1"/>`;
     s += `<text x="${tx+1}" y="${ty}" fill="#06140e" font-size="13" font-weight="700" font-family="'JetBrains Mono',monospace" style="pointer-events:none">${esc(text)}</text>`;
     s += `</g>`;
   });
@@ -8251,6 +8267,10 @@ function renderEmbedPlan() {
   if (!pours.length) {
     s += `<text x="${W/2}" y="${H/2}" fill="rgba(255,255,255,0.4)" font-size="22" font-family="'JetBrains Mono',monospace" text-anchor="middle">No pour zones drawn yet — draw them in the embed-tracker app</text>`;
   }
+  // vignette + decorative north arrow (top-right) for a finished blueprint feel
+  s += `<rect width="${W}" height="${H}" fill="url(#eyVignette)" pointer-events="none"/>`;
+  const naX = W - 52, naY = 30;
+  s += `<g pointer-events="none" opacity="0.5"><path d="M${naX},${naY+24} L${naX-8},${naY+24} L${naX},${naY} L${naX+8},${naY+24} Z" fill="rgba(170,188,218,0.55)" stroke="rgba(170,188,218,0.3)" stroke-width="1"/><text x="${naX}" y="${naY+40}" fill="rgba(170,188,218,0.7)" font-size="13" font-weight="700" font-family="'JetBrains Mono',monospace" text-anchor="middle">N</text></g>`;
   svg.innerHTML = s;
 }
 
@@ -8353,6 +8373,9 @@ async function renderSequenceMap() {
   aurora.appendChild(seqSvgEl('stop', { offset:'40%', 'stop-color':'#0f1c3a', 'stop-opacity':0.6 }));
   aurora.appendChild(seqSvgEl('stop', { offset:'100%','stop-color':'#050a1a', 'stop-opacity':1 }));
   defs.appendChild(aurora);
+  const seqGlow = seqSvgEl('filter', { id:'seqGlow', x:'-30%', y:'-30%', width:'160%', height:'160%' });
+  seqGlow.appendChild(seqSvgEl('feGaussianBlur', { stdDeviation:'6' }));
+  defs.appendChild(seqGlow);
   svg.appendChild(defs);
 
   svg.appendChild(seqSvgEl('rect', { x:0, y:0, width:W, height:H, fill:'url(#seqAurora)', 'fill-opacity':0.45 }));
@@ -8413,14 +8436,21 @@ function seqDrawArea(svg, area) {
 
   // Status fill
   let statusColor;
+  let isComplete = false;
   if (isFoundation) {
-    statusColor = SEQ_STATUS_COLOR[aggregateAreaStatus(meta.seq, meta.areaId)];
+    const aggStatus = aggregateAreaStatus(meta.seq, meta.areaId);
+    statusColor = SEQ_STATUS_COLOR[aggStatus];
+    isComplete = aggStatus === 'COMPLETE';
   } else {
     statusColor = { fill:'#64748b', stroke: area.outline_color || '#475569' };
   }
+  // soft glow halo behind completed areas
+  if (isComplete) {
+    svg.appendChild(seqSvgEl('polygon', { points, fill:statusColor.fill, 'fill-opacity':0.4, filter:'url(#seqGlow)', 'pointer-events':'none' }));
+  }
   const polyAttrs = {
     points, fill:statusColor.fill,
-    'fill-opacity': isInteractive ? 0.18 : 0.06,
+    'fill-opacity': isComplete ? 0.30 : (isInteractive ? 0.18 : 0.06),
     stroke: statusColor.stroke,
     'stroke-width':1.2, 'stroke-opacity':0.9,
     'stroke-linejoin':'round', 'stroke-linecap':'round',
