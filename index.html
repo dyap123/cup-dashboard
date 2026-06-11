@@ -7889,6 +7889,19 @@ let seqCalStart = null, seqCalEnd = null;   // selected date range (ISO) — sho
 let seqShowArchived = false;
 let embedGrid = null;              // embed-tracker/grid config (cols/rows/spacing)
 let seqMapMode = 'plan';          // 'plan' = EmbedYap blueprint | 'areas' = LACC polygons
+let expandedPourLabels = {};      // pour ids whose full name/info is shown on the plan map (tap the # badge)
+
+// pour order #: all foundation pours numbered by date then created — matches embed-tracker's pourNo
+function cupPourNo() {
+  const ps = Object.entries(foundationPours).filter(([, z]) => z)
+    .map(([k, z]) => ({ id: k, date: z.pour_date || '', createdAt: z.createdAt || 0 }))
+    .sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || (a.createdAt || 0) - (b.createdAt || 0));
+  const m = {}; ps.forEach((z, i) => { m[z.id] = i + 1; }); return m;
+}
+function toggleEmbedPourLabel(id) {
+  if (expandedPourLabels[id]) delete expandedPourLabels[id]; else expandedPourLabels[id] = true;
+  renderEmbedPlan();
+}
 
 // embed-tracker naming: numeric sequences read "Seq N"; named ones (South Hall) as-is
 function seqLabelCup(s) { return s != null && /^\d+$/.test(String(s)) ? 'Seq ' + s : String(s == null ? '' : s); }
@@ -7937,6 +7950,7 @@ function zoneToFoundationPour(id, z) {
     label: z.label || '',
     archived: !!z.archived,
     archivedAt: z.archivedAt || '',
+    createdAt: z.createdAt || 0,      // for pour numbering (matches embed-tracker order)
     color: z.color || '',             // 'R,G,B' for sequence color derivation
     done: !!z.done,
     // geometry (normalized 0..1 over the EmbedYap blueprint) for the plan map
@@ -8019,15 +8033,21 @@ function renderEmbedPlan() {
     const complete = p.status === 'COMPLETE';
     s += `<polygon points="${dpts}" fill="${col}" fill-opacity="${complete?0.30:0.16}" stroke="${col}" stroke-width="3" ${complete?'':'stroke-dasharray="9 9"'}/>`;
   });
-  // labels (separate pass so they sit on top)
+  // labels (separate pass so they sit on top) — compact "#N" by default; tap to expand the full name/info
+  const pourNos = cupPourNo();
   pours.forEach(p => {
     const pts = eyZonePts(p);
     const minx = Math.min(...pts.map(q => q[0])), miny = Math.min(...pts.map(q => q[1]));
     const col = seqColor(p.sequence, p.color);
-    const text = `${seqLabelCup(p.sequence)} · ${p.area}${p.phase ? ' · Ph ' + p.phase : ''}${p.pour_date ? ' · ' + mdFromIso(p.pour_date) : ''}`;
+    const expanded = !!expandedPourLabels[p.id];
+    const full = (p.name && String(p.name).trim()) || `${seqLabelCup(p.sequence)} · ${p.area}${p.phase ? ' · Ph ' + p.phase : ''}${p.pour_date ? ' · ' + mdFromIso(p.pour_date) : ''}`;
+    const text = expanded ? full : ('#' + (pourNos[p.id] || '?'));
     const tx = (minx * W) + 4, ty = (miny * H) + 18;
+    const safeId = String(p.id).replace(/'/g, "\\'");
+    s += `<g style="cursor:pointer" onclick="toggleEmbedPourLabel('${safeId}')"><title>${esc(expanded ? 'Tap to collapse' : full)}</title>`;
     s += `<rect x="${tx-3}" y="${ty-14}" width="${text.length*7.3+8}" height="19" rx="3" fill="${col}" fill-opacity="0.92"/>`;
-    s += `<text x="${tx+1}" y="${ty}" fill="#06140e" font-size="13" font-weight="700" font-family="'JetBrains Mono',monospace">${esc(text)}</text>`;
+    s += `<text x="${tx+1}" y="${ty}" fill="#06140e" font-size="13" font-weight="700" font-family="'JetBrains Mono',monospace" style="pointer-events:none">${esc(text)}</text>`;
+    s += `</g>`;
   });
 
   if (!pours.length) {
