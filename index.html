@@ -5421,7 +5421,7 @@ function renderPourDay() {
   // Truck button + ticket input (hidden for managers)
   if (!isManagerView) {
     h += `<div class="space-y-2 mb-4">
-      <button onclick="logTruck()" class="w-full py-5 rounded-xl font-black text-xl tracking-wide active:scale-[0.98] transition-transform flex items-center justify-center gap-3" style="background:${c};color:#000">
+      <button id="pdTruckBtn" onclick="logTruck()" class="w-full py-5 rounded-xl font-black text-xl tracking-wide active:scale-[0.98] transition-transform flex items-center justify-center gap-3" style="background:${c};color:#000">
         <span class="material-symbols-outlined text-2xl">local_shipping</span>
         TRUCK #${pourTrucks.length + 1} — ${pourDay.defaultCY} CY
       </button>
@@ -7119,6 +7119,20 @@ setInterval(loadTicketsIndex, 5 * 60 * 1000);
         <button onclick="saveTicketPageEdit()" class="text-xs font-bold px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-400 text-white">Save</button>
         <span id="scanOcrConfidence" class="text-[10px] text-white/40 mono"></span>
       </div>
+      <div class="mt-2 flex items-center gap-2 text-white flex-wrap justify-center">
+        <label class="text-xs text-white/60">CY</label>
+        <input id="scanPreviewCY" type="text" inputmode="decimal" class="px-2 py-1.5 rounded-lg bg-white/10 text-white border border-white/20 font-mono text-sm w-16" placeholder="—"/>
+        <label class="text-xs text-white/60 ml-2">Mix</label>
+        <select id="scanPreviewMix" class="px-2 py-1.5 rounded-lg bg-white/10 text-white border border-white/20 font-mono text-sm">
+          <option value="" style="background:#1a1a1a">—</option>
+          <option value="8000" style="background:#1a1a1a">8000</option>
+          <option value="5000" style="background:#1a1a1a">5000</option>
+          <option value="slurry" style="background:#1a1a1a">Slurry</option>
+        </select>
+        <button onclick="useTicketForTruck()" class="ml-2 text-xs font-bold px-3 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black">
+          <span class="material-symbols-outlined text-xs align-middle">local_shipping</span> Use for truck
+        </button>
+      </div>
     </div>
   </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
@@ -7291,7 +7305,7 @@ const Scanner = (function () {
             logger: () => {}, // silent
           });
           await worker.setParameters({
-            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-#',
+            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-#./ ',
           });
           state.tesseract = worker;
           resolve(worker);
@@ -7354,6 +7368,70 @@ const Scanner = (function () {
       console.warn('OCR failed', err);
       return null;
     }
+  }
+
+  // Pull a cubic-yards value from ticket body text. Labeled forms first, then a
+  // bare "N CY" token. Gated to a sane truck-load range so PSI/noise is rejected.
+  function extractCY(text) {
+    if (!text) return null;
+    const t = text.toUpperCase();
+    const patterns = [
+      /(\d{1,2}(?:\.\d{1,2})?)\s*(?:CY|C\.?\s?Y\.?|CU\.?\s*YD?S?|YD3|YDS?|YARDS?)\b/,
+      /(?:QTY|QUANTITY|LOAD(?:\s*SIZE)?|THIS\s*LOAD)\D{0,8}(\d{1,2}(?:\.\d{1,2})?)/,
+    ];
+    for (const re of patterns) {
+      const m = t.match(re);
+      if (m) { const v = parseFloat(m[1]); if (v >= 1 && v <= 12) return v; }
+    }
+    return null;
+  }
+
+  // Map any recognizable mix/PSI token to an existing #pdMixSelect value.
+  // Returns '8000' | '5000' | 'slurry' | null (null => leave the select unchanged).
+  function extractMix(text) {
+    if (!text) return null;
+    const t = text.toUpperCase().replace(/,/g, '');   // drop thousands separators ("8,000" -> "8000")
+    if (/\b(?:SLURRY|GROUT|CDF|CLSM)\b/.test(t)) return 'slurry';
+    // 8000/5000 as a standalone number (allows adjacent letters like "8000PSI", rejects "18000"/"80000")
+    if (/(?:^|\D)8000(?!\d)/.test(t) || /\b8K\b/.test(t)) return '8000';
+    if (/(?:^|\D)5000(?!\d)/.test(t) || /\b5K\b/.test(t)) return '5000';
+    return null;
+  }
+
+  // Full ticket read: ticket # (tuned top-right crop) + CY + mix (wide mid-page band).
+  // Both passes run in the background; never blocks capture.
+  async function ocrTicketFields(pageDataUrl, pageW, pageH) {
+    const numRes = await ocrTicketNumber(pageDataUrl, pageW, pageH);
+    const worker = await loadTesseract();
+    let cy = null, mix = null, bodyText = '';
+    if (worker) {
+      try {
+        const img = new Image();
+        img.src = pageDataUrl;
+        await new Promise((res) => { img.onload = res; img.onerror = res; });
+        // Wide band ~30%→80% of height covers the line-item rows (skips header + footer/signature)
+        const cropY = Math.round(pageH * 0.30);
+        const cropH = Math.round(pageH * 0.50);
+        const c = document.createElement('canvas');
+        c.width = pageW; c.height = cropH;
+        const ctx = c.getContext('2d');
+        ctx.filter = 'grayscale(1) contrast(1.35) brightness(1.05)';
+        ctx.drawImage(img, 0, cropY, pageW, cropH, 0, 0, pageW, cropH);
+        const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+        if (blob) {
+          const r = await worker.recognize(blob);
+          bodyText = (r && r.data && r.data.text) || '';
+          cy = extractCY(bodyText);
+          mix = extractMix(bodyText);
+        }
+      } catch (err) { console.warn('ocrTicketFields body pass failed', err); }
+    }
+    return {
+      ticket: numRes ? numRes.ticket : null,
+      ticketConf: numRes ? numRes.confidence : 0,
+      cy, mix,
+      raw: (numRes ? numRes.raw : '') + '\n---\n' + bodyText,
+    };
   }
 
   async function open(pourId) {
@@ -7592,6 +7670,7 @@ const Scanner = (function () {
     const page = {
       dataUrl: dataUrl, w: extracted.width, h: extracted.height,
       ticket: null, ocrConfidence: 0, ocrPending: true,
+      cy: null, mix: null,
     };
     let pageIdx;
     if (typeof idxOverride === 'number' && idxOverride >= 0 && idxOverride < state.pages.length) {
@@ -7611,11 +7690,12 @@ const Scanner = (function () {
       setTimeout(() => { flash.style.opacity = '0'; }, 120);
     }
     // Kick off OCR in the background (don't await — the user can keep scanning)
-    ocrTicketNumber(dataUrl, page.w, page.h).then((res) => {
+    ocrTicketFields(dataUrl, page.w, page.h).then((res) => {
       page.ocrPending = false;
-      if (res && res.ticket) {
-        page.ticket = res.ticket;
-        page.ocrConfidence = res.confidence || 0;
+      if (res) {
+        if (res.ticket) { page.ticket = res.ticket; page.ocrConfidence = res.ticketConf || 0; }
+        if (res.cy != null) page.cy = res.cy;
+        if (res.mix) page.mix = res.mix;
       }
       // Re-render only if the page is still in the list (could have been deleted)
       if (state.pages[pageIdx] === page) renderThumbnails();
@@ -7639,10 +7719,17 @@ const Scanner = (function () {
         : (p.ocrPending
             ? '<div class="absolute bottom-0 left-0 right-0 bg-white/10 text-white/40 text-[8px] font-mono text-center py-0.5 rounded-b animate-pulse">reading…</div>'
             : '<div class="absolute bottom-0 left-0 right-0 bg-amber-500/40 text-amber-100 text-[8px] font-mono text-center py-0.5 rounded-b">no #</div>');
+      const detailBits = [];
+      if (p.cy != null) detailBits.push(p.cy + 'CY');
+      if (p.mix) detailBits.push(p.mix === '8000' ? '8K' : p.mix === '5000' ? '5K' : 'SL');
+      const detailLine = detailBits.length
+        ? '<div class="absolute bottom-[15px] left-0 right-0 bg-emerald-600/85 text-emerald-50 text-[8px] font-bold font-mono text-center leading-tight">' + detailBits.join('·') + '</div>'
+        : '';
       item.innerHTML =
         '<div class="cursor-pointer" data-idx="' + i + '">' +
           '<img src="' + p.dataUrl + '" class="h-20 w-14 object-cover rounded border border-white/20" />' +
           '<div class="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-blue-500 text-[10px] font-bold flex items-center justify-center text-white">' + (i + 1) + '</div>' +
+          detailLine +
           ticketBadge +
         '</div>' +
         '<button class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs leading-none flex items-center justify-center" data-action="delete">&times;</button>';
@@ -7662,6 +7749,8 @@ const Scanner = (function () {
     state.previewIdx = idx;
     $('scanPreviewImg').src = p.dataUrl;
     $('scanPreviewTicket').value = p.ticket || '';
+    const cyEl = $('scanPreviewCY'); if (cyEl) cyEl.value = (p.cy != null ? p.cy : '');
+    const mixEl = $('scanPreviewMix'); if (mixEl) mixEl.value = (p.mix || '');
     const conf = $('scanOcrConfidence');
     if (conf) {
       conf.textContent = p.ocrPending
@@ -7686,6 +7775,10 @@ const Scanner = (function () {
     const val = $('scanPreviewTicket').value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
     state.pages[idx].ticket = val || null;
     state.pages[idx].ocrConfidence = val ? 100 : 0; // user-entered = full confidence
+    const cyEl = $('scanPreviewCY');
+    if (cyEl) { const cyVal = parseFloat((cyEl.value || '').replace(/[^\d.]/g, '')); state.pages[idx].cy = isNaN(cyVal) ? null : cyVal; }
+    const mixEl = $('scanPreviewMix');
+    if (mixEl) state.pages[idx].mix = mixEl.value || null;
     renderThumbnails();
     closePreview();
   }
@@ -7844,14 +7937,51 @@ const Scanner = (function () {
     });
   }
 
+  // Prefill the manual truck controls from the previewed (or last) page, then
+  // close the scanner. Does NOT auto-log — the user reviews and taps TRUCK #N.
+  function useForTruck() {
+    const idx = state.previewIdx;
+    const p = idx >= 0 ? state.pages[idx] : (state.pages[state.pages.length - 1] || null);
+    if (!p) { alert('No scanned page to use yet.'); return; }
+    // Prefer any live edits in the preview inputs over the raw OCR
+    const tIn = $('scanPreviewTicket'), cyIn = $('scanPreviewCY'), mixIn = $('scanPreviewMix');
+    const ticket = ((tIn && tIn.value) || p.ticket || '').toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    const cy = (cyIn && cyIn.value !== '') ? parseFloat(cyIn.value) : p.cy;
+    const mix = (mixIn && mixIn.value) || p.mix || '';
+    // Make sure Pour Day is showing the pour we scanned for (so the #pd* inputs exist)
+    try {
+      if (typeof selectPourDay === 'function' && state.pourId &&
+          (!getActivePour() || getActivePour().id !== state.pourId)) {
+        selectPourDay(state.pourId);
+      }
+    } catch (_) {}
+    // CY → defaultCY + chip highlight (setPourDayCY re-renders Pour Day)
+    if (cy != null && !isNaN(cy) && typeof setPourDayCY === 'function') setPourDayCY(cy);
+    else if (typeof renderPourDay === 'function') renderPourDay();
+    // Ticket # + mix → inputs, after the re-render rebuilt the DOM
+    setTimeout(() => {
+      const t = document.getElementById('pdTicketInput'); if (t) t.value = ticket;
+      if (mix) { const sel = document.getElementById('pdMixSelect'); if (sel && Array.from(sel.options).some(o => o.value === mix)) sel.value = mix; }
+      close();
+      const truckBtn = document.getElementById('pdTruckBtn');
+      if (truckBtn) {
+        truckBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        truckBtn.style.boxShadow = '0 0 0 4px rgba(52,211,153,0.9)';
+        setTimeout(() => { truckBtn.style.boxShadow = ''; }, 1600);
+      }
+    }, 0);
+  }
+
   return {
     open, close, capture, save, saveDraft, getDraftCount,
     toggleAuto, openPreview, closePreview, saveEdit, retakeCurrent, deleteCurrent,
+    useForTruck,
   };
 })();
 
 // Helper exposed to onclick handlers
 function openTicketScanner(pourId)   { Scanner.open(pourId); }
+function useTicketForTruck()          { Scanner.useForTruck(); }
 function closeTicketScanner()         { Scanner.close(); }
 function captureTicketScanner()       { Scanner.capture(); }
 function saveTicketScanner()          { Scanner.save(); }
