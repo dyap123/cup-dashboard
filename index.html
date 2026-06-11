@@ -366,10 +366,10 @@
     <button onclick="switchTab('sequence')" id="tabSeq" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white">Sequences</button>
     <button onclick="switchTab('pourday')" id="tabPour" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Pour Day</button>
     <button onclick="switchTab('live')" id="tabLive" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Live Pour</button>
-    <button onclick="switchTab('embeds')" id="tabEmbeds" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60">Embeds</button>
     <div class="relative">
       <button onclick="toggleLegacyMenu(event)" id="tabLegacy" class="tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60 flex items-center gap-1">Legacy <span class="material-symbols-outlined" style="font-size:14px">expand_more</span></button>
       <div id="legacyMenu" class="hidden absolute left-0 mt-1 z-[60] rounded-lg overflow-hidden" style="background:rgba(12,14,22,0.98);border:1px solid rgba(255,255,255,0.1);min-width:130px;box-shadow:0 10px 30px -10px rgba(0,0,0,0.8)">
+        <button onclick="switchTab('embeds'); closeLegacyMenu()" id="tabEmbeds" class="block w-full text-left px-3 py-2 text-xs font-bold text-white/70 hover:bg-white/10">Embeds</button>
         <button onclick="switchTab('dashboard'); closeLegacyMenu()" id="tabDash" class="block w-full text-left px-3 py-2 text-xs font-bold text-white/70 hover:bg-white/10">Dashboard</button>
         <button onclick="switchTab('checklist'); closeLegacyMenu()" id="tabCheck" class="block w-full text-left px-3 py-2 text-xs font-bold text-white/70 hover:bg-white/10">Checklist</button>
       </div>
@@ -2244,12 +2244,12 @@ function switchTab(tab) {
   if (isManagerView && tab === 'checklist') return;
   if (isManagerView && tab === 'pourday' && !state.pours.some(p => getPourStatus(p.id) === 'COMPLETE')) return;
   const views = { dashboard:'dashboardView', checklist:'checklistView', pourday:'pourdayView', live:'liveView', embeds:'embedsView', sequence:'sequenceView' };
-  const topTabs = { sequence:'tabSeq', pourday:'tabPour', live:'tabLive', embeds:'tabEmbeds' };   // dashboard/checklist live in Legacy ▾
+  const topTabs = { sequence:'tabSeq', pourday:'tabPour', live:'tabLive' };   // embeds/dashboard/checklist live in Legacy ▾
   const active = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all bg-white/10 text-white';
   const inactive = 'tab-btn px-3 py-1 rounded-full text-xs font-bold transition-all text-white/40 hover:text-white/60';
   const legacyActive = active + ' flex items-center gap-1';
   const legacyInactive = inactive + ' flex items-center gap-1';
-  const isLegacy = (tab === 'dashboard' || tab === 'checklist');
+  const isLegacy = (tab === 'dashboard' || tab === 'checklist' || tab === 'embeds');
 
   Object.values(views).forEach(id => document.getElementById(id)?.classList.add('hidden'));
   Object.values(topTabs).forEach(id => { const el = document.getElementById(id); if (el) el.className = inactive; });
