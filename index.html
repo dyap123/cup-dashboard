@@ -8759,11 +8759,14 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   html += `<div class="flex items-center justify-between pt-2 border-t border-white/5">`;
   html += `<span class="text-[10px] mono text-white/40">${trucks} truck${trucks===1?'':'s'}</span>`;
   if (!isManagerView) {
+    html += `<div class="flex items-center gap-1.5">`;
     if (isArchived) {
-      html += `<button onclick="unarchiveFoundationPour('${escapedKey}')" class="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25 hover:bg-amber-500/25">Unarchive</button>`;
+      html += `<button onclick="unarchiveFoundationPour('${escapedKey}')" class="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25 hover:bg-amber-500/25" title="Move back to the active list">Unarchive</button>`;
     } else {
-      html += `<button onclick="archiveFoundationPour('${escapedKey}')" class="text-[9px] font-bold px-2 py-0.5 rounded bg-white/5 text-white/40 border border-white/10 hover:bg-white/10 hover:text-white/70" title="Hide from active list — delete pours in the embed-tracker app">Archive</button>`;
+      html += `<button onclick="archiveFoundationPour('${escapedKey}')" class="text-[9px] font-bold px-2 py-0.5 rounded bg-white/5 text-white/40 border border-white/10 hover:bg-white/10 hover:text-white/70" title="Hide from the active list — keeps the pour, reversible">Archive</button>`;
     }
+    html += `<button onclick="deleteFoundationPour('${escapedKey}')" class="text-[9px] font-bold px-2 py-0.5 rounded bg-red-500/10 text-red-400/70 border border-red-500/20 hover:bg-red-500/20 hover:text-red-300" title="Permanently remove this pour (also removes it from the embed-tracker app)">Delete</button>`;
+    html += `</div>`;
   }
   html += `</div>`;
   html += `</div>`;
@@ -8809,7 +8812,7 @@ function archiveFoundationPour(key) {
   if (isManagerView) return;
   const pour = foundationPours[key];
   if (!pour) return;
-  if (!confirm(`Archive ${seqLabelCup(pour.sequence)} · Area ${pour.area} · Phase ${pour.phase}? It moves to the archived list (toggle "Show archived"). To remove a pour entirely, delete it in the embed-tracker app.`)) return;
+  if (!confirm(`Archive ${seqLabelCup(pour.sequence)} · Area ${pour.area} · Phase ${pour.phase}? It just hides from the active list (toggle "Show archived" to see it) and can be un-archived anytime. Use Delete to remove it entirely.`)) return;
   foundationPours = Object.assign({}, foundationPours, { [key]: Object.assign({}, pour, { archived:true, archivedAt:new Date().toISOString() }) });
   fbSet('embed-tracker/zones/' + key + '/archived', true);
   fbSet('embed-tracker/zones/' + key + '/archivedAt', new Date().toISOString());
@@ -8824,6 +8827,20 @@ function unarchiveFoundationPour(key) {
   foundationPours = Object.assign({}, foundationPours, { [key]: Object.assign({}, pour, { archived:false, archivedAt:'' }) });
   fbSet('embed-tracker/zones/' + key + '/archived', false);
   fbSet('embed-tracker/zones/' + key + '/archivedAt', null);
+  renderSequenceGroups();
+  seqRecolorAreas();
+}
+
+// Permanently remove a pour — deletes the underlying embed-tracker zone (shared data),
+// so it disappears from the embed-tracker app too. Archive is the reversible option.
+function deleteFoundationPour(key) {
+  if (isManagerView) return;
+  const pour = foundationPours[key];
+  if (!pour) return;
+  const nm = (pour.name && String(pour.name).trim()) || `${seqLabelCup(pour.sequence)} · Area ${pour.area} · Phase ${pour.phase}`;
+  if (!confirm(`Delete pour "${nm}"?\n\nThis permanently removes it — including from the embed-tracker app — and cannot be undone. (Use Archive instead to just hide it.)`)) return;
+  const next = Object.assign({}, foundationPours); delete next[key]; foundationPours = next;
+  fbSet('embed-tracker/zones/' + key, null);   // remove the whole zone node
   renderSequenceGroups();
   seqRecolorAreas();
 }
