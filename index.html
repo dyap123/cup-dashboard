@@ -7506,6 +7506,7 @@ const Scanner = (function () {
 
   function close() {
     stopEdgeLoop();
+    cancelCountdown();
     if (state.stream) {
       state.stream.getTracks().forEach(t => t.stop());
       state.stream = null;
@@ -7550,12 +7551,16 @@ const Scanner = (function () {
               const frameArea = canvas.width * canvas.height;
               const fillRatio = area / frameArea;
 
-              // Stability check: how far did the centroid move?
+              // Stability check: centroid drift + document-like aspect (rejects slivers/noise)
+              const xs = arr.map(p => p.x), ys = arr.map(p => p.y);
+              const bbW = Math.max(...xs) - Math.min(...xs), bbH = Math.max(...ys) - Math.min(...ys);
+              const aspect = (bbW > 0 && bbH > 0) ? Math.min(bbW, bbH) / Math.max(bbW, bbH) : 0;
+              const aspectOK = aspect > 0.45;
               if (state.lastQuadCentroid) {
                 const dx = cx - state.lastQuadCentroid.x;
                 const dy = cy - state.lastQuadCentroid.y;
                 const drift = Math.sqrt(dx * dx + dy * dy);
-                if (drift < STABLE_THRESHOLD_PX && fillRatio >= MIN_AREA_RATIO) {
+                if (drift < STABLE_THRESHOLD_PX && fillRatio >= MIN_AREA_RATIO && aspectOK) {
                   state.lockOnFrames++;
                 } else {
                   state.lockOnFrames = 0;
@@ -7564,35 +7569,63 @@ const Scanner = (function () {
               state.lastQuadCentroid = { x: cx, y: cy };
               locked = state.lockOnFrames >= STABLE_FRAMES_NEEDED;
 
-              // Color the overlay by lock-on progress
+              // Color ramps blue → green as it locks on
               const progress = Math.min(1, state.lockOnFrames / STABLE_FRAMES_NEEDED);
               const r = Math.round(96 + (74 - 96) * progress);    // 60→4A
               const g = Math.round(165 + (222 - 165) * progress); // A5→DE
               const b = Math.round(250 + (128 - 250) * progress); // FA→80
-              ctx.lineWidth = 6;
-              ctx.strokeStyle = `rgba(${r},${g},${b},0.95)`;
-              ctx.fillStyle = `rgba(${r},${g},${b},${0.12 + progress * 0.18})`;
+
+              // (1) iOS-style shaded mask OUTSIDE the detected page (lightens as it locks)
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(0, 0, canvas.width, canvas.height);
+              arr.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+              ctx.closePath();
+              ctx.fillStyle = `rgba(4,8,14,${0.5 - progress * 0.24})`;
+              ctx.fill('evenodd');
+              ctx.restore();
+
+              // (2) Marching-ants page edge with rounded joins
+              ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+              ctx.lineWidth = 5;
+              ctx.strokeStyle = `rgba(${r},${g},${b},0.98)`;
+              ctx.setLineDash([18, 12]);
+              state.dashPhase = ((state.dashPhase || 0) + 1) % 30;
+              ctx.lineDashOffset = -state.dashPhase;
               ctx.beginPath();
               arr.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
               ctx.closePath();
-              ctx.fill(); ctx.stroke();
+              ctx.stroke();
+              ctx.setLineDash([]);
 
-              // Draw corner markers for visual feedback
-              ctx.fillStyle = `rgb(${r},${g},${b})`;
-              arr.forEach((p) => {
-                ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI * 2); ctx.fill();
+              // (3) Corner L-brackets (cleaner than dots)
+              ctx.lineWidth = 6;
+              const L = 28;
+              arr.forEach((p, i) => {
+                const nx = arr[(i + 1) % arr.length], pv = arr[(i + arr.length - 1) % arr.length];
+                const seg = (a, bb) => { const dx = bb.x - a.x, dy = bb.y - a.y; const len = Math.hypot(dx, dy) || 1; return { x: a.x + dx / len * L, y: a.y + dy / len * L }; };
+                const e1 = seg(p, nx), e2 = seg(p, pv);
+                ctx.beginPath(); ctx.moveTo(e1.x, e1.y); ctx.lineTo(p.x, p.y); ctx.lineTo(e2.x, e2.y); ctx.stroke();
               });
             }
           } else {
             state.lockOnFrames = 0;
             state.lastQuadCentroid = null;
+            // Faint portrait target guide so the user knows where to aim
+            const gw = canvas.width * 0.6, gh = Math.min(canvas.height * 0.86, gw * 1.3);
+            const gx = (canvas.width - gw) / 2, gy = (canvas.height - gh) / 2;
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+            ctx.lineWidth = 3; ctx.setLineDash([14, 12]);
+            ctx.strokeRect(gx, gy, gw, gh);
+            ctx.restore();
           }
 
           updateScanStatus(detected, locked);
 
-          // Auto-capture trigger: only fire after lock-on AND past cooldown
-          if (state.autoCapture && locked && Date.now() > state.captureCooldown) {
-            triggerAutoCapture();
+          // Auto-capture trigger: lock-on + past cooldown, then a short countdown ring
+          if (state.autoCapture && locked && Date.now() > state.captureCooldown && !state.countdownTimer) {
+            runAutoCaptureCountdown();
           }
         }
       } catch (_) { /* silent */ }
@@ -7615,25 +7648,53 @@ const Scanner = (function () {
     const s = $('scanStatus');
     if (!s) return;
     if (locked) {
-      s.textContent = state.autoCapture ? '✓ Locked — capturing…' : '✓ Hold steady — tap shutter';
+      s.textContent = state.autoCapture ? '✓ Locked — hold steady…' : '✓ Locked — tap shutter';
       s.style.background = 'rgba(74,222,128,0.85)';
       s.style.color = '#062012';
     } else if (detected) {
       const pct = Math.round(state.lockOnFrames / 18 * 100);
-      s.textContent = state.autoCapture ? `Locking on… ${Math.min(100, pct)}%` : 'Document detected — tap shutter';
+      s.textContent = state.autoCapture ? `Locking on… ${Math.min(100, pct)}%` : 'Ticket detected — tap shutter';
       s.style.background = 'rgba(0,0,0,0.55)';
       s.style.color = 'rgba(255,255,255,0.9)';
     } else {
-      s.textContent = 'Hold the ticket flat — show all 4 corners';
+      s.textContent = 'Point at the ticket — fit all 4 corners';
       s.style.background = 'rgba(0,0,0,0.55)';
       s.style.color = 'rgba(255,255,255,0.7)';
     }
   }
 
-  function triggerAutoCapture() {
-    state.captureCooldown = Date.now() + 2500; // 2.5s cooldown after capture
-    state.lockOnFrames = 0;
-    capture(); // capture immediately on lock-on (no countdown — user already held still 0.6s)
+  function showCountdownRing(show) {
+    const el = $('scanCountdown'); if (el) el.style.display = show ? 'flex' : 'none';
+  }
+  // Brief ~0.8s ring after lock-on so the frame settles; aborts if the page is lost.
+  function runAutoCaptureCountdown() {
+    if (state.countdownTimer) return;
+    const arc = $('scanCountdownArc'), num = $('scanCountdownNum');
+    const DUR = 800, CIRC = 276.46;
+    showCountdownRing(true);
+    state.countdownStart = Date.now();
+    const step = () => {
+      const elapsed = Date.now() - state.countdownStart;
+      const t = Math.min(1, elapsed / DUR);
+      if (arc) arc.style.strokeDashoffset = String(CIRC * (1 - t));
+      if (num) num.textContent = String(Math.max(1, Math.ceil((DUR - elapsed) / 400)));
+      if (state.lockOnFrames === 0) {        // document moved/lost mid-countdown — abort
+        clearTimeout(state.countdownTimer); state.countdownTimer = null;
+        showCountdownRing(false); return;
+      }
+      if (t >= 1) {
+        state.countdownTimer = null; showCountdownRing(false);
+        state.captureCooldown = Date.now() + 2500; state.lockOnFrames = 0;
+        capture();
+      } else {
+        state.countdownTimer = setTimeout(step, 60);
+      }
+    };
+    step();
+  }
+  function cancelCountdown() {
+    if (state.countdownTimer) { clearTimeout(state.countdownTimer); state.countdownTimer = null; }
+    showCountdownRing(false);
   }
 
   function stopEdgeLoop() {
