@@ -41,6 +41,13 @@
       z-index: 0;
     }
     .mono { font-family:'JetBrains Mono',monospace; }
+    /* polished card surface (no blur) — gradient + layered shadow + hairline border */
+    .cup-card { background:linear-gradient(180deg,rgba(20,24,36,0.80),rgba(9,12,20,0.85)); border:1px solid rgba(150,170,205,0.10); box-shadow:inset 0 1px 0 rgba(255,255,255,0.05), 0 12px 30px -16px rgba(0,0,0,0.65); }
+    .cup-card:hover { border-color:rgba(150,170,205,0.16); }
+    .cup-display { font-family:'Space Grotesk','Inter',sans-serif; letter-spacing:-0.01em; }
+    /* metric card: thin top accent bar driven by --accent */
+    .cup-metric { position:relative; overflow:hidden; }
+    .cup-metric::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--accent,#7E78F0); opacity:0.85; }
     /* perf: kill backdrop-filter blur app-wide (huge paint cost on CPU-only machines);
        panels keep their translucent backgrounds, just no per-frame blur. */
     *, *::before, *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
@@ -5091,12 +5098,12 @@ function renderPourDay() {
   // Pour info
   const typeDesc = pour.type === 'Slurry' ? 'Slurry Backfill (S80S662L2)' : pour.type === 'Plinth' ? 'Concrete Plinth' : 'Structural Concrete';
   const isLive = livePour.active && livePour.active.pourId === pour.id;
-  h += `<div class="p-4 rounded-xl border mb-4" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid ${c}33">
+  h += `<div class="cup-card p-4 rounded-xl mb-4" style="border-color:${c}44;box-shadow:inset 0 1px 0 rgba(255,255,255,0.05), 0 12px 30px -16px rgba(0,0,0,0.65), inset 3px 0 0 ${c}">
     <div class="flex items-center gap-3">
-      <div class="w-12 h-12 rounded-lg flex items-center justify-center text-xl font-black" style="background:${c}22;color:${c}">${pour.section}</div>
+      <div class="w-12 h-12 rounded-lg flex items-center justify-center text-xl font-black cup-display" style="background:${c}22;color:${c};box-shadow:inset 0 0 0 1px ${c}55">${pour.section}</div>
       <div class="flex-1">
-        <div class="text-base font-bold text-white">${escapeHtmlSeq(pourDayLabel(pour))} — ${typeDesc}</div>
-        <div class="text-xs text-white/40 mono">${pour.date || 'no date'} · ${ordered} CY ordered · ${expectedTrucks} trucks expected</div>
+        <div class="cup-display text-lg font-bold text-white leading-tight">${escapeHtmlSeq(pourDayLabel(pour))} <span class="text-white/40 font-medium">— ${typeDesc}</span></div>
+        <div class="text-xs text-white/40 mono mt-0.5">${pour.date || 'no date'} · ${ordered} CY ordered · ${expectedTrucks} trucks expected</div>
       </div>
       <div class="flex flex-col items-end gap-1">
         <span class="text-[8px] font-bold text-white/30 uppercase tracking-wider">Area</span>
@@ -5121,21 +5128,21 @@ function renderPourDay() {
   const cySlDel = trucksSl.reduce((s,t) => s+t.cy, 0);
 
   h += `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-    <div class="p-3 rounded-xl border border-white/5" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Ordered</div>
-      <div class="mono text-xl font-bold text-white">${ordered} <span class="text-xs text-white/30">CY</span></div>
+    <div class="cup-card cup-metric p-3.5 rounded-xl" style="--accent:#7E78F0">
+      <div class="flex items-center gap-1.5 mb-2"><span class="material-symbols-outlined text-white/30" style="font-size:15px">straighten</span><span class="text-[9px] font-bold text-white/35 uppercase tracking-wider">Ordered</span></div>
+      <div class="cup-display text-3xl font-bold text-white leading-none">${ordered}<span class="text-sm text-white/30 font-normal ml-1">CY</span></div>
     </div>
-    <div class="p-3 rounded-xl border border-white/5" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Truck Deliveries</div>
-      <div class="mono text-xl font-bold" style="color:${pctColor}">${delivered} <span class="text-xs text-white/30">CY</span></div>
+    <div class="cup-card cup-metric p-3.5 rounded-xl" style="--accent:${pctColor}">
+      <div class="flex items-center gap-1.5 mb-2"><span class="material-symbols-outlined text-white/30" style="font-size:15px">local_shipping</span><span class="text-[9px] font-bold text-white/35 uppercase tracking-wider">Delivered</span></div>
+      <div class="cup-display text-3xl font-bold leading-none" style="color:${pctColor}">${delivered}<span class="text-sm text-white/30 font-normal ml-1">CY</span></div>
     </div>
-    <div class="p-3 rounded-xl border border-white/5" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Remaining</div>
-      <div class="mono text-xl font-bold ${remaining<=0?'text-green-400':'text-white'}">${remaining} <span class="text-xs text-white/30">CY</span></div>
+    <div class="cup-card cup-metric p-3.5 rounded-xl" style="--accent:${remaining<=0?'#41A447':'#52E6E0'}">
+      <div class="flex items-center gap-1.5 mb-2"><span class="material-symbols-outlined text-white/30" style="font-size:15px">pending_actions</span><span class="text-[9px] font-bold text-white/35 uppercase tracking-wider">Remaining</span></div>
+      <div class="cup-display text-3xl font-bold leading-none ${remaining<=0?'text-green-400':'text-white'}">${remaining}<span class="text-sm text-white/30 font-normal ml-1">CY</span></div>
     </div>
-    <div class="p-3 rounded-xl border border-white/5" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Total Trucks</div>
-      <div class="mono text-xl font-bold text-white">${pourTrucks.length} <span class="text-xs text-white/30">of ${expectedTrucks}</span></div>
+    <div class="cup-card cup-metric p-3.5 rounded-xl" style="--accent:#52E6E0">
+      <div class="flex items-center gap-1.5 mb-2"><span class="material-symbols-outlined text-white/30" style="font-size:15px">checklist</span><span class="text-[9px] font-bold text-white/35 uppercase tracking-wider">Total Trucks</span></div>
+      <div class="cup-display text-3xl font-bold text-white leading-none">${pourTrucks.length}<span class="text-sm text-white/30 font-normal ml-1">of ${expectedTrucks}</span></div>
     </div>
   </div>`;
 
@@ -5152,57 +5159,57 @@ function renderPourDay() {
   const pourRate = pourDurationHrs > 0 ? Math.round(delivered / pourDurationHrs) : 0;
 
   // Pour Progress meter bar
-  h += `<div class="mb-3 p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-    <div class="flex items-center justify-between mb-1.5">
-      <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Pour Progress</span>
-      <span class="mono text-sm font-bold" style="color:${fpColor}">${footingPoured.toFixed(0)} / ${footingTotal.toFixed(0)} CY (${footingPct}%)</span>
+  h += `<div class="cup-card mb-3 p-3.5 rounded-xl">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-[10px] font-bold text-white/45 uppercase tracking-wider">Pour Progress</span>
+      <span class="cup-display text-base font-bold" style="color:${fpColor}">${footingPoured.toFixed(0)} / ${footingTotal.toFixed(0)} CY · ${footingPct}%</span>
     </div>
-    <div class="h-3 rounded-full bg-white/5 overflow-hidden">
-      <div class="h-full rounded-full transition-all duration-500" style="width:${footingPct}%;background:${fpColor}"></div>
+    <div class="h-3 rounded-full overflow-hidden" style="background:rgba(255,255,255,0.06)">
+      <div class="h-full rounded-full transition-all duration-500" style="width:${footingPct}%;background:linear-gradient(90deg,${fpColor}99,${fpColor});box-shadow:0 0 10px 0 ${fpColor}88"></div>
     </div>
   </div>`;
 
   // Truck Deliveries meter bar
-  h += `<div class="mb-3 p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-    <div class="flex items-center justify-between mb-1.5">
-      <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Truck Deliveries</span>
-      <span class="mono text-sm font-bold" style="color:${pctColor}">${delivered} / ${ordered} CY (${pct}%)</span>
+  h += `<div class="cup-card mb-3 p-3.5 rounded-xl">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-[10px] font-bold text-white/45 uppercase tracking-wider">Truck Deliveries</span>
+      <span class="cup-display text-base font-bold" style="color:${pctColor}">${delivered} / ${ordered} CY · ${pct}%</span>
     </div>
-    <div class="h-3 rounded-full bg-white/5 overflow-hidden">
-      <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:${pctColor}"></div>
+    <div class="h-3 rounded-full overflow-hidden" style="background:rgba(255,255,255,0.06)">
+      <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:linear-gradient(90deg,${pctColor}99,${pctColor});box-shadow:0 0 10px 0 ${pctColor}88"></div>
     </div>
   </div>`;
 
   // Pour Rate + Remaining cards
   h += `<div class="grid grid-cols-2 gap-3 mb-3">
-    <div class="p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Pour Rate</div>
-      <div class="mono text-xl font-bold text-white">${pourRate} <span class="text-xs text-white/30">CY/hr</span></div>
+    <div class="cup-card cup-metric p-3.5 rounded-xl" style="--accent:#52E6E0">
+      <div class="flex items-center gap-1.5 mb-2"><span class="material-symbols-outlined text-white/30" style="font-size:15px">speed</span><span class="text-[9px] font-bold text-white/35 uppercase tracking-wider">Pour Rate</span></div>
+      <div class="cup-display text-3xl font-bold text-white leading-none">${pourRate}<span class="text-sm text-white/30 font-normal ml-1">CY/hr</span></div>
     </div>
-    <div class="p-3 rounded-xl" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-      <div class="text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Pour Progress</div>
-      <div class="mono text-xl font-bold" style="color:${fpColor}">${footingPct}%</div>
+    <div class="cup-card cup-metric p-3.5 rounded-xl" style="--accent:${fpColor}">
+      <div class="flex items-center gap-1.5 mb-2"><span class="material-symbols-outlined text-white/30" style="font-size:15px">foundation</span><span class="text-[9px] font-bold text-white/35 uppercase tracking-wider">Pour Progress</span></div>
+      <div class="cup-display text-3xl font-bold leading-none" style="color:${fpColor}">${footingPct}%</div>
     </div>
   </div>`;
 
   h += `<div class="grid grid-cols-3 gap-3 mb-4">
-    <div class="p-2.5 rounded-lg border border-red-500/15 flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-      <div><div class="text-[8px] font-bold text-red-300/60 uppercase tracking-wider">8000 PSI</div><div class="mono text-xs text-red-300 font-bold">${cy8kDel} CY</div></div>
-      <div class="mono text-lg font-bold text-red-400">${trucks8k.length}<span class="text-[9px] text-red-300/40 ml-0.5">trk</span></div>
+    <div class="cup-card cup-metric p-3 rounded-xl flex items-center justify-between" style="--accent:#F0556B">
+      <div><div class="text-[8px] font-bold text-red-300/70 uppercase tracking-wider">8000 PSI</div><div class="mono text-xs text-red-300 font-bold mt-0.5">${cy8kDel} CY</div></div>
+      <div class="cup-display text-2xl font-bold text-red-400 leading-none">${trucks8k.length}<span class="text-[9px] text-red-300/40 ml-0.5 font-normal">trk</span></div>
     </div>
-    <div class="p-2.5 rounded-lg border border-blue-500/15 flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-      <div><div class="text-[8px] font-bold text-blue-300/60 uppercase tracking-wider">5000 PSI</div><div class="mono text-xs text-blue-300 font-bold">${cy5kDel} CY</div></div>
-      <div class="mono text-lg font-bold text-blue-400">${trucks5k.length}<span class="text-[9px] text-blue-300/40 ml-0.5">trk</span></div>
+    <div class="cup-card cup-metric p-3 rounded-xl flex items-center justify-between" style="--accent:#4FA3F2">
+      <div><div class="text-[8px] font-bold text-blue-300/70 uppercase tracking-wider">5000 PSI</div><div class="mono text-xs text-blue-300 font-bold mt-0.5">${cy5kDel} CY</div></div>
+      <div class="cup-display text-2xl font-bold text-blue-400 leading-none">${trucks5k.length}<span class="text-[9px] text-blue-300/40 ml-0.5 font-normal">trk</span></div>
     </div>
-    <div class="p-2.5 rounded-lg border border-gray-500/15 flex items-center justify-between" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
-      <div><div class="text-[8px] font-bold text-gray-300/60 uppercase tracking-wider">Slurry</div><div class="mono text-xs text-gray-300 font-bold">${cySlDel} CY</div></div>
-      <div class="mono text-lg font-bold text-gray-400">${trucksSl.length}<span class="text-[9px] text-gray-300/40 ml-0.5">trk</span></div>
+    <div class="cup-card cup-metric p-3 rounded-xl flex items-center justify-between" style="--accent:#9ca3af">
+      <div><div class="text-[8px] font-bold text-gray-300/70 uppercase tracking-wider">Slurry</div><div class="mono text-xs text-gray-300 font-bold mt-0.5">${cySlDel} CY</div></div>
+      <div class="cup-display text-2xl font-bold text-gray-300 leading-none">${trucksSl.length}<span class="text-[9px] text-gray-400/50 ml-0.5 font-normal">trk</span></div>
     </div>
   </div>`;
 
   // Mix design reference strip
   const mixes = getMixDesigns();
-  h += `<div class="rounded-xl overflow-hidden mb-4" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+  h += `<div class="cup-card rounded-xl overflow-hidden mb-4">
     <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between">
       <span class="text-[10px] font-bold text-white/30 uppercase tracking-wider">Mix Designs</span>
       ${!isManagerView ? `<button onclick="document.getElementById('mixEditPanel').classList.toggle('hidden')" class="text-[9px] font-bold px-2 py-0.5 rounded bg-white/5 text-white/30 hover:text-white/50 border border-white/10">Edit</button>` : ''}
@@ -5452,12 +5459,12 @@ function renderPourDay() {
   const ticketsPdfUrl = pour.ticketsPdfUrl || '';
   const ticketsPdfPages = pour.ticketsPdfPages || 0;
   const draftCount = (window.Scanner && Scanner.getDraftCount) ? Scanner.getDraftCount(pour.id) : 0;
-  h += `<div class="mb-3 p-3 rounded-xl flex items-center gap-3" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+  h += `<div class="cup-card mb-3 p-3 rounded-xl flex items-center gap-3">
     <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center">
       <span class="material-symbols-outlined text-blue-300">document_scanner</span>
     </div>
     <div class="flex-1 min-w-0">
-      <div class="text-sm font-bold text-white">Concrete Tickets</div>
+      <div class="cup-display text-sm font-bold text-white">Concrete Tickets</div>
       <div class="text-[11px] text-white/50">
         ${ticketsPdfUrl
           ? `Last upload: <a href="${ticketsPdfUrl}" target="_blank" class="text-emerald-300 underline hover:text-emerald-200">${ticketsPdfPages || '?'} pages</a>`
@@ -5475,7 +5482,7 @@ function renderPourDay() {
   // Truck log (editable — tap row to edit)
   const reverseTrucks = [...pourTrucks].reverse();
   if (reverseTrucks.length) {
-    h += `<div class="rounded-xl overflow-hidden" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+    h += `<div class="cup-card rounded-xl overflow-hidden">
       <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between">
         <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Truck Log</span>
         <div class="flex items-center gap-3">
@@ -5508,11 +5515,11 @@ function renderPourDay() {
       </div>
     </div>`;
   } else {
-    h += `<div class="text-center py-8 text-white/20 text-sm rounded-xl border border-white/5" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">No trucks logged yet — tap the button when a truck arrives</div>`;
+    h += `<div class="cup-card text-center py-8 text-white/25 text-sm rounded-xl">No trucks logged yet — tap the button when a truck arrives</div>`;
   }
 
   // Live activity feed
-  h += `<div id="liveFeedContainer" class="rounded-xl overflow-hidden mt-4" style="background:rgba(6,6,14,0.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)">
+  h += `<div id="liveFeedContainer" class="cup-card rounded-xl overflow-hidden mt-4">
     <div class="px-4 py-2 border-b border-white/5 flex items-center gap-2">
       <span class="w-2 h-2 rounded-full bg-green-400 pulse"></span>
       <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Live Feed</span>
