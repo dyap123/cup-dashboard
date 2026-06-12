@@ -9094,8 +9094,9 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
       const ek = String(code).replace(/'/g, "\\'");
       html += `<div class="mb-2 ${v===0?'opacity-70':''}">`;
       html += `<div class="flex justify-between items-end gap-2 mb-1">`;
+      const showCode = code && d.label && d.label !== code;
       html += `<span class="min-w-0">
-        <span class="block font-semibold text-white/90 text-[11.5px] leading-tight truncate">${escapeHtmlSeq(d.label || code)}</span>
+        <span class="flex items-center gap-1.5 leading-tight"><span class="font-semibold text-white/90 text-[11.5px] truncate">${escapeHtmlSeq(d.label || code)}</span>${showCode ? `<span class="mono text-[9px] font-bold px-1.5 py-px rounded bg-white/[0.06] text-cyan-200/90 border border-white/10 shrink-0" title="Mix design ${escapeHtmlSeq(code)}">${escapeHtmlSeq(code)}</span>` : ''}</span>
         <span class="block ${st.text} text-[9.5px] leading-tight truncate" style="opacity:.85">${escapeHtmlSeq(mixSummary(d))}</span>
       </span>`;
       if (isManagerView) {
