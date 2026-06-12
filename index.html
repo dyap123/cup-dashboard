@@ -1615,10 +1615,15 @@ function renderOnePourCard(p, idx, maxCy8000, maxCy5000, maxSlurry) {
       ${(() => {
         // Mix breakdown — always show all three rows so any pour can have any
         // mix added/removed inline. Click the CY value to edit (no prompt).
+        // Surface the actual mix-design # for each PSI so the crew sees the real code.
+        const _md = getMixDesigns();
+        const _mdVals = Object.values(_md);
+        const codeForPsi = (psi) => { const d = _mdVals.find(x => +x.psi === psi); return d ? d.code : ''; };
+        const slurryCode = () => { const d = _mdVals.find(x => /slurry/i.test(x.label || '') || +x.psi === 0); return d ? d.code : ''; };
         const mixes = [
-          { key: 'cy8000', label: '8000 PSI', color: 'text-red-300',  bar: 'from-red-600 to-orange-400',  glow: 'rgba(239,68,68,0.3)',  max: maxCy8000 },
-          { key: 'cy5000', label: '5000 PSI', color: 'text-blue-300', bar: 'from-blue-600 to-cyan-400',   glow: 'rgba(59,130,246,0.3)', max: maxCy5000 },
-          { key: 'slurry', label: 'Slurry',   color: 'text-gray-300', bar: 'from-gray-500 to-gray-400',   glow: 'rgba(148,163,184,0.2)', max: maxSlurry },
+          { key: 'cy8000', label: '8000 PSI', code: codeForPsi(8000), color: 'text-red-300',  bar: 'from-red-600 to-orange-400',  glow: 'rgba(239,68,68,0.3)',  max: maxCy8000 },
+          { key: 'cy5000', label: '5000 PSI', code: codeForPsi(5000), color: 'text-blue-300', bar: 'from-blue-600 to-cyan-400',   glow: 'rgba(59,130,246,0.3)', max: maxCy5000 },
+          { key: 'slurry', label: 'Slurry',   code: slurryCode(),     color: 'text-gray-300', bar: 'from-gray-500 to-gray-400',   glow: 'rgba(148,163,184,0.2)', max: maxSlurry },
         ];
         return mixes.map(m => {
           const v = +p[m.key] || 0;
@@ -1641,7 +1646,7 @@ function renderOnePourCard(p, idx, maxCy8000, maxCy5000, maxSlurry) {
           }
           return `<div class="mb-2 ${dim}">
             <div class="flex justify-between items-center text-xs mb-1">
-              <span class="text-white/40">${m.label}</span>
+              <span class="text-white/40 flex items-center gap-1.5 min-w-0">${m.label}${m.code ? `<span class="text-[8.5px] mono px-1 py-px rounded bg-white/[0.06] text-white/45 border border-white/10 truncate" title="Mix design ${m.code}">${m.code}</span>` : ''}</span>
               ${valHtml}
             </div>
             <div class="h-1.5 rounded-full bg-white/5 overflow-hidden">
@@ -8806,16 +8811,16 @@ function renderPourCalendar(pours) {
   const first = new Date(y, m-1, 1).getDay(), days = new Date(y, m, 0).getDate(), todayIso = _isoToday();
   const seqColOf = p => seqColor(p.sequence, p.color);
   const chip = p => { const col = seqColOf(p); const done = p.status==='COMPLETE'; const tt = fmtTimeShort(p.time);
-    return `<div class="rounded px-1 py-0.5 text-[8.5px] leading-tight truncate" title="${escapeHtmlSeq((tt?tt+' · ':'')+(p.name||pourCalName(p))+' · '+(p.status||''))}" style="background:${col}22;border-left:2px solid ${col};color:#e7eef7;${done?'opacity:0.6;':''}">${tt?`<span class="font-bold text-cyan-200">${escapeHtmlSeq(tt)}</span> `:''}${escapeHtmlSeq(pourCalName(p))}</div>`; };
+    return `<div class="rounded-md px-1.5 py-1 text-[10px] font-medium leading-tight truncate" title="${escapeHtmlSeq((tt?tt+' · ':'')+(p.name||pourCalName(p))+' · '+(p.status||''))}" style="background:${col}26;border-left:3px solid ${col};color:#eaf1fa;${done?'opacity:0.6;':''}">${tt?`<span class="font-bold text-cyan-200">${escapeHtmlSeq(tt)}</span> `:''}${escapeHtmlSeq(pourCalName(p))}</div>`; };
   let h = '';
   // header
-  h += `<div class="flex items-center justify-between mb-3 px-1">
-    <div class="flex items-center gap-2">
-      <button onclick="seqCalNav(-1)" class="w-7 h-7 rounded-lg grid place-items-center text-white/60 hover:bg-white/10"><span class="material-symbols-outlined" style="font-size:18px">chevron_left</span></button>
-      <span class="text-sm font-black tracking-wide text-white/90">${_afpMON[m-1]} ${y}</span>
-      <button onclick="seqCalNav(1)" class="w-7 h-7 rounded-lg grid place-items-center text-white/60 hover:bg-white/10"><span class="material-symbols-outlined" style="font-size:18px">chevron_right</span></button>
+  h += `<div class="flex items-center justify-between mb-4 px-1">
+    <div class="flex items-center gap-3">
+      <button onclick="seqCalNav(-1)" class="w-9 h-9 rounded-lg grid place-items-center text-white/60 hover:bg-white/10 hover:text-white transition-all"><span class="material-symbols-outlined" style="font-size:22px">chevron_left</span></button>
+      <span class="cup-display text-2xl font-bold tracking-tight text-white">${_afpMON[m-1]} <span class="text-white/45">${y}</span></span>
+      <button onclick="seqCalNav(1)" class="w-9 h-9 rounded-lg grid place-items-center text-white/60 hover:bg-white/10 hover:text-white transition-all"><span class="material-symbols-outlined" style="font-size:22px">chevron_right</span></button>
     </div>
-    <button onclick="seqCalToday()" class="text-[10px] font-bold px-2.5 py-1 rounded-md bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25">Today</button>
+    <button onclick="seqCalToday()" class="text-xs font-bold px-3.5 py-2 rounded-lg bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25 transition-all">Today</button>
   </div>`;
   // range hint / current selection
   const lo = seqCalStart, hi = seqCalEnd || seqCalStart;
@@ -8827,20 +8832,22 @@ function renderPourCalendar(pours) {
     h += `<div class="mb-2 px-1 text-[10px] text-white/30 italic">Tap a day — then another — to pick a date range.</div>`;
   }
   // weekday header
-  h += `<div class="grid grid-cols-7 gap-1 mb-1">` + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(w => `<div class="text-center text-[9px] font-bold uppercase tracking-wider text-white/30">${w}</div>`).join('') + `</div>`;
+  h += `<div class="grid grid-cols-7 gap-1.5 mb-1.5">` + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((w,wi) => `<div class="text-center text-[11px] font-bold uppercase tracking-wider ${wi===0||wi===6?'text-white/25':'text-white/40'}">${w}</div>`).join('') + `</div>`;
   // day cells (all clickable — drives the range)
-  h += `<div class="grid grid-cols-7 gap-1">`;
-  for (let i=0;i<first;i++) h += `<div class="rounded-lg" style="min-height:78px;background:rgba(255,255,255,0.015)"></div>`;
+  h += `<div class="grid grid-cols-7 gap-1.5">`;
+  for (let i=0;i<first;i++) h += `<div class="rounded-lg" style="min-height:120px;background:rgba(255,255,255,0.012)"></div>`;
   for (let dd=1;dd<=days;dd++) {
     const iso = `${y}-${String(m).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
     const ps = byDate[iso] || []; const isToday = iso===todayIso;
     const isEnd = iso===lo || iso===hi; const within = inRange(iso);
-    const border = isEnd ? 'rgba(34,211,238,0.8)' : within ? 'rgba(34,211,238,0.35)' : isToday ? 'rgba(34,211,238,0.4)' : 'rgba(255,255,255,0.05)';
-    const bg = isEnd ? 'rgba(34,211,238,0.14)' : within ? 'rgba(34,211,238,0.07)' : 'rgba(6,6,14,0.6)';
-    h += `<div onclick="seqCalSelect('${iso}')" style="cursor:pointer;min-height:78px;background:${bg};border:1px solid ${border}" class="rounded-lg p-1 flex flex-col gap-0.5 overflow-hidden hover:brightness-125 transition-all">`;
-    h += `<div class="text-[10px] mono ${isToday?'text-cyan-300 font-bold':'text-white/40'}">${dd}</div>`;
-    ps.slice(0,3).forEach(p => { h += chip(p); });
-    if (ps.length > 3) h += `<div class="text-[8px] text-white/40 px-1">+${ps.length-3} more</div>`;
+    const dow = new Date(y, m-1, dd).getDay(); const weekend = dow===0||dow===6;
+    const border = isEnd ? 'rgba(34,211,238,0.85)' : within ? 'rgba(34,211,238,0.35)' : isToday ? 'rgba(34,211,238,0.5)' : 'rgba(255,255,255,0.06)';
+    const bg = isEnd ? 'rgba(34,211,238,0.16)' : within ? 'rgba(34,211,238,0.07)' : weekend ? 'rgba(8,10,18,0.55)' : 'rgba(14,18,28,0.6)';
+    const glow = isToday && !isEnd ? 'box-shadow:0 0 0 1px rgba(34,211,238,0.35) inset;' : '';
+    h += `<div onclick="seqCalSelect('${iso}')" style="cursor:pointer;min-height:120px;background:${bg};border:1px solid ${border};${glow}" class="rounded-lg p-2 flex flex-col gap-1 overflow-hidden hover:brightness-125 transition-all">`;
+    h += `<div class="flex items-center justify-between mb-0.5"><span class="cup-display text-sm font-bold ${isToday?'text-cyan-300':'text-white/55'}">${dd}</span>${isToday?'<span class="text-[8px] font-bold uppercase tracking-wider text-cyan-300/80">Today</span>':(ps.length?`<span class="text-[9px] mono text-white/30">${ps.length}</span>`:'')}</div>`;
+    ps.slice(0,4).forEach(p => { h += chip(p); });
+    if (ps.length > 4) h += `<div class="text-[9px] font-bold text-white/45 px-1 mt-0.5">+${ps.length-4} more</div>`;
     h += `</div>`;
   }
   h += `</div>`;
