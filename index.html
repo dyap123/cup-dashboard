@@ -9019,6 +9019,76 @@ function promptPourName(key) {
   renderSequenceGroups();
 }
 
+// ── PRE-POUR OPS + FIELD DRAWINGS (collapsible "more" on sequence cards) ─────
+// Click-to-green chip checklists, same look as the Pre-pour/inspections block.
+// State stored per pour on the shared embed-tracker zone (objects keyed by item).
+const PREPOUR_OPS_ITEMS = [
+  { key: 'pumper',   label: 'Pumper' },
+  { key: 'concrete', label: 'Concrete Order' },
+  { key: 'temp',     label: 'Temp Sensors' },
+  { key: 'sweeper',  label: 'Street Sweeper' },
+];
+const FIELD_DRAWINGS_ITEMS = [
+  { key: 'excavation', label: 'Excavation Plans' },
+  { key: 'anchor',     label: 'Anchor Rod Plans' },
+  { key: 'cad',        label: 'CAD' },
+];
+// Which cards have the "Pre-Pour & Drawings" section expanded (persists across re-renders)
+let seqMoreOpen = new Set();
+function toggleSeqMore(key) {
+  if (seqMoreOpen.has(key)) seqMoreOpen.delete(key); else seqMoreOpen.add(key);
+  renderSequenceGroups();
+}
+function foundationMapStatus(pour, field, items) {
+  const m = (pour && pour[field]) || {};
+  const list = items.map(it => ({ key: it.key, label: it.label, done: !!m[it.key] }));
+  return { items: list, done: list.filter(i => i.done).length, total: list.length };
+}
+function toggleFoundationMapItem(key, field, itemKey) {
+  if (isManagerView) return;
+  const pour = foundationPours[key]; if (!pour) return;
+  const m = Object.assign({}, pour[field] || {});
+  m[itemKey] = !m[itemKey];
+  pour[field] = m;
+  foundationPours = Object.assign({}, foundationPours, { [key]: pour });
+  fbSet('embed-tracker/zones/' + key + '/' + field, m);
+  fbSet('embed-tracker/zones/' + key + '/updatedAt', new Date().toISOString());
+  renderSequenceGroups();
+}
+function seqMarkAll(key, field) {
+  if (isManagerView) return;
+  const pour = foundationPours[key]; if (!pour) return;
+  const items = field === 'fieldDrawings' ? FIELD_DRAWINGS_ITEMS : PREPOUR_OPS_ITEMS;
+  const m = {}; items.forEach(it => { m[it.key] = true; });
+  pour[field] = m;
+  foundationPours = Object.assign({}, foundationPours, { [key]: pour });
+  fbSet('embed-tracker/zones/' + key + '/' + field, m);
+  fbSet('embed-tracker/zones/' + key + '/updatedAt', new Date().toISOString());
+  renderSequenceGroups();
+}
+// One green-when-done chip checklist block. cfg: { title, icon, field, items }
+function foundationMiniChecklist(key, cfg) {
+  const ek = key.replace(/'/g, "\\'");
+  const st = foundationMapStatus(foundationPours[key], cfg.field, cfg.items);
+  const pct = st.total ? Math.round(st.done / st.total * 100) : 0;
+  const clr = pct === 100 ? '#41A447' : pct > 0 ? '#FFBF00' : '#ef4444';
+  let h = `<div class="mb-2 p-2 rounded-lg transition-all" style="background:${clr}0a;border:1px solid ${clr}44">`;
+  h += `<div class="flex items-center justify-between gap-1.5 mb-1.5">`;
+  h += `<span class="text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 min-w-0" style="color:${clr}"><span class="material-symbols-outlined" style="font-size:11px">${cfg.icon}</span>${cfg.title} ${st.done}/${st.total}</span>`;
+  h += `<div class="flex items-center gap-1.5 shrink-0">`;
+  if (pct < 100 && !isManagerView) h += `<button onclick="seqMarkAll('${ek}','${cfg.field}')" class="text-[8px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/25 hover:bg-green-500/25 transition-all uppercase tracking-wider">All ✓</button>`;
+  h += `<span class="text-[9px] mono font-bold" style="color:${clr}">${pct}%</span></div></div>`;
+  h += `<div class="h-1 rounded-full bg-white/5 overflow-hidden mb-1.5"><div class="h-full rounded-full" style="width:${pct}%;background:${clr}"></div></div>`;
+  h += `<div class="flex flex-wrap gap-1">`;
+  st.items.forEach(it => {
+    const base = 'text-[8px] mono px-1.5 py-0.5 rounded ' + (it.done ? 'bg-green-500/15 text-green-400' : 'bg-white/5 text-white/35');
+    if (isManagerView) h += `<span class="${base}">${it.label}${it.done ? ' ✓' : ''}</span>`;
+    else h += `<button onclick="toggleFoundationMapItem('${ek}','${cfg.field}','${it.key}')" style="touch-action:manipulation" class="${base} cursor-pointer hover:brightness-125 active:scale-95 transition-all">${it.label}${it.done ? ' ✓' : ''}</button>`;
+  });
+  h += `</div></div>`;
+  return h;
+}
+
 function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   const c = seq.color || '#94a3b8';
   const status = (pour && pour.status) || 'PENDING';
@@ -9181,20 +9251,43 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   } else {
     dueBadge = `<span class="text-[8px] text-white/25 italic">set pour date</span>`;
   }
-  html += `<div class="mb-2 p-2 rounded-lg transition-all" style="background:${clr}0a;border:1px solid ${clr}44">`;
-  html += `<div class="flex items-center justify-between gap-1.5 mb-1.5">`;
-  html += `<span class="text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 min-w-0" style="color:${clr}"><span class="material-symbols-outlined" style="font-size:11px">assignment_turned_in</span>Pre-pour ${clDone}/${clTotal}</span>`;
-  html += `<div class="flex items-center gap-1.5 shrink-0">${dueBadge}`;
-  if (pctC < 100 && !isManagerView) html += `<button onclick="markAllPrePour('${escapedKey}')" class="text-[8px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/25 hover:bg-green-500/25 transition-all uppercase tracking-wider">All ✓</button>`;
-  html += `<span class="text-[9px] mono font-bold" style="color:${clr}">${pctC}%</span></div></div>`;
-  html += `<div class="h-1 rounded-full bg-white/5 overflow-hidden mb-1.5"><div class="h-full rounded-full" style="width:${pctC}%;background:${clr}"></div></div>`;
-  html += `<div class="flex flex-wrap gap-1">`;
+  // Build the Pre-pour block as a string — it now lives inside the dropdown below.
+  let prePourBlock = '';
+  prePourBlock += `<div class="mb-2 p-2 rounded-lg transition-all" style="background:${clr}0a;border:1px solid ${clr}44">`;
+  prePourBlock += `<div class="flex items-center justify-between gap-1.5 mb-1.5">`;
+  prePourBlock += `<span class="text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 min-w-0" style="color:${clr}"><span class="material-symbols-outlined" style="font-size:11px">assignment_turned_in</span>Pre-pour ${clDone}/${clTotal}</span>`;
+  prePourBlock += `<div class="flex items-center gap-1.5 shrink-0">${dueBadge}`;
+  if (pctC < 100 && !isManagerView) prePourBlock += `<button onclick="markAllPrePour('${escapedKey}')" class="text-[8px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/25 hover:bg-green-500/25 transition-all uppercase tracking-wider">All ✓</button>`;
+  prePourBlock += `<span class="text-[9px] mono font-bold" style="color:${clr}">${pctC}%</span></div></div>`;
+  prePourBlock += `<div class="h-1 rounded-full bg-white/5 overflow-hidden mb-1.5"><div class="h-full rounded-full" style="width:${pctC}%;background:${clr}"></div></div>`;
+  prePourBlock += `<div class="flex flex-wrap gap-1">`;
   clItems.forEach((it, i) => {
     const baseClass = 'text-[8px] mono px-1.5 py-0.5 rounded ' + (it.done ? 'bg-green-500/15 text-green-400' : 'bg-white/5 text-white/35');
-    if (isManagerView) html += `<span class="${baseClass}">${escapeHtmlSeq(it.text)}${it.done?' ✓':''}</span>`;
-    else html += `<button onclick="toggleFoundationChecklist('${escapedKey}',${i})" style="touch-action:manipulation" class="${baseClass} cursor-pointer hover:brightness-125 active:scale-95 transition-all">${escapeHtmlSeq(it.text)}${it.done?' ✓':''}</button>`;
+    if (isManagerView) prePourBlock += `<span class="${baseClass}">${escapeHtmlSeq(it.text)}${it.done?' ✓':''}</span>`;
+    else prePourBlock += `<button onclick="toggleFoundationChecklist('${escapedKey}',${i})" style="touch-action:manipulation" class="${baseClass} cursor-pointer hover:brightness-125 active:scale-95 transition-all">${escapeHtmlSeq(it.text)}${it.done?' ✓':''}</button>`;
   });
-  html += `</div></div>`;
+  prePourBlock += `</div></div>`;
+
+  // Pre-Pour & Drawings — collapsible. Toggle glows red until EVERYTHING is ticked, green when complete.
+  {
+    const moreOpen = seqMoreOpen.has(key);
+    const ops = foundationMapStatus(pour, 'prePourOps', PREPOUR_OPS_ITEMS);
+    const fdr = foundationMapStatus(pour, 'fieldDrawings', FIELD_DRAWINGS_ITEMS);
+    const allDone = clDone + ops.done + fdr.done;
+    const allTot  = clTotal + ops.total + fdr.total;
+    const ready = allTot > 0 && allDone === allTot;
+    const sc = ready ? '#41A447' : '#ef4444';                                  // green ready / red not-ready
+    const glow = ready ? '0 0 10px #41A44755' : '0 0 14px #ef444466, 0 0 5px #ef444488'; // stronger red glow
+    html += `<button onclick="toggleSeqMore('${escapedKey}')" style="touch-action:manipulation;background:${sc}14;border:1px solid ${sc}66;box-shadow:${glow}" class="w-full flex items-center justify-between mb-2 px-2.5 py-2 rounded-lg transition-all hover:brightness-110">
+      <span class="text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5" style="color:${sc}"><span class="material-symbols-outlined" style="font-size:14px;font-variation-settings:'FILL' 1">${ready?'check_circle':'error'}</span>Pre-Pour & Drawings</span>
+      <span class="flex items-center gap-1.5"><span class="text-[9px] mono font-black" style="color:${sc}">${allDone}/${allTot}</span><span class="material-symbols-outlined" style="font-size:15px;color:${sc}">${moreOpen?'expand_less':'expand_more'}</span></span>
+    </button>`;
+    if (moreOpen) {
+      html += prePourBlock;
+      html += foundationMiniChecklist(key, { title: 'Logistics', icon: 'engineering', field: 'prePourOps', items: PREPOUR_OPS_ITEMS });
+      html += foundationMiniChecklist(key, { title: 'Field Drawings', icon: 'architecture', field: 'fieldDrawings', items: FIELD_DRAWINGS_ITEMS });
+    }
+  }
 
   // Footer
   html += `<div class="flex items-center justify-between pt-2 border-t border-white/5">`;
