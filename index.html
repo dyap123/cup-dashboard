@@ -798,6 +798,7 @@ function createFoundationMap(opts){
   let markups=[], _markupCb=null, _markupTimer=0, _markDraft=null, _markBand=null, _markDrag=null, selMarkupId=null;
   let _takeoffCb=null;
   let _baseFoot=null, _footEdits=null, _footEditCb=null, _footEditTimer=0, selFootingNo=null, _locked=true, _footDrag=null;
+  let selFootings=new Set(), _selBand=null, _spaceDown=false;
   let clipboard=null, undoStack=[];
   // DOM refs
   let root=null, mapArea=null, canvas=null, tip=null, panelHost=null, searchEl=null, zoomLabelEl=null;
@@ -970,7 +971,8 @@ function createFoundationMap(opts){
   const onDown=(e)=>{
     canvas.setPointerCapture?.(e.pointerId);
     const [mx,my]=evPos(e); pointers.set(e.pointerId,{x:mx,y:my});
-    if(pointers.size===2){ drag=null; band=null; _markBand=null; _markDrag=null; _pinch=pinchState(); return; }
+    if(pointers.size===2){ drag=null; band=null; _markBand=null; _markDrag=null; _selBand=null; _pinch=pinchState(); return; }
+    if(e.button===1 || _spaceDown){ drag={mx,my,tx,ty,downx:mx,downy:my}; _moved=false; canvas.style.cursor='grabbing'; return; }   // middle-button / Space = pan (Bluebeam)
     const [wx,wy]=s2w(mx,my);
     // ── markup tools ──
     if(st.tool==='region'){ _markBand={x0:wx,y0:wy,x1:wx,y1:wy}; _moved=false; return; }
@@ -986,10 +988,10 @@ function createFoundationMap(opts){
       else { selFootingNo=null; renderPanel(); drag={mx,my,tx,ty,downx:mx,downy:my}; _moved=false; }
       return;
     }
-    // ── pour assign / pan ──
+    // ── assign-paint / Explore lasso-select (pan via middle button or Space) ──
     if(st.mode==='assign' && st.selId && !e.shiftKey){ band={x0:wx,y0:wy,x1:wx,y1:wy}; _moved=false; }
-    else if(!_locked && !e.shiftKey){ const hf=hitFoot(wx,wy); if(hf && !hf.del){ selectFooting(hf.no); _footDrag={no:hf.no,dx:wx-hf.cx,dy:wy-hf.cy,moved:false}; } else { drag={mx,my,tx,ty,downx:mx,downy:my}; _moved=false; canvas.style.cursor='grabbing'; } }
-    else { drag={mx,my,tx,ty,downx:mx,downy:my}; _moved=false; canvas.style.cursor='grabbing'; }
+    else if(!_locked && !e.shiftKey){ const hf=hitFoot(wx,wy); if(hf && !hf.del){ selectFooting(hf.no); _footDrag={no:hf.no,dx:wx-hf.cx,dy:wy-hf.cy,moved:false}; } else { _selBand={x0:wx,y0:wy,x1:wx,y1:wy,add:false}; _moved=false; } }
+    else { _selBand={x0:wx,y0:wy,x1:wx,y1:wy,add:e.shiftKey}; _moved=false; }   // Explore default = marquee select footings
   };
   const onMove=(e)=>{
     const [mx,my]=evPos(e);
@@ -999,6 +1001,7 @@ function createFoundationMap(opts){
       tx+=ns.cx-_pinch.cx; ty+=ns.cy-_pinch.cy; _pinch=ns; scheduleDraw(); return;
     }
     if(_markBand){ const w=s2w(mx,my); _markBand.x1=w[0]; _markBand.y1=w[1]; _moved=true; scheduleDraw(); return; }
+    if(_selBand){ const w=s2w(mx,my); _selBand.x1=w[0]; _selBand.y1=w[1]; _moved=true; scheduleDraw(); return; }
     if(_markDrag){ const w=s2w(mx,my); const dx=w[0]-_markDrag.wx, dy=w[1]-_markDrag.wy; const m=markups.find(x=>x.id===_markDrag.id);
       if(m){ m.pts=_markDrag.orig.map(p=>[p[0]+dx,p[1]+dy]); _moved=true; scheduleDraw(); } return; }
     if(_footDrag){ const w=s2w(mx,my); const f=byNo[_footDrag.no]; if(f){ moveFooting(f.no, w[0]-_footDrag.dx, w[1]-_footDrag.dy, !_footDrag.moved); _footDrag.moved=true; scheduleDraw(); } return; }
@@ -1022,6 +1025,21 @@ function createFoundationMap(opts){
     if(_markDrag){ const moved=_moved; _markDrag=null; if(moved){ fireMarkupChange(); refresh(); } return; }
     // ── footing: end move-drag ──
     if(_footDrag){ _footDrag=null; refresh(); return; }
+    // ── Explore: marquee multi-select (or click to select one) ──
+    if(_selBand){ const b=_selBand; _selBand=null;
+      if(_moved){
+        const x0=Math.min(b.x0,b.x1),x1=Math.max(b.x0,b.x1),y0=Math.min(b.y0,b.y1),y1=Math.max(b.y0,b.y1);
+        if(!b.add) selFootings=new Set();
+        footings.forEach(f=>{ if(f.isBeam||f.del) return; if(f.cx>=x0&&f.cx<=x1&&f.cy>=y0&&f.cy<=y1) selFootings.add(f.no); });
+        selFootingNo = selFootings.size===1 ? [...selFootings][0] : null; selMarkupId=null;
+        syncChrome(); renderPanel(); scheduleDraw();
+      } else {
+        const [mx,my]=evPos(e); const [wx,wy]=s2w(mx,my); const f=hitFoot(wx,wy);
+        if(f && !f.del){ selectFooting(f.no); doFlash(f.no); }
+        else { selFootings=new Set(); selFootingNo=null; const p=hitPour(wx,wy); selectPourId(p?p.id:null); }
+      }
+      return;
+    }
     // ── markup: polyline vertex / text placement (single click, no drag) ──
     if((st.tool==='polyline'||st.tool==='text') && drag && !_moved){
       const [mx,my]=evPos(e); const [wx,wy]=s2w(mx,my); drag=null;
@@ -1044,11 +1062,7 @@ function createFoundationMap(opts){
       }
       return;
     }
-    if(drag && !_moved && st.tool==='none'){
-      const [mx,my]=evPos(e); const [wx,wy]=s2w(mx,my); const f=hitFoot(wx,wy);
-      if(f && !f.del){ selectFooting(f.no); doFlash(f.no); }            // click a footing → open its editor
-      else { const p=hitPour(wx,wy); selectPourId(p?p.id:null); }       // click empty/hull → select pour
-    }
+    // (Explore clicks handled by the marquee branch above; left drag here is a pan via middle/Space)
     drag=null;
   };
   function doFlash(no){ flash={no,t:performance.now()}; scheduleDraw(); setTimeout(()=>{flash=null;scheduleDraw();},1400); }
@@ -1120,7 +1134,7 @@ function createFoundationMap(opts){
       const isSelPour=p&&p.id===sel; let a=footAlpha; if(isSelPour)a=Math.max(a,0.97); if(dim)a*=0.12;
       ctx.globalAlpha=a*ia; ctx.fillStyle=hex2rgba(col,0.62); ctx.fillRect(x,y,gw,gh);
       ctx.globalAlpha=(dim?0.18:1)*ia; ctx.lineWidth=(isSelPour?1.6:0.9)/sc; ctx.strokeStyle=col; ctx.strokeRect(x,y,gw,gh);
-      if(f.no===selFootingNo){ ctx.globalAlpha=1; ctx.lineWidth=2.4/sc; ctx.strokeStyle='#52E6E0'; ctx.strokeRect(f.cx-f.w/2-2/sc,f.cy-f.h/2-2/sc,f.w+4/sc,f.h+4/sc); }
+      if(selFootings.has(f.no)){ ctx.globalAlpha=1; ctx.lineWidth=2.4/sc; ctx.strokeStyle='#52E6E0'; ctx.strokeRect(f.cx-f.w/2-2/sc,f.cy-f.h/2-2/sc,f.w+4/sc,f.h+4/sc); }
     });
     ctx.globalAlpha=1;
     // ── markups (world space): highlight regions + polylines ──
@@ -1186,6 +1200,9 @@ function createFoundationMap(opts){
     if(band){ const x0=band.x0*sc+tx, y0=band.y0*sc+ty, x1=band.x1*sc+tx, y1=band.y1*sc+ty;
       ctx.fillStyle='rgba(82,230,224,0.12)'; ctx.fillRect(x0,y0,x1-x0,y1-y0);
       ctx.strokeStyle='#52E6E0'; ctx.lineWidth=1.5; ctx.setLineDash([8,5]); ctx.strokeRect(x0,y0,x1-x0,y1-y0); ctx.setLineDash([]); }
+    if(_selBand){ const x0=_selBand.x0*sc+tx, y0=_selBand.y0*sc+ty, x1=_selBand.x1*sc+tx, y1=_selBand.y1*sc+ty;
+      ctx.fillStyle='rgba(82,230,224,0.10)'; ctx.fillRect(x0,y0,x1-x0,y1-y0);
+      ctx.strokeStyle='#52E6E0'; ctx.lineWidth=1.5; ctx.setLineDash([6,4]); ctx.strokeRect(x0,y0,x1-x0,y1-y0); ctx.setLineDash([]); }
   }
   function buildUnderlay(){
     const W=planW, H=planH; const c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d');
@@ -1208,11 +1225,15 @@ function createFoundationMap(opts){
     canvas.addEventListener('pointercancel', onUp);
     canvas.addEventListener('pointerleave', hideTip);
     canvas.addEventListener('dblclick', (e)=>{ if(st.tool==='polyline'){ e.preventDefault(); finishPolyline(); } });
-    if(!_keyWired){ _keyWired=true; window.addEventListener('keydown', onKey); }
+    canvas.addEventListener('mousedown', (e)=>{ if(e.button===1) e.preventDefault(); });   // suppress middle-click autoscroll
+    canvas.addEventListener('auxclick', (e)=>{ if(e.button===1) e.preventDefault(); });
+    if(!_keyWired){ _keyWired=true; window.addEventListener('keydown', onKey); window.addEventListener('keyup', onKeyUp); }
   }
+  function onKeyUp(e){ if(e.code==='Space' || e.key===' '){ _spaceDown=false; if(canvas) canvas.style.cursor='grab'; } }
   function onKey(e){
     if(!root || root.offsetParent===null) return;                       // only when this map is visible
     if(/INPUT|TEXTAREA|SELECT/.test((e.target&&e.target.tagName)||'')) return;
+    if(e.code==='Space' || e.key===' '){ if(!_spaceDown){ _spaceDown=true; if(canvas) canvas.style.cursor='grab'; } e.preventDefault(); return; }
     if((e.ctrlKey||e.metaKey) && !e.altKey){
       const k=(e.key||'').toLowerCase();
       if(k==='z' && !e.shiftKey){ doUndo(); e.preventDefault(); return; }
@@ -1221,7 +1242,7 @@ function createFoundationMap(opts){
     }
     if(st.tool==='polyline' && _markDraft){ if(e.key==='Enter'){ finishPolyline(); e.preventDefault(); } else if(e.key==='Escape'){ _markDraft=null; scheduleDraw(); e.preventDefault(); } return; }
     if(st.tool==='markselect' && selMarkupId && (e.key==='Delete'||e.key==='Backspace')){ deleteMarkup(selMarkupId); e.preventDefault(); return; }
-    if(st.tool==='footedit' && selFootingNo!=null && (e.key==='Delete'||e.key==='Backspace')){ deleteFooting(selFootingNo); e.preventDefault(); }
+    if(selFootings.size && (e.key==='Delete'||e.key==='Backspace') && (st.tool==='none'||st.tool==='footedit')){ deleteSelectedFootings(); e.preventDefault(); }
   }
   function resize(){
     if(!canvas||!mapArea) return;
@@ -1294,7 +1315,8 @@ function createFoundationMap(opts){
     if(t==='explore'){ st.mode='explore'; st.tool='none'; }
     else if(t==='assign'){ st.mode='assign'; st.tool='none'; }
     else { st.tool=t; }     // region | polyline | text | markselect
-    _markDraft=null; _markBand=null; if(t!=='markselect') selMarkupId=null; if(t!=='footedit') selFootingNo=null;
+    _markDraft=null; _markBand=null; _selBand=null; if(t!=='markselect') selMarkupId=null;
+    if(t==='region'||t==='polyline'||t==='text'||t==='markselect'){ selFootings=new Set(); selFootingNo=null; }
     if(canvas) canvas.style.cursor = (st.tool==='region'||st.tool==='polyline'||st.tool==='text')?'crosshair':'grab';
     syncChrome(); renderPanel(); scheduleDraw();
   }
@@ -1323,17 +1345,22 @@ function createFoundationMap(opts){
     if(!_footEdits)_footEdits={}; _footEdits[no]=e;
     const f={ no, type:e.type, thk:e.thk, cx:e.cx, cy:e.cy, wFt:e.wFt, lFt:e.lFt, tag:'#'+no, note:e.note, pourId:null, seq:null, added:true, del:false, isBeam:false };
     recompFoot(f); footings.push(f); byNo[no]=f; selFootingNo=no; selMarkupId=null; fireFootingEdit(); refresh(); return f; }
-  function selectFooting(no){ selFootingNo=no; selMarkupId=null; renderPanel(); scheduleDraw(); }
+  function selectFooting(no){ selFootingNo=no; selFootings=new Set([no]); selMarkupId=null; renderPanel(); scheduleDraw(); }
+  function assignSelectedToPour(pid){ if(!selFootings.size) return; pushUndo(); let ch=false;
+    selFootings.forEach(no=>{ const f=byNo[no]; if(f && !f.del && f.pourId!==(pid||null)){ f.pourId=pid||null; f.seq=(pid&&pourById[pid])?pourById[pid].seq:null; ch=true; } });
+    if(ch){ refresh(); fireMembershipChange(); } else undoStack.pop(); }
+  function deleteSelectedFootings(){ if(!selFootings.size) return; pushUndo(); selFootings.forEach(no=>{ const f=byNo[no]; if(f){ f.del=true; footEdit(no).deleted=true; } }); selFootings=new Set(); selFootingNo=null; fireFootingEdit(); rebuildPours(); refresh(); }
   function setLocked(v){ _locked=!!v; syncChrome(); }
 
   // ───────── copy / paste / undo ─────────
   function snapshotState(){ try{ return JSON.stringify({ edits:_footEdits||{}, marks:getMarkupsObj(), mem:getMembership() }); }catch(e){ return null; } }
   function pushUndo(){ const s=snapshotState(); if(s){ undoStack.push(s); if(undoStack.length>30) undoStack.shift(); } }
   function doUndo(){ if(!undoStack.length) return; let o; try{ o=JSON.parse(undoStack.pop()); }catch(e){ return; }
-    const keepFoot=selFootingNo;
+    const keepFoot=selFootingNo, keepSet=[...selFootings];
     _footEdits=o.edits||{}; markups = o.marks?Object.keys(o.marks).map(k=>Object.assign({},o.marks[k],{id:k})):[]; _pendingMembership=o.mem||{};
     materializeFootings(); rebuildPours(); applyMembership();
-    selFootingNo=(keepFoot!=null && byNo[keepFoot])?keepFoot:null;          // stay in the footing editor after undo
+    selFootings=new Set(keepSet.filter(no=>byNo[no] && !byNo[no].del));      // keep selection through undo
+    selFootingNo=(keepFoot!=null && byNo[keepFoot] && !byNo[keepFoot].del)?keepFoot:(selFootings.size===1?[...selFootings][0]:null);
     if(selMarkupId && !markups.some(m=>m.id===selMarkupId)) selMarkupId=null;
     fireFootingEdit(); fireMarkupChange(); fireMembershipChange(); refresh(); }
   function doCopy(){ if(selFootingNo!=null && byNo[selFootingNo]){ const f=byNo[selFootingNo]; clipboard={kind:'footing',data:{type:f.type,wFt:f.wFt,lFt:f.lFt,thk:f.thk,note:f.note}}; }
@@ -1344,7 +1371,7 @@ function createFoundationMap(opts){
 
   // ───────── chrome + panel ─────────
   function btnStyle(on){ return `border:none;cursor:pointer;border-radius:7px;padding:6px 13px;font-size:11px;font-weight:700;font-family:Inter,sans-serif;transition:all .15s;${on?'background:rgba(82,230,224,0.16);color:#7df0ec;box-shadow:inset 0 0 0 1px rgba(82,230,224,0.4)':'background:transparent;color:rgba(200,212,230,0.55)'}`; }
-  function selectPourId(id){ st.selId=id||null; selFootingNo=null; syncChrome(); renderPanel(); scheduleDraw(); }
+  function selectPourId(id){ st.selId=id||null; selFootingNo=null; selFootings=new Set(); syncChrome(); renderPanel(); scheduleDraw(); }
   function setFilter(f){ st.filter=f; syncChrome(); scheduleDraw(); }
   function setColorMode(m){ st.colorMode=m; syncChrome(); scheduleDraw(); }
   function setMode(m){ st.mode=m; syncChrome(); renderPanel(); }
@@ -1359,9 +1386,15 @@ function createFoundationMap(opts){
   function updateModeHint(){
     if(!modeHintEl) return;
     const selP=st.selId&&pourById?pourById[st.selId]:null;
-    modeHintEl.textContent = st.mode==='assign'
-      ? (selP?('Assign mode → drag a box over footings to add them to “'+selP.name+'”, or tap one to toggle. Hold Shift to pan.'):'Select a pour first, then drag to lasso footings into it.')
-      : 'Drag to pan · scroll to zoom · hover a footing for its spec · footing tags appear as you zoom in.';
+    let t;
+    if(st.tool==='region') t='Highlight → drag a box to draw a colored region.';
+    else if(st.tool==='polyline') t='Polyline → click points, double-click or Enter to finish, Esc to cancel.';
+    else if(st.tool==='text') t='Text → click where you want a label.';
+    else if(st.tool==='markselect') t='Select → click a markup to move it; Delete to remove.';
+    else if(st.tool==='footedit') t=(_locked?'Footing → click to edit. Unlock to drag footings.':'Footing → drag to move, click to edit.');
+    else if(st.mode==='assign') t=(selP?('Assign → drag over footings to add them to “'+selP.name+'”.'):'Pick a pour, then drag to paint footings into it.');
+    else t='Drag to lasso-select footings → assign them to a pour. Middle-mouse or Space to pan · scroll to zoom.';
+    modeHintEl.textContent=t;
   }
   function renderChips(){
     if(!elChips||!pours) return;
@@ -1394,7 +1427,20 @@ function createFoundationMap(opts){
     const selF=(selFootingNo!=null && byNo)?byNo[selFootingNo]:null;
     const selP=S.selId?pourById[S.selId]:null;
     let html='';
-    if(selF){
+    if(selFootings.size>1){
+      let gcy=0; const gtypes={}; let gn=0;
+      selFootings.forEach(no=>{ const f=byNo[no]; if(!f||f.del)return; gn++; gcy+=f.cyv; gtypes[f.type]=(gtypes[f.type]||0)+1; });
+      const trows=Object.keys(gtypes).sort().map(t=>`<span style="font-family:JetBrains Mono,monospace;font-size:10px;color:#cdd6e6;background:rgba(255,255,255,0.05);border-radius:5px;padding:2px 6px">${esc(t)}×${gtypes[t]}</span>`).join(' ');
+      const pourBtns = pours.map(p=>`<button data-assign-pour="${p.id}" style="display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:1px solid rgba(150,170,205,0.1);background:rgba(255,255,255,0.02);border-radius:9px;padding:7px 10px;cursor:pointer;font-family:Inter;margin-bottom:4px"><span style="width:10px;height:10px;border-radius:3px;flex:0 0 auto;background:${p.color}"></span><span style="flex:1;font-size:12px;color:#eef2f8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</span></button>`).join('');
+      html += `<div style="padding:16px;border-bottom:1px solid rgba(150,170,205,0.08)">`
+        + `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#7df0ec">${gn} footings selected</span><button data-clear-sel="1" style="font-size:10px;font-weight:700;color:rgba(170,188,218,0.6);background:none;border:none;cursor:pointer;font-family:Inter">Clear</button></div>`
+        + `<div style="display:flex;gap:10px;margin-bottom:11px"><div style="flex:1;padding:10px 12px;border-radius:11px;background:rgba(0,0,0,0.3);border:1px solid rgba(150,170,205,0.1)"><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:23px;color:#fff;line-height:1">${fmt(gcy)}</div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:rgba(170,188,218,0.45);margin-top:3px">Cubic yards</div></div><div style="flex:1;padding:10px 12px;border-radius:11px;background:rgba(0,0,0,0.3);border:1px solid rgba(150,170,205,0.1)"><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:23px;color:#fff;line-height:1">${gn}</div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:rgba(170,188,218,0.45);margin-top:3px">Footings</div></div></div>`
+        + (trows?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:13px">${trows}</div>`:'')
+        + `<div style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.42);margin-bottom:7px">Assign selection to pour</div>`
+        + (pours.length?pourBtns:`<div style="font-size:10.5px;color:rgba(170,188,218,0.45);margin-bottom:6px">No pours yet — hit <b style="color:#7df0ec">+ New pour</b>.</div>`)
+        + `<button data-assign-pour="" style="width:100%;border:1px solid rgba(150,170,205,0.18);background:rgba(255,255,255,0.03);color:rgba(200,212,230,0.6);border-radius:9px;padding:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter;margin-top:4px">Unassign selection</button>`
+        + `</div>`;
+    } else if(selF){
       const pnm = selF.pourId&&pourById[selF.pourId]?pourById[selF.pourId].name:'Unassigned';
       const inp='width:100%;box-sizing:border-box;background:rgba(8,11,18,0.8);border:1px solid rgba(150,170,205,0.16);border-radius:7px;padding:6px 8px;color:#fff;font-size:12px;font-family:JetBrains Mono,monospace;outline:none';
       const lb='font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(170,188,218,0.45);margin:8px 0 3px;display:block';
@@ -1506,6 +1552,8 @@ function createFoundationMap(opts){
       const pb=e.target.closest('[data-pour]'); if(pb){ selectPourId(pb.getAttribute('data-pour')); return; }
       const rn=e.target.closest('[data-rename]'); if(rn){ if(typeof promptPourName==='function') promptPourName(rn.getAttribute('data-rename')); return; }
       const dl=e.target.closest('[data-delpour]'); if(dl){ if(typeof deleteFoundationPour==='function') deleteFoundationPour(dl.getAttribute('data-delpour')); return; }
+      const ap=e.target.closest('[data-assign-pour]'); if(ap){ assignSelectedToPour(ap.getAttribute('data-assign-pour')||null); return; }
+      const cs=e.target.closest('[data-clear-sel]'); if(cs){ selFootings=new Set(); selFootingNo=null; renderPanel(); scheduleDraw(); return; }
       const fdup=e.target.closest('[data-foot-dup]'); if(fdup){ const f=byNo[+fdup.getAttribute('data-foot-dup')]; if(f) addFooting({type:f.type,wFt:f.wFt,lFt:f.lFt,thk:f.thk,note:f.note,cx:f.cx+22,cy:f.cy+22}); return; }
       const fdel=e.target.closest('[data-foot-del]'); if(fdel){ deleteFooting(+fdel.getAttribute('data-foot-del')); return; }
       const ab=e.target.closest('[data-act]'); if(ab && ab.getAttribute('data-act')==='assign-toggle'){ setTool(st.mode==='assign'?'explore':'assign'); }
@@ -9336,7 +9384,7 @@ function renderSeqRail() {
   let t = { totalCY:0, footingCount:0, pourCount:0 };
   try { t = getFoundationMap().getTakeoff() || t; } catch (e) {}
   const pourCount = Object.values(foundationPours || {}).filter(p => !p.archived).length || t.pourCount;
-  const legend = [['#34d399','Complete'],['#fbbf24','In progress'],['#38bdf8','Scheduled'],['#64748b','Unassigned']]
+  const legend = [['#34d399','Spread ftg'],['#a78bfa','Pile cap'],['#fbbf24','Mat cap'],['#5b6b86','Grade beam']]
     .map(([c,l]) => `<div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:${c}"></span><span style="font-size:10px;color:rgba(200,212,230,0.6)">${l}</span></div>`).join('');
   rail.innerHTML =
     `<div style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.45)">Takeoff</div>`
