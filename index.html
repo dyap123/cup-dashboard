@@ -790,6 +790,7 @@ function createFoundationMap(opts){
   let ox=0, oy=0, planW=0, planH=0, colPitch=73, rowPitch=72, siteHull=null;
   let underlay=null, ctx=null;
   let tx=0, ty=0, scale=1, base=1, cssW=0, cssH=0, _fitMargin=46, _typeColor=false, _introT=0, _introPlayed=false;
+  const PAN_SENS=0.6, WHEEL_ZOOM=0.0010;   // navigation feel — lower PAN_SENS = slower middle-mouse pan; lower WHEEL_ZOOM = gentler scroll-zoom
   const dpr=Math.min(2, window.devicePixelRatio||1);
   let pointers=new Map(), drag=null, band=null, flash=null, _pinch=null, _moved=false;
   let _raf=0, _ro=null, _fitted=false, _wired=false, _built=false, _showPanel=false, _keyWired=false;
@@ -960,7 +961,7 @@ function createFoundationMap(opts){
   function hitPour(wx,wy){ for(const p of pours){ const b=pourBox(p.id); if(!b) continue; if(wx>=b.x&&wx<=b.x+b.w&&wy>=b.y&&wy<=b.y+b.h) return p; } return null; }
 
   // ───────── interaction ─────────
-  const onWheel=(e)=>{ e.preventDefault(); const [mx,my]=evPos(e); zoomAt(mx,my,Math.exp(-e.deltaY*0.0016)); };
+  const onWheel=(e)=>{ e.preventDefault(); const [mx,my]=evPos(e); zoomAt(mx,my,Math.exp(-e.deltaY*WHEEL_ZOOM)); };
   function zoomAt(mx,my,f){
     const ns=Math.max(base*0.6, Math.min(base*14, scale*f));
     const k=ns/scale; tx=mx-(mx-tx)*k; ty=my-(my-ty)*k;
@@ -1008,7 +1009,7 @@ function createFoundationMap(opts){
     if(st.tool==='polyline' && _markDraft && !drag){ _markDraft.cursor=s2w(mx,my); scheduleDraw(); return; }
     if(band){ const w=s2w(mx,my); band.x1=w[0]; band.y1=w[1]; _moved=true; scheduleDraw(); return; }
     if(drag){ if(Math.abs(mx-drag.downx)+Math.abs(my-drag.downy)>3)_moved=true;
-      tx=drag.tx+(mx-drag.mx); ty=drag.ty+(my-drag.my); scheduleDraw(); return; }
+      tx=drag.tx+(mx-drag.mx)*PAN_SENS; ty=drag.ty+(my-drag.my)*PAN_SENS; scheduleDraw(); return; }
     const [wx,wy]=s2w(mx,my); const f=hitFoot(wx,wy);
     if(f) showTip(f,mx,my); else hideTip();
   };
@@ -1027,7 +1028,7 @@ function createFoundationMap(opts){
     if(_footDrag){ _footDrag=null; refresh(); return; }
     // ── Explore: marquee multi-select (or click to select one) ──
     if(_selBand){ const b=_selBand; _selBand=null;
-      if(_moved){
+      if(_moved && (Math.abs(b.x1-b.x0)+Math.abs(b.y1-b.y0))*scale > 5){
         const x0=Math.min(b.x0,b.x1),x1=Math.max(b.x0,b.x1),y0=Math.min(b.y0,b.y1),y1=Math.max(b.y0,b.y1);
         if(!b.add) selFootings=new Set();
         footings.forEach(f=>{ if(f.isBeam||f.del) return; if(f.cx>=x0&&f.cx<=x1&&f.cy>=y0&&f.cy<=y1) selFootings.add(f.no); });
