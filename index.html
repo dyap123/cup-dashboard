@@ -1158,6 +1158,7 @@ function createFoundationMap(opts){
     ctx.globalAlpha=1;
     ctx.setTransform(dpr,0,0,dpr,0,0);
     pours.forEach(p=>{
+      if(p.id!==sel) return;   // label only the selected pour — keeps the map clean (no name-bar across every pour)
       const b=pourBox(p.id); if(!b) return; const dim=filter!=='ALL'&&p.seq!==filter; if(dim)return;
       const sx=(b.x+b.w/2)*sc+tx, sy=b.y*sc+ty;
       if(sx>cssW+40||sy>cssH||sx<-160||sy<-30) return;
