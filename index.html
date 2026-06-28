@@ -779,6 +779,11 @@ const FND_STATUS_BY_AREA = { '0':'complete','0.5-1':'complete','0.5-2':'complete
 // Footing-type families → color (used for the lively "general idea" preview when nothing is assigned yet)
 const FND_TYPECOL = { F:'#34d399', PC:'#a78bfa', MPC:'#fbbf24', GB:'#5b6b86' };
 function fndTypeCol(t){ t=String(t).toUpperCase(); if(t.indexOf('MPC')===0)return FND_TYPECOL.MPC; if(t.indexOf('PC')===0)return FND_TYPECOL.PC; if(t.charAt(0)==='F')return FND_TYPECOL.F; if(t.indexOf('GB')===0)return FND_TYPECOL.GB; return '#64748b'; }
+// Engineered footing dimensions from the LACC "Footing Types" schedule (CSV import).
+// wFt = Width (ft), lFt = Length (ft), thk = Depth (in = depth-ft × 12). Blank = not specified
+// (grade beams are per-LF, so length is left to the drawn span). This is the built-in default
+// layer: it drives every footing's size + takeoff unless a per-footing or saved type override exists.
+const FOOTING_TYPE_LIBRARY = {'F6':{wFt:6,lFt:6,thk:24}, 'F6A':{wFt:9,lFt:6,thk:36}, 'F7':{wFt:7,lFt:7,thk:27}, 'F7A':{wFt:7,lFt:4.5,thk:54}, 'F8':{wFt:8,lFt:8,thk:30}, 'F8A':{wFt:8,lFt:8,thk:36}, 'F9':{wFt:9,lFt:9,thk:36}, 'F10':{wFt:10,lFt:10,thk:39}, 'F10A':{wFt:15,lFt:10,thk:51}, 'F11':{wFt:11,lFt:11,thk:42}, 'F12':{wFt:12,lFt:12,thk:45}, 'F12B':{wFt:12,lFt:12,thk:54}, 'F12C':{wFt:29.33,lFt:12,thk:54}, 'F14':{wFt:14,lFt:14,thk:54}, 'WF1':{wFt:2,thk:12}, 'GB1':{wFt:2,thk:24}, 'GB2':{wFt:3.5,thk:36}, 'GB3':{wFt:3,thk:36}, 'GB4':{wFt:3,lFt:1,thk:96}, 'GB5':{wFt:3,thk:36}, 'GB6':{wFt:3.5,thk:72}, 'GB7':{wFt:3.5,thk:66}, 'GB8':{wFt:3.5,thk:60}, 'GB9':{wFt:3.5,thk:45}, 'GB10':{wFt:3.5,thk:69}, 'PC1A':{wFt:3.5,lFt:3.5,thk:42}, 'PC1B':{wFt:3.5,lFt:3.5,thk:42}, 'PC1C':{wFt:3.5,lFt:3.5,thk:42}, 'PC1D':{wFt:3.5,lFt:3.5,thk:42}, 'PC2A':{wFt:3.5,lFt:9.5,thk:60}, 'PC2B':{wFt:3.5,lFt:9.5,thk:60}, 'PC2C':{wFt:3.5,lFt:9.5,thk:60}, 'PC2D':{wFt:3.5,lFt:9.5,thk:60}, 'PC2E':{wFt:3.5,lFt:9.5,thk:60}, 'PC2F':{wFt:3.5,lFt:9.5,thk:60}, 'PC2G':{wFt:3.5,lFt:9.5,thk:90}, 'PC2H':{wFt:7,lFt:19,thk:48}, 'PC2J':{wFt:3.5,lFt:12.125,thk:60}, 'PC2K':{wFt:6,lFt:18,thk:96}, 'PC3A':{wFt:9,lFt:10,thk:60}, 'PC3E':{wFt:9,lFt:10,thk:60}, 'PC4A':{wFt:9.5,lFt:9.5,thk:66}, 'PC4C':{wFt:9.5,lFt:9.5,thk:66}, 'PC4D':{wFt:9.5,lFt:9.5,thk:66}, 'PC4E':{wFt:9.5,lFt:9.5,thk:66}, 'PC4F':{wFt:9.5,lFt:9.5,thk:66}, 'PC4G':{wFt:18,lFt:18,thk:96}, 'PC6A':{wFt:9.5,lFt:15.5,thk:72}, 'PC6C':{wFt:9.5,lFt:15.5,thk:72}, 'PC6D':{wFt:9.5,lFt:15.5,thk:72}, 'PC6E':{wFt:9.5,lFt:15.5,thk:72}, 'PC6F':{wFt:9.5,lFt:15.5,thk:72}, 'PC6G':{wFt:9.5,lFt:15.5,thk:90}, 'PC8A':{wFt:12,lFt:20.5,thk:96}, 'PC8E':{wFt:12,lFt:20.5,thk:96}, 'PC8F':{wFt:12,lFt:20.5,thk:96}, 'PC8G':{wFt:4,lFt:21.5,thk:78}, 'PC8H':{wFt:9.5,lFt:23.5,thk:72}, 'PC9A':{wFt:10.417,lFt:30,thk:120}, 'PC10A':{wFt:9.5,lFt:27.5,thk:66}, 'PC15A':{wFt:35.5,lFt:98,thk:96}, 'PC45E':{wFt:15.5,lFt:87.5,thk:72}, 'MPC1':{wFt:2.5,lFt:2.5,thk:36}, 'MPC4A':{wFt:7,lFt:7}, 'MPC4B':{wFt:7,lFt:7,thk:54}, 'MPC6A':{wFt:7,lFt:11,thk:66}, 'MPC6B':{wFt:7,lFt:11,thk:66}, 'MPC6C':{wFt:7,lFt:11,thk:96}, 'MPC8A':{wFt:7,lFt:15,thk:75}, 'MPC8B':{wFt:7,lFt:15,thk:60}, 'MPC9A':{wFt:11,lFt:11,thk:60}, 'MPC9B':{wFt:11,lFt:11,thk:60}, 'MPC10A':{wFt:7,lFt:19,thk:66}, 'MPC18A':{thk:69.96}, 'MPC39A':{thk:75.96}, 'MPC6A-R':{wFt:11,lFt:20,thk:72}, 'MPC6B-R':{wFt:11,lFt:20,thk:75.96}, 'MPC8A-R':{wFt:14.5,lFt:15,thk:63.96}, 'MPC10A-R':{wFt:19,lFt:20,thk:75.96}, 'MPC12A-R':{wFt:20,lFt:20,thk:75.96}, 'MPC14A-R':{wFt:20,lFt:20,thk:75.96}, 'CP1':{wFt:3.5,lFt:3.5}, '12" Pit Slab':{wFt:17.1,lFt:20.75,thk:12}, '18" Pit Slab':{wFt:20,lFt:20,thk:18}, '5 x 2.5':{wFt:2.5,lFt:5,thk:24}, 'PC15A Mini':{wFt:15,lFt:17.5,thk:96}};
 let _fndMap = null;
 function getFoundationMap(){ if(!_fndMap) _fndMap = createFoundationMap({ colorMode:'status' }); return _fndMap; }
 
@@ -799,6 +804,8 @@ function createFoundationMap(opts){
   let markups=[], _markupCb=null, _markupTimer=0, _markDraft=null, _markBand=null, _markDrag=null, selMarkupId=null;
   let _takeoffCb=null;
   let _baseFoot=null, _footEdits=null, _footEditCb=null, _footEditTimer=0, selFootingNo=null, _locked=true, _footDrag=null;
+  let _typeDefs=null, _typeDefCb=null, _typeDefTimer=0;     // type-level property library (cup-foundation/footingTypes)
+  let _lastAddType='F8', _markResize=null, _addFilter='';    // add-footing armed type · region-markup corner resize · type-picker filter
   let selFootings=new Set(), _selBand=null, _spaceDown=false;
   let clipboard=null, undoStack=[];
   // DOM refs
@@ -842,15 +849,30 @@ function createFoundationMap(opts){
   function recompFoot(f){ const w=Math.max(0.5,+f.wFt||1), l=Math.max(0.5,+f.lFt||1), t=Math.max(0.5,+f.thk||1);
     f.w=Math.max(9, w*2.43); f.h=Math.max(9, l*2.43); f.cyv=+(((w*l*(t/12))/27).toFixed(2)); }
   // Rebuild the live footings array from the immutable base + CUP-private edits (cup-foundation/footingEdits).
+  // dimension precedence for a footing of `type`:
+  //   explicit per-footing edit > saved type override > built-in CSV library > drawn fallback
+  function dimFor(field, type, e, fallback){
+    if(e && e[field]!=null) return +e[field];
+    const td=_typeDefs && _typeDefs[type];
+    if(td && td[field]!=null && td[field]!=='') return +td[field];
+    const bl=(typeof FOOTING_TYPE_LIBRARY!=='undefined') && FOOTING_TYPE_LIBRARY[type];
+    if(bl && bl[field]!=null) return +bl[field];
+    return fallback;
+  }
+  function mixFor(type){ const td=_typeDefs && _typeDefs[type]; return (td && td.mix) || null; }
   function materializeFootings(){
     if(!_baseFoot) return;
     const E=_footEdits||{};
     const arr=_baseFoot.map(b=>{ const f=Object.assign({}, b); const e=E[b.no];
-      if(e){ if(e.type!=null)f.type=e.type; if(e.wFt!=null)f.wFt=+e.wFt; if(e.lFt!=null)f.lFt=+e.lFt; if(e.thk!=null)f.thk=+e.thk;
-        if(e.cx!=null)f.cx=+e.cx; if(e.cy!=null)f.cy=+e.cy; if(e.note!=null)f.note=e.note; f.del=!!e.deleted; }
+      if(e){ if(e.type!=null)f.type=e.type; if(e.cx!=null)f.cx=+e.cx; if(e.cy!=null)f.cy=+e.cy; if(e.note!=null)f.note=e.note; f.del=!!e.deleted; }
+      // a moved beam: translate its span by the same offset (fresh object — never mutate _baseFoot)
+      if(b.beam){ const dx=f.cx-b.cx, dy=f.cy-b.cy; f.beam={x1:b.beam.x1+dx,y1:b.beam.y1+dy,x2:b.beam.x2+dx,y2:b.beam.y2+dy,horizontal:b.beam.horizontal}; }
+      // width/length/thickness flow from the type library unless this footing has its own override
+      f.wFt=dimFor('wFt',f.type,e,b.wFt); f.lFt=dimFor('lFt',f.type,e,b.lFt); f.thk=dimFor('thk',f.type,e,b.thk);
+      f.mix=mixFor(f.type);
       recompFoot(f); return f; });
-    Object.keys(E).forEach(k=>{ const e=E[k]; if(!e||!e.added) return; const no=+k;
-      const f={ no, type:e.type||'F8', thk:+e.thk||30, cx:+e.cx||planW/2, cy:+e.cy||planH/2, wFt:+e.wFt||6, lFt:+e.lFt||6, tag:'#'+no, note:e.note||'', pourId:null, seq:null, added:true, del:!!e.deleted, isBeam:false };
+    Object.keys(E).forEach(k=>{ const e=E[k]; if(!e||!e.added) return; const no=+k; const t=e.type||'F8'; const s=sideFt(t);
+      const f={ no, type:t, thk:dimFor('thk',t,e,30), cx:+e.cx||planW/2, cy:+e.cy||planH/2, wFt:dimFor('wFt',t,e,s), lFt:dimFor('lFt',t,e,s), tag:'#'+no, note:e.note||'', mix:mixFor(t), pourId:null, seq:null, added:true, del:!!e.deleted, isBeam:false };
       recompFoot(f); arr.push(f); });
     footings=arr; byNo={}; footings.forEach(f=>byNo[f.no]=f);
   }
@@ -872,25 +894,36 @@ function createFoundationMap(opts){
     const colPhase=phaseOf(colC.map(L=>L.c), colPitch);
     const rowPhase=phaseOf(rowC.map(L=>L.c), rowPitch);
     const snapV=(v,phase,pitch)=>Math.round((v-phase)/pitch)*pitch+phase;
-    footings.forEach(f=>{ f.cx=snapV(f.cx+ox,colPhase,colPitch)-ox; f.cy=snapV(f.cy+oy,rowPhase,rowPitch)-oy; });
-    const occ=new Set(), keyOf=(cx,cy)=>Math.round(cx)+','+Math.round(cy);
-    [...footings].filter(f=>!/^GB/i.test(f.type)).sort((a,b)=>b.w-a.w).forEach(f=>{
-      const k=keyOf(f.cx,f.cy);
-      if(!occ.has(k)){ occ.add(k); return; }
-      let placed=false;
-      for(let r=1;r<=4 && !placed;r++){
-        for(let dx=-r;dx<=r && !placed;dx++) for(let dy=-r;dy<=r && !placed;dy++){
-          if(Math.max(Math.abs(dx),Math.abs(dy))!==r) continue;
-          const nx=f.cx+dx*colPitch, ny=f.cy+dy*rowPitch, nk=keyOf(nx,ny);
-          if(!occ.has(nk)){ f.cx=nx; f.cy=ny; occ.add(nk); placed=true; }
+    // geo.precise = coordinates are real (digitized from the plan PDF) — keep them exact:
+    // skip the lattice-snap + de-collision that the old auto-extracted data needed.
+    if(!geo.precise){
+      footings.forEach(f=>{ f.cx=snapV(f.cx+ox,colPhase,colPitch)-ox; f.cy=snapV(f.cy+oy,rowPhase,rowPitch)-oy; });
+      const occ=new Set(), keyOf=(cx,cy)=>Math.round(cx)+','+Math.round(cy);
+      [...footings].filter(f=>!/^GB/i.test(f.type)).sort((a,b)=>b.w-a.w).forEach(f=>{
+        const k=keyOf(f.cx,f.cy);
+        if(!occ.has(k)){ occ.add(k); return; }
+        let placed=false;
+        for(let r=1;r<=4 && !placed;r++){
+          for(let dx=-r;dx<=r && !placed;dx++) for(let dy=-r;dy<=r && !placed;dy++){
+            if(Math.max(Math.abs(dx),Math.abs(dy))!==r) continue;
+            const nx=f.cx+dx*colPitch, ny=f.cy+dy*rowPitch, nk=keyOf(nx,ny);
+            if(!occ.has(nk)){ f.cx=nx; f.cy=ny; occ.add(nk); placed=true; }
+          }
         }
-      }
-      if(!placed) occ.add(k);
-    });
-    const colMap=xp=>{ const i=Math.round(6+(xp-1109)/colPitch); return CL[i]||null; };
-    const rowMap=yp=>{ const r=Math.round(33-(yp-382)/rowPitch); return (r>=8&&r<=33)?String(r):null; };
-    gridCols=[]; for(let xp=colPhase+Math.ceil((ox-colPhase)/colPitch)*colPitch; xp<ox+planW; xp+=colPitch){ const l=colMap(xp); if(l) gridCols.push({x:xp-ox,l}); }
-    gridRows=[]; for(let yp=rowPhase+Math.ceil((oy-rowPhase)/rowPitch)*rowPitch; yp<oy+planH; yp+=rowPitch){ const l=rowMap(yp); if(l) gridRows.push({y:yp-oy,l}); }
+        if(!placed) occ.add(k);
+      });
+    }
+    // Gridlines: use the real digitized grid (geo.vlines / geo.hlines, in page coords) when present,
+    // otherwise derive an approximate lattice from footing clusters (legacy behavior).
+    if(geo.vlines && geo.hlines){
+      gridCols=geo.vlines.map(v=>({x:v.x-ox, l:v.l}));
+      gridRows=geo.hlines.map(v=>({y:v.y-oy, l:String(v.l).replace(/^W/,'')}));   // show "34" not "W34"
+    } else {
+      const colMap=xp=>{ const i=Math.round(6+(xp-1109)/colPitch); return CL[i]||null; };
+      const rowMap=yp=>{ const r=Math.round(33-(yp-382)/rowPitch); return (r>=8&&r<=33)?String(r):null; };
+      gridCols=[]; for(let xp=colPhase+Math.ceil((ox-colPhase)/colPitch)*colPitch; xp<ox+planW; xp+=colPitch){ const l=colMap(xp); if(l) gridCols.push({x:xp-ox,l}); }
+      gridRows=[]; for(let yp=rowPhase+Math.ceil((oy-rowPhase)/rowPitch)*rowPitch; yp<oy+planH; yp+=rowPitch){ const l=rowMap(yp); if(l) gridRows.push({y:yp-oy,l}); }
+    }
     footings.forEach(g=>{ g.isBeam=/^GB/i.test(g.type); });
     const maxRun=colPitch*3.4, tolX=colPitch*0.5, tolY=rowPitch*0.5;
     footings.forEach(g=>{ if(!g.isBeam) return;
@@ -942,6 +975,35 @@ function createFoundationMap(opts){
   }
   function members(pid){ return footings.filter(f=>f.pourId===pid && !f.del); }
   function pourCY(pid){ return members(pid).reduce((s,f)=>s+f.cyv,0); }
+  // Build a Pour-Day footing-map object (its schema: {viewBox, gridCols:[{x,label}], gridRows:[{y,label}],
+  // footings:[{id,x,y,w,h,cy,type,ftype}]}) from this pour's assigned footings + the gridlines that frame them.
+  function buildPourDayMap(pid){
+    if(!footings) return null;
+    const mem=members(pid); if(!mem.length) return null;
+    // bbox of this pour in foundation coords
+    let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+    mem.forEach(f=>{ x0=Math.min(x0,f.cx-f.w/2); y0=Math.min(y0,f.cy-f.h/2); x1=Math.max(x1,f.cx+f.w/2); y1=Math.max(y1,f.cy+f.h/2);
+      if(f.isBeam&&f.beam){ x0=Math.min(x0,f.beam.x1,f.beam.x2); x1=Math.max(x1,f.beam.x1,f.beam.x2); y0=Math.min(y0,f.beam.y1,f.beam.y2); y1=Math.max(y1,f.beam.y1,f.beam.y2); } });
+    // Fit + center the pour into the Pour-Day canvas (standard 1200×500, like the legacy maps),
+    // so each pour fills its own map instead of sitting tiny in absolute plan coords.
+    const TW=1200, TH=500, MARGIN=46;
+    const bw=Math.max(1,x1-x0), bh=Math.max(1,y1-y0);
+    const s=Math.min((TW-MARGIN*2)/bw, (TH-MARGIN*2)/bh);
+    const offX=(TW-bw*s)/2, offY=(TH-bh*s)/2;
+    const TX=(wx)=>Math.round((wx-x0)*s+offX), TY=(wy)=>Math.round((wy-y0)*s+offY), SC=(v)=>Math.max(6,Math.round(v*s));
+    const fam=(t)=>{ t=String(t).toUpperCase(); if(t.indexOf('GB')===0)return 'gb'; if(t.indexOf('PC')===0||t.indexOf('MPC')===0)return 'pc'; return 'ftg'; };
+    const fts=mem.map(f=>{
+      if(f.isBeam && f.beam){ const b=f.beam, bwid=Math.max(5,f.w*0.78);
+        const minx=Math.min(b.x1,b.x2),maxx=Math.max(b.x1,b.x2),miny=Math.min(b.y1,b.y2),maxy=Math.max(b.y1,b.y2);
+        const wx=b.horizontal?minx:(f.cx-bwid/2), wy=b.horizontal?(f.cy-bwid/2):miny;
+        const ww=b.horizontal?(maxx-minx):bwid, wh=b.horizontal?bwid:(maxy-miny);
+        return { id:'fnd'+f.no, x:TX(wx), y:TY(wy), w:SC(ww), h:SC(wh), cy:+f.cyv, type:'gb', ftype:f.type }; }
+      return { id:'fnd'+f.no, x:TX(f.cx-f.w/2), y:TY(f.cy-f.h/2), w:SC(f.w), h:SC(f.h), cy:+f.cyv, type:fam(f.type), ftype:f.type };
+    });
+    const gc=(gridCols||[]).filter(c=>c.x>=x0-bw*0.06 && c.x<=x1+bw*0.06).map(c=>({x:TX(c.x), label:String(c.l)}));
+    const gr=(gridRows||[]).filter(c=>c.y>=y0-bh*0.06 && c.y<=y1+bh*0.06).map(c=>({y:TY(c.y), label:String(c.l)}));
+    return { viewBox:'0 0 '+TW+' '+TH, gridCols:gc, gridRows:gr, footings:fts, fromFoundation:true };
+  }
 
   // ───────── coords / hit-testing ─────────
   function w2s(x,y){ return [x*scale+tx, y*scale+ty]; }
@@ -961,7 +1023,14 @@ function createFoundationMap(opts){
   function hitPour(wx,wy){ for(const p of pours){ const b=pourBox(p.id); if(!b) continue; if(wx>=b.x&&wx<=b.x+b.w&&wy>=b.y&&wy<=b.y+b.h) return p; } return null; }
 
   // ───────── interaction ─────────
-  const onWheel=(e)=>{ e.preventDefault(); const [mx,my]=evPos(e); zoomAt(mx,my,Math.exp(-e.deltaY*WHEEL_ZOOM)); };
+  const onWheel=(e)=>{ e.preventDefault();
+    // While a mouse button is held (middle-button / Space pan, drag, marquee) the wheel must NOT
+    // zoom — that's what caused "random zoom" when holding the wheel down to pan, Bluebeam-style.
+    if(pointers.size>0 || _spaceDown || drag || band || _selBand || _markBand || _footDrag) return;
+    const [mx,my]=evPos(e);
+    // Shift+wheel = horizontal pan, plain wheel = zoom-at-cursor (Bluebeam feel)
+    if(e.shiftKey){ tx-=e.deltaY*PAN_SENS; scheduleDraw(); return; }
+    zoomAt(mx,my,Math.exp(-e.deltaY*WHEEL_ZOOM)); };
   function zoomAt(mx,my,f){
     const ns=Math.max(base*0.6, Math.min(base*14, scale*f));
     const k=ns/scale; tx=mx-(mx-tx)*k; ty=my-(my-ty)*k;
@@ -973,26 +1042,31 @@ function createFoundationMap(opts){
     canvas.setPointerCapture?.(e.pointerId);
     const [mx,my]=evPos(e); pointers.set(e.pointerId,{x:mx,y:my});
     if(pointers.size===2){ drag=null; band=null; _markBand=null; _markDrag=null; _selBand=null; _pinch=pinchState(); return; }
-    if(e.button===1 || _spaceDown){ drag={mx,my,tx,ty,downx:mx,downy:my}; _moved=false; canvas.style.cursor='grabbing'; return; }   // middle-button / Space = pan (Bluebeam)
+    if(e.button===1){ drag={mx,my,tx,ty,downx:mx,downy:my,pan:true}; _moved=false; canvas.style.cursor='grabbing'; return; }   // PAN = middle wheel button ONLY
     const [wx,wy]=s2w(mx,my);
     // ── markup tools ──
     if(st.tool==='region'){ _markBand={x0:wx,y0:wy,x1:wx,y1:wy}; _moved=false; return; }
     if(st.tool==='markselect'){
+      // grab a corner handle of the already-selected region to resize the filled area
+      const selM = selMarkupId ? markups.find(x=>x.id===selMarkupId) : null;
+      if(selM && selM.type==='region'){ const h=regionHandleAt(selM,wx,wy);
+        if(h>=0){ pushUndo(); _markResize={id:selM.id,corner:h}; _moved=false; return; } }
       const m=hitMarkup(wx,wy);
       if(m){ pushUndo(); selMarkupId=m.id; _markDrag={id:m.id,wx,wy,orig:m.pts.map(p=>p.slice())}; _moved=false; scheduleDraw(); renderPanel(); }
-      else { selMarkupId=null; drag={mx,my,tx,ty,downx:mx,downy:my}; _moved=false; scheduleDraw(); }
+      else { selMarkupId=null; _moved=false; scheduleDraw(); }
       return;
     }
-    if(st.tool==='polyline' || st.tool==='text'){ drag={mx,my,tx,ty,downx:mx,downy:my}; _moved=false; return; }  // click → action on up; drag → pan
+    if(st.tool==='polyline' || st.tool==='text' || st.tool==='addfoot'){ drag={mx,my,tx,ty,downx:mx,downy:my}; _moved=false; return; }  // click→action on up (no pan)
+    // ── MOVE tool (footedit): drag a footing to reposition; empty drag = marquee select ──
     if(st.tool==='footedit'){ const f=hitFoot(wx,wy);
-      if(f){ selectFooting(f.no); if(!_locked){ _footDrag={no:f.no,dx:wx-f.cx,dy:wy-f.cy,moved:false}; } else { drag={mx,my,tx,ty,downx:mx,downy:my}; _moved=false; } }
-      else { selFootingNo=null; renderPanel(); drag={mx,my,tx,ty,downx:mx,downy:my}; _moved=false; }
+      if(f){ selectFooting(f.no); _footDrag={no:f.no,dx:wx-f.cx,dy:wy-f.cy,moved:false}; }
+      else { selFootingNo=null; renderPanel(); _selBand={x0:wx,y0:wy,x1:wx,y1:wy,add:e.shiftKey}; _moved=false; }
       return;
     }
-    // ── assign-paint / Explore lasso-select (pan via middle button or Space) ──
-    if(st.mode==='assign' && st.selId && !e.shiftKey){ band={x0:wx,y0:wy,x1:wx,y1:wy}; _moved=false; }
-    else if(!_locked && !e.shiftKey){ const hf=hitFoot(wx,wy); if(hf && !hf.del){ selectFooting(hf.no); _footDrag={no:hf.no,dx:wx-hf.cx,dy:wy-hf.cy,moved:false}; } else { _selBand={x0:wx,y0:wy,x1:wx,y1:wy,add:false}; _moved=false; } }
-    else { _selBand={x0:wx,y0:wy,x1:wx,y1:wy,add:e.shiftKey}; _moved=false; }   // Explore default = marquee select footings
+    // ── ASSIGN tool: paint footings into the selected pour ──
+    if(st.mode==='assign' && st.selId && !e.shiftKey){ band={x0:wx,y0:wy,x1:wx,y1:wy}; _moved=false; return; }
+    // ── SELECT tool (default): click a footing/pour to select, drag to marquee — works locked ──
+    _selBand={x0:wx,y0:wy,x1:wx,y1:wy,add:e.shiftKey}; _moved=false;
   };
   const onMove=(e)=>{
     const [mx,my]=evPos(e);
@@ -1003,13 +1077,15 @@ function createFoundationMap(opts){
     }
     if(_markBand){ const w=s2w(mx,my); _markBand.x1=w[0]; _markBand.y1=w[1]; _moved=true; scheduleDraw(); return; }
     if(_selBand){ const w=s2w(mx,my); _selBand.x1=w[0]; _selBand.y1=w[1]; _moved=true; scheduleDraw(); return; }
+    if(_markResize){ const w=s2w(mx,my); const m=markups.find(x=>x.id===_markResize.id);
+      if(m){ resizeRegionCorner(m,_markResize.corner,w[0],w[1]); _moved=true; scheduleDraw(); } return; }
     if(_markDrag){ const w=s2w(mx,my); const dx=w[0]-_markDrag.wx, dy=w[1]-_markDrag.wy; const m=markups.find(x=>x.id===_markDrag.id);
       if(m){ m.pts=_markDrag.orig.map(p=>[p[0]+dx,p[1]+dy]); _moved=true; scheduleDraw(); } return; }
     if(_footDrag){ const w=s2w(mx,my); const f=byNo[_footDrag.no]; if(f){ moveFooting(f.no, w[0]-_footDrag.dx, w[1]-_footDrag.dy, !_footDrag.moved); _footDrag.moved=true; scheduleDraw(); } return; }
     if(st.tool==='polyline' && _markDraft && !drag){ _markDraft.cursor=s2w(mx,my); scheduleDraw(); return; }
     if(band){ const w=s2w(mx,my); band.x1=w[0]; band.y1=w[1]; _moved=true; scheduleDraw(); return; }
     if(drag){ if(Math.abs(mx-drag.downx)+Math.abs(my-drag.downy)>3)_moved=true;
-      tx=drag.tx+(mx-drag.mx)*PAN_SENS; ty=drag.ty+(my-drag.my)*PAN_SENS; scheduleDraw(); return; }
+      if(drag.pan){ tx=drag.tx+(mx-drag.mx)*PAN_SENS; ty=drag.ty+(my-drag.my)*PAN_SENS; scheduleDraw(); } return; }
     const [wx,wy]=s2w(mx,my); const f=hitFoot(wx,wy);
     if(f) showTip(f,mx,my); else hideTip();
   };
@@ -1022,6 +1098,8 @@ function createFoundationMap(opts){
       } else scheduleDraw();
       return;
     }
+    // ── markup: end corner-resize ──
+    if(_markResize){ const moved=_moved; _markResize=null; if(moved){ fireMarkupChange(); refresh(); } return; }
     // ── markup: end move-drag ──
     if(_markDrag){ const moved=_moved; _markDrag=null; if(moved){ fireMarkupChange(); refresh(); } return; }
     // ── footing: end move-drag ──
@@ -1041,6 +1119,12 @@ function createFoundationMap(opts){
       }
       return;
     }
+    // ── add-footing: drop a new footing where you click (stays armed for more) ──
+    if(st.tool==='addfoot' && drag && !_moved){
+      const [mx,my]=evPos(e); const [wx,wy]=s2w(mx,my); drag=null;
+      addFooting({ type:st.addType||_lastAddType||'F8', cx:wx, cy:wy });
+      return;
+    }
     // ── markup: polyline vertex / text placement (single click, no drag) ──
     if((st.tool==='polyline'||st.tool==='text') && drag && !_moved){
       const [mx,my]=evPos(e); const [wx,wy]=s2w(mx,my); drag=null;
@@ -1048,7 +1132,7 @@ function createFoundationMap(opts){
       else openTextMarkup(wx,wy);
       return;
     }
-    if(canvas) canvas.style.cursor = (st.tool==='region'||st.tool==='polyline'||st.tool==='text')?'crosshair':'grab';
+    if(canvas) canvas.style.cursor = (st.tool==='region'||st.tool==='polyline'||st.tool==='text'||st.tool==='addfoot')?'crosshair':(st.tool==='footedit'?'move':'default');
     if(band){
       const b=band; band=null;
       if(_moved){
@@ -1126,6 +1210,8 @@ function createFoundationMap(opts){
       if(b.horizontal) ctx.fillRect(minx,f.cy-bw/2,maxx-minx,bw); else ctx.fillRect(f.cx-bw/2,miny,bw,maxy-miny);
       ctx.globalAlpha=(dim?0.18:0.85)*ia; ctx.lineWidth=(isSel?1.3:0.7)/sc; ctx.strokeStyle=col;
       if(b.horizontal) ctx.strokeRect(minx,f.cy-bw/2,maxx-minx,bw); else ctx.strokeRect(f.cx-bw/2,miny,bw,maxy-miny);
+      if(selFootings.has(f.no)){ ctx.globalAlpha=1; ctx.lineWidth=2.4/sc; ctx.strokeStyle='#52E6E0';
+        if(b.horizontal) ctx.strokeRect(minx-2/sc,f.cy-bw/2-2/sc,maxx-minx+4/sc,bw+4/sc); else ctx.strokeRect(f.cx-bw/2-2/sc,miny-2/sc,bw+4/sc,maxy-miny+4/sc); }
     });
     footings.forEach(f=>{ if(f.isBeam||f.del) return;
       const ia=introOf(f); if(ia<=0) return;
@@ -1143,7 +1229,9 @@ function createFoundationMap(opts){
       if(m.type==='region'){ const a=m.pts[0], c2=m.pts[1]; const rx=Math.min(a[0],c2[0]),ry=Math.min(a[1],c2[1]),rw=Math.abs(c2[0]-a[0]),rh=Math.abs(c2[1]-a[1]);
         if(rx>vx1||ry>vy1||rx+rw<vx0||ry+rh<vy0) return;
         ctx.fillStyle=hex2rgba(m.color,0.16); ctx.fillRect(rx,ry,rw,rh);
-        ctx.lineWidth=(selM?2.6:1.6)/sc; ctx.strokeStyle=m.color; ctx.setLineDash(selM?[]:[6/sc,4/sc]); ctx.strokeRect(rx,ry,rw,rh); ctx.setLineDash([]); }
+        ctx.lineWidth=(selM?2.6:1.6)/sc; ctx.strokeStyle=m.color; ctx.setLineDash(selM?[]:[6/sc,4/sc]); ctx.strokeRect(rx,ry,rw,rh); ctx.setLineDash([]);
+        if(selM){ const hs=5.5/sc; ctx.fillStyle='#06060e'; ctx.lineWidth=1.6/sc;   // corner resize handles
+          [[rx,ry],[rx+rw,ry],[rx+rw,ry+rh],[rx,ry+rh]].forEach(c=>{ ctx.beginPath(); ctx.rect(c[0]-hs,c[1]-hs,hs*2,hs*2); ctx.fill(); ctx.stroke(); }); } }
       else if(m.type==='polyline'){ if(!m.pts||m.pts.length<2) return;
         ctx.strokeStyle=m.color; ctx.lineWidth=(selM?3.4:2.2)/sc; ctx.lineJoin='round'; ctx.lineCap='round';
         ctx.beginPath(); m.pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.stroke();
@@ -1231,20 +1319,33 @@ function createFoundationMap(opts){
     canvas.addEventListener('auxclick', (e)=>{ if(e.button===1) e.preventDefault(); });
     if(!_keyWired){ _keyWired=true; window.addEventListener('keydown', onKey); window.addEventListener('keyup', onKeyUp); }
   }
-  function onKeyUp(e){ if(e.code==='Space' || e.key===' '){ _spaceDown=false; if(canvas) canvas.style.cursor='grab'; } }
+  function onKeyUp(e){}
   function onKey(e){
     if(!root || root.offsetParent===null) return;                       // only when this map is visible
     if(/INPUT|TEXTAREA|SELECT/.test((e.target&&e.target.tagName)||'')) return;
-    if(e.code==='Space' || e.key===' '){ if(!_spaceDown){ _spaceDown=true; if(canvas) canvas.style.cursor='grab'; } e.preventDefault(); return; }
     if((e.ctrlKey||e.metaKey) && !e.altKey){
       const k=(e.key||'').toLowerCase();
       if(k==='z' && !e.shiftKey){ doUndo(); e.preventDefault(); return; }
       if(k==='c'){ doCopy(); e.preventDefault(); return; }
       if(k==='v'){ doPaste(); e.preventDefault(); return; }
+      if(k==='a'){ selectAllFootings(); e.preventDefault(); return; }   // Revit-style select-all
+      return;
     }
+    // tool shortcuts
+    const kk=(e.key||'').toLowerCase();
+    if(kk==='v'){ setTool('select'); e.preventDefault(); return; }   // Select / marquee
+    if(kk==='m'){ setTool('move'); e.preventDefault(); return; }     // Move footings
+    if(kk==='b'){ setTool('assign'); e.preventDefault(); return; }   // Assign (brush) into pour
+    if(kk==='l'){ setTool(st.tool==='footedit'?'select':'move'); e.preventDefault(); return; }   // toggle Move
     if(st.tool==='polyline' && _markDraft){ if(e.key==='Enter'){ finishPolyline(); e.preventDefault(); } else if(e.key==='Escape'){ _markDraft=null; scheduleDraw(); e.preventDefault(); } return; }
     if(st.tool==='markselect' && selMarkupId && (e.key==='Delete'||e.key==='Backspace')){ deleteMarkup(selMarkupId); e.preventDefault(); return; }
-    if(selFootings.size && (e.key==='Delete'||e.key==='Backspace') && (st.tool==='none'||st.tool==='footedit')){ deleteSelectedFootings(); e.preventDefault(); }
+    if(selFootings.size && (e.key==='Delete'||e.key==='Backspace') && (st.tool==='none'||st.tool==='footedit')){ deleteSelectedFootings(); e.preventDefault(); return; }
+    if(kk==='r' && selFootings.size){ rotateSelection(); e.preventDefault(); return; }   // R = rotate (swap W↔L)
+    // Bluebeam-style zoom keys
+    if(e.key==='+'||e.key==='='){ zoomAt(cssW/2,cssH/2,1.3); e.preventDefault(); return; }
+    if(e.key==='-'||e.key==='_'){ zoomAt(cssW/2,cssH/2,1/1.3); e.preventDefault(); return; }
+    if(e.key==='0'){ if(selFootings.size) zoomToSelection(); else { _fitted=true; fit(); } e.preventDefault(); return; }
+    if(e.key==='Escape'){ if(st.tool!=='none'){ setTool('select'); e.preventDefault(); } else if(selFootings.size){ clearSelection(); e.preventDefault(); } return; }
   }
   function resize(){
     if(!canvas||!mapArea) return;
@@ -1304,6 +1405,13 @@ function createFoundationMap(opts){
   function distToSeg(px,py,ax,ay,bx,by){ const dx=bx-ax,dy=by-ay; const l2=dx*dx+dy*dy; if(l2===0)return Math.hypot(px-ax,py-ay);
     let t=((px-ax)*dx+(py-ay)*dy)/l2; t=Math.max(0,Math.min(1,t)); return Math.hypot(px-(ax+t*dx),py-(ay+t*dy)); }
   function markBBox(m){ let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; m.pts.forEach(p=>{ x0=Math.min(x0,p[0]); y0=Math.min(y0,p[1]); x1=Math.max(x1,p[0]); y1=Math.max(y1,p[1]); }); return {x0,y0,x1,y1}; }
+  // region corner handles (0=TL,1=TR,2=BR,3=BL) for resizing the filled area
+  function regionCorners(m){ const b=markBBox(m); return [[b.x0,b.y0],[b.x1,b.y0],[b.x1,b.y1],[b.x0,b.y1]]; }
+  function regionHandleAt(m,wx,wy){ if(!m||m.type!=='region') return -1; const c=regionCorners(m); const tol=11/scale;
+    for(let i=0;i<4;i++){ if(Math.abs(wx-c[i][0])<=tol && Math.abs(wy-c[i][1])<=tol) return i; } return -1; }
+  function resizeRegionCorner(m,corner,wx,wy){ const b=markBBox(m); let x0=b.x0,y0=b.y0,x1=b.x1,y1=b.y1;
+    if(corner===0){ x0=wx; y0=wy; } else if(corner===1){ x1=wx; y0=wy; } else if(corner===2){ x1=wx; y1=wy; } else { x0=wx; y1=wy; }
+    m.pts=[[Math.min(x0,x1),Math.min(y0,y1)],[Math.max(x0,x1),Math.max(y0,y1)]]; }
   function hitMarkup(wx,wy){
     const tol=8/scale;
     for(let i=markups.length-1;i>=0;i--){ const m=markups[i];
@@ -1314,12 +1422,13 @@ function createFoundationMap(opts){
     return null;
   }
   function setTool(t){
-    if(t==='explore'){ st.mode='explore'; st.tool='none'; }
-    else if(t==='assign'){ st.mode='assign'; st.tool='none'; }
-    else { st.tool=t; }     // region | polyline | text | markselect
-    _markDraft=null; _markBand=null; _selBand=null; if(t!=='markselect') selMarkupId=null;
-    if(t==='region'||t==='polyline'||t==='text'||t==='markselect'){ selFootings=new Set(); selFootingNo=null; }
-    if(canvas) canvas.style.cursor = (st.tool==='region'||st.tool==='polyline'||st.tool==='text')?'crosshair':'grab';
+    if(t==='select'||t==='explore'){ st.mode='explore'; st.tool='none'; _locked=true; }
+    else if(t==='assign'){ st.mode='assign'; st.tool='none'; _locked=true; }
+    else if(t==='move'||t==='footedit'){ st.mode='explore'; st.tool='footedit'; _locked=false; }   // Move = footings draggable
+    else { st.tool=t; _locked=true; }     // region | polyline | text | markselect | addfoot
+    _markDraft=null; _markBand=null; _selBand=null; _markResize=null; if(st.tool!=='markselect') selMarkupId=null;
+    if(t==='region'||t==='polyline'||t==='text'||t==='markselect'||t==='addfoot'){ selFootings=new Set(); selFootingNo=null; }
+    if(canvas) canvas.style.cursor = (st.tool==='region'||st.tool==='polyline'||st.tool==='text'||st.tool==='addfoot')?'crosshair':(st.tool==='footedit'?'move':'default');
     syncChrome(); renderPanel(); scheduleDraw();
   }
   function setMarkColor(c){ st.markColor=c;
@@ -1333,19 +1442,89 @@ function createFoundationMap(opts){
   function setFootingEdits(obj){ _footEdits=obj||{}; if(_baseFoot && !_footDrag){ materializeFootings(); rebuildPours(); applyMembership(); refresh(); } }
   function onFootingEditChange(cb){ _footEditCb=cb; }
   function fireFootingEdit(){ if(!_footEditCb) return; clearTimeout(_footEditTimer); _footEditTimer=setTimeout(()=>{ try{ _footEditCb(_footEdits||{}); }catch(e){} }, 500); }
+
+  // ───────── footing TYPE library (CUP-private: cup-foundation/footingTypes) ─────────
+  // Each type (F8, PC6A, GB1 …) can carry default width/length/thickness + a default mix.
+  // Editing a type's property propagates to every footing of that type across the map.
+  function setTypeDefs(obj){ _typeDefs=obj||{}; if(_baseFoot && !_footDrag){ materializeFootings(); rebuildPours(); applyMembership(); refresh(); }
+    if(typeof window!=='undefined' && typeof window.renderFootingTypesModal==='function') window.renderFootingTypesModal(); }
+  function onTypeDefChange(cb){ _typeDefCb=cb; }
+  function fireTypeDef(){ if(!_typeDefCb) return; clearTimeout(_typeDefTimer); _typeDefTimer=setTimeout(()=>{ try{ _typeDefCb(_typeDefs||{}); }catch(e){} }, 400); }
+  function typeDef(t){ if(!_typeDefs)_typeDefs={}; if(!_typeDefs[t])_typeDefs[t]={}; return _typeDefs[t]; }
+  // List every type currently on the map with live counts + takeoff and its library definition.
+  function getTypesSummary(){
+    const m={}; if(footings) footings.forEach(f=>{ if(f.del) return; const k=f.type;
+      if(!m[k]) m[k]={ type:k, count:0, cy:0, beam:!!f.isBeam, wFt:f.wFt, lFt:f.lFt, thk:f.thk }; m[k].count++; m[k].cy+=f.cyv; });
+    const out=Object.values(m).sort((a,b)=>{ const ax=/^GB/i.test(a.type), bx=/^GB/i.test(b.type); if(ax!==bx) return ax?1:-1; return b.cy-a.cy; });
+    out.forEach(r=>{ const ov=(_typeDefs&&_typeDefs[r.type])||{}; const bl=(typeof FOOTING_TYPE_LIBRARY!=='undefined'&&FOOTING_TYPE_LIBRARY[r.type])||{};
+      const pick=(f)=>ov[f]!=null?ov[f]:(bl[f]!=null?bl[f]:null);
+      r.over={ wFt:ov.wFt, lFt:ov.lFt, thk:ov.thk, mix:ov.mix||null };   // saved per-type override (vs built-in library)
+      r.def={ wFt:pick('wFt'), lFt:pick('lFt'), thk:pick('thk'), mix:ov.mix||null }; });   // effective defaults
+    return out;
+  }
+  // Set a type-level property. Dimension changes clear matching per-footing overrides so the
+  // whole map updates uniformly ("edit the type → every footing of that type follows").
+  function setTypeProp(type, field, value){
+    if(!type) return; pushUndo(); const d=typeDef(type);
+    if(field==='mix'){ d.mix = value||null; }
+    else { const s=String(value==null?'':value).trim();
+      if(s===''){ delete d[field]; }
+      else { const v=parseFloat(s); if(isNaN(v)){ undoStack.pop(); return; } d[field]=v; }
+      if(_footEdits) Object.keys(_footEdits).forEach(no=>{ const f=byNo&&byNo[no]; if(f && f.type===type && _footEdits[no][field]!=null){ delete _footEdits[no][field]; if(!Object.keys(_footEdits[no]).filter(k=>k!=='added').length && !_footEdits[no].added) delete _footEdits[no]; } });
+      fireFootingEdit();
+    }
+    fireTypeDef(); materializeFootings(); rebuildPours(); applyMembership(); refresh();
+  }
+  function clearTypeDef(type){ if(!_typeDefs||!_typeDefs[type]) return; pushUndo(); delete _typeDefs[type]; fireTypeDef(); materializeFootings(); rebuildPours(); applyMembership(); refresh(); }
+  // ───────── Revit-style instance selection ─────────
+  function selectType(type){ if(!footings) return; selMarkupId=null; selFootings=new Set();
+    footings.forEach(f=>{ if(!f.del && f.type===type) selFootings.add(f.no); });
+    selFootingNo = selFootings.size===1?[...selFootings][0]:null;
+    st.mode='explore'; st.tool='none'; _locked=true;
+    syncChrome(); renderPanel(); scheduleDraw();
+    const m=byNo&&byNo[[...selFootings][0]]; if(m) zoomToSelection();
+  }
+  function selectAllFootings(){ if(!footings) return; selMarkupId=null; selFootings=new Set();
+    footings.forEach(f=>{ if(!f.del) selFootings.add(f.no); });
+    selFootingNo=null; st.mode='explore'; st.tool='none'; _locked=true; syncChrome(); renderPanel(); scheduleDraw(); }
+  function clearSelection(){ selFootings=new Set(); selFootingNo=null; renderPanel(); scheduleDraw(); }
+  function zoomToSelection(){
+    if(!selFootings.size) return; let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+    selFootings.forEach(no=>{ const f=byNo[no]; if(!f||f.del) return; x0=Math.min(x0,f.cx-f.w/2); y0=Math.min(y0,f.cy-f.h/2); x1=Math.max(x1,f.cx+f.w/2); y1=Math.max(y1,f.cy+f.h/2); });
+    if(x1<x0) return; const bw=Math.max(40,x1-x0), bh=Math.max(40,y1-y0), pad=80;
+    const ns=Math.max(base*0.6, Math.min(base*14, Math.min((cssW-pad*2)/bw,(cssH-pad*2)/bh)));
+    scale=ns; tx=cssW/2-(x0+x1)/2*ns; ty=cssH/2-(y0+y1)/2*ns; updateZoom(); scheduleDraw(); draw();
+  }
+  // bulk-resize the current multi-selection (writes per-footing overrides)
+  function setSelectionDim(field, value){ if(!selFootings.size) return; const v=parseFloat(value); if(isNaN(v)) return; pushUndo();
+    selFootings.forEach(no=>{ const f=byNo[no]; if(!f||f.del) return; f[field]=v; footEdit(no)[field]=v; recompFoot(f); });
+    fireFootingEdit(); refresh(); }
+  // Rotate selected footings 90° = swap width ↔ length (per-footing override). Beams are skipped
+  // (their orientation comes from neighbor geometry, not W/L).
+  function rotateSelection(){ if(!selFootings.size) return; pushUndo(); let any=false;
+    selFootings.forEach(no=>{ const f=byNo[no]; if(f && !f.del && !f.isBeam){ const nw=f.lFt, nl=f.wFt; f.wFt=nw; f.lFt=nl; const e=footEdit(no); e.wFt=nw; e.lFt=nl; recompFoot(f); any=true; } });
+    if(any){ fireFootingEdit(); refresh(); } else undoStack.pop(); }
+  // Add-footing placement: arm a type, next map click drops one (kept armed to place several).
+  function armAddFooting(type){ _lastAddType=String(type||_lastAddType||'F8').trim()||'F8'; st.addType=_lastAddType; setTool('addfoot'); }
   function footEdit(no){ if(!_footEdits)_footEdits={}; if(!_footEdits[no])_footEdits[no]={}; if(byNo&&byNo[no]&&byNo[no].added)_footEdits[no].added=true; return _footEdits[no]; }
   function editFooting(no, field, value){ const f=byNo&&byNo[no]; if(!f) return; pushUndo();
-    if(field==='type'){ f.type=String(value); footEdit(no).type=f.type; }
+    if(field==='type'){ const t=String(value); f.type=t; const e=footEdit(no); e.type=t;
+      // changing type pulls in that type's library size (unless this footing has its own size override)
+      const s=sideFt(t); f.wFt=dimFor('wFt',t,e,s); f.lFt=dimFor('lFt',t,e,s); f.thk=dimFor('thk',t,e,30); f.mix=mixFor(t); }
     else { const v=parseFloat(value); if(isNaN(v))return; f[field]=v; footEdit(no)[field]=v; }
     recompFoot(f); fireFootingEdit(); refresh(); }
   function setFootingNote(no, note){ const f=byNo&&byNo[no]; if(!f)return; pushUndo(); f.note=note; footEdit(no).note=note; fireFootingEdit(); renderPanel(); }
-  function moveFooting(no, cx, cy, snap){ const f=byNo&&byNo[no]; if(!f)return; if(snap)pushUndo(); f.cx=cx; f.cy=cy; const e=footEdit(no); e.cx=cx; e.cy=cy; fireFootingEdit(); }
+  function moveFooting(no, cx, cy, snap){ const f=byNo&&byNo[no]; if(!f)return; if(snap)pushUndo();
+    if(f.isBeam && f.beam){ const dx=cx-f.cx, dy=cy-f.cy; f.beam={x1:f.beam.x1+dx,y1:f.beam.y1+dy,x2:f.beam.x2+dx,y2:f.beam.y2+dy,horizontal:f.beam.horizontal}; }   // drag the whole beam span
+    f.cx=cx; f.cy=cy; const e=footEdit(no); e.cx=cx; e.cy=cy; fireFootingEdit(); }
   function deleteFooting(no){ const f=byNo&&byNo[no]; if(!f)return; pushUndo(); f.del=true; footEdit(no).deleted=true; if(selFootingNo===no)selFootingNo=null; fireFootingEdit(); rebuildPours(); refresh(); }
   function nextFootNo(){ let m=9999; if(footings) footings.forEach(f=>{ if(f.no>m)m=f.no; }); return m+1; }
-  function addFooting(spec){ pushUndo(); const no=nextFootNo();
-    const e={ added:true, type:spec.type||'F8', wFt:+spec.wFt||6, lFt:+spec.lFt||6, thk:+spec.thk||30, cx:spec.cx!=null?spec.cx:planW/2, cy:spec.cy!=null?spec.cy:planH/2, note:spec.note||'' };
+  function addFooting(spec){ pushUndo(); const no=nextFootNo(); const t=spec.type||'F8'; const s=sideFt(t);
+    // store only what's explicit — dimensions left blank inherit the type library so the new footing matches its type
+    const e={ added:true, type:t, cx:spec.cx!=null?spec.cx:planW/2, cy:spec.cy!=null?spec.cy:planH/2, note:spec.note||'' };
+    if(spec.wFt!=null)e.wFt=+spec.wFt; if(spec.lFt!=null)e.lFt=+spec.lFt; if(spec.thk!=null)e.thk=+spec.thk;
     if(!_footEdits)_footEdits={}; _footEdits[no]=e;
-    const f={ no, type:e.type, thk:e.thk, cx:e.cx, cy:e.cy, wFt:e.wFt, lFt:e.lFt, tag:'#'+no, note:e.note, pourId:null, seq:null, added:true, del:false, isBeam:false };
+    const f={ no, type:t, cx:e.cx, cy:e.cy, tag:'#'+no, note:e.note, wFt:dimFor('wFt',t,e,s), lFt:dimFor('lFt',t,e,s), thk:dimFor('thk',t,e,30), mix:mixFor(t), pourId:null, seq:null, added:true, del:false, isBeam:false };
     recompFoot(f); footings.push(f); byNo[no]=f; selFootingNo=no; selMarkupId=null; fireFootingEdit(); refresh(); return f; }
   function selectFooting(no){ selFootingNo=no; selFootings=new Set([no]); selMarkupId=null; renderPanel(); scheduleDraw(); }
   function assignSelectedToPour(pid){ if(!selFootings.size) return; pushUndo(); let ch=false;
@@ -1389,13 +1568,14 @@ function createFoundationMap(opts){
     if(!modeHintEl) return;
     const selP=st.selId&&pourById?pourById[st.selId]:null;
     let t;
-    if(st.tool==='region') t='Highlight → drag a box to draw a colored region.';
+    if(st.tool==='addfoot') t='Add footing → click on the map to drop a “'+(st.addType||_lastAddType)+'”. Press R to rotate · Esc to stop.';
+    else if(st.tool==='region') t='Highlight → drag a box to draw a colored region.';
     else if(st.tool==='polyline') t='Polyline → click points, double-click or Enter to finish, Esc to cancel.';
     else if(st.tool==='text') t='Text → click where you want a label.';
-    else if(st.tool==='markselect') t='Select → click a markup to move it; Delete to remove.';
-    else if(st.tool==='footedit') t=(_locked?'Footing → click to edit. Unlock to drag footings.':'Footing → drag to move, click to edit.');
-    else if(st.mode==='assign') t=(selP?('Assign → drag over footings to add them to “'+selP.name+'”.'):'Pick a pour, then drag to paint footings into it.');
-    else t='Drag to lasso-select footings → assign them to a pour. Middle-mouse or Space to pan · scroll to zoom.';
+    else if(st.tool==='markselect') t='Edit markup → click a region to select it, drag its corner handles to resize the filled area, drag the body to move it, Delete to remove.';
+    else if(st.tool==='footedit') t='Move → drag a footing to reposition it · R rotates · click to edit. Middle-mouse to pan.';
+    else if(st.mode==='assign') t=(selP?('Assign → drag over footings to add them to “'+selP.name+'”.'):'Pick a pour (right panel), then drag over footings to add them to it.');
+    else t='Select → click a footing to edit it, drag a box to select many (V). Middle-mouse drag to pan · scroll to zoom.';
     modeHintEl.textContent=t;
   }
   function renderChips(){
@@ -1413,7 +1593,7 @@ function createFoundationMap(opts){
     elModeExplore.setAttribute('style', btnStyle(st.tool==='none' && st.mode==='explore'));
     elModeAssign.setAttribute('style', btnStyle(st.tool==='none' && st.mode==='assign'));
     const mf=root.querySelector('[data-fm="modeFooting"]'); if(mf) mf.setAttribute('style', btnStyle(st.tool==='footedit'));
-    const lb=root.querySelector('[data-fm="lockbtn"]'); if(lb){ lb.innerHTML='<span class="material-symbols-outlined" style="font-size:16px;line-height:1">'+(_locked?'lock':'lock_open')+'</span><span>'+(_locked?'Locked':'Unlocked')+'</span>'; lb.style.borderColor=_locked?'rgba(150,170,205,0.18)':'rgba(82,230,224,0.45)'; lb.style.color=_locked?'rgba(200,212,230,0.7)':'#7df0ec'; lb.style.background=_locked?'rgba(255,255,255,0.03)':'rgba(82,230,224,0.12)'; }
+    const afb=root.querySelector('[data-fm="addfootBtn"]'); if(afb){ const on=st.tool==='addfoot'; afb.textContent = on?('Placing '+(st.addType||_lastAddType)+'… (Esc)'):'+ Footing'; afb.style.background=on?'rgba(167,139,250,0.3)':'rgba(167,139,250,0.14)'; afb.style.borderColor=on?'rgba(167,139,250,0.8)':'rgba(167,139,250,0.45)'; }
     elColorStatus.setAttribute('style', btnStyle(st.colorMode==='status'));
     elColorSeq.setAttribute('style', btnStyle(st.colorMode==='sequence'));
     if(toolsRowEl) toolsRowEl.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('style', btnStyle(st.tool===b.getAttribute('data-tool'))));
@@ -1422,9 +1602,35 @@ function createFoundationMap(opts){
     renderChips();
     updateModeHint();
   }
+  // ── add-footing type picker (right-side panel) ──
+  function addTypeWL(t){ const bl=(typeof FOOTING_TYPE_LIBRARY!=='undefined'&&FOOTING_TYPE_LIBRARY[t])||{}; const w=bl.wFt!=null?bl.wFt:sideFt(t); const l=bl.lFt!=null?bl.lFt:sideFt(t); return [w,l]; }
+  function addRowStyle(on){ return `display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;border:1px solid ${on?'rgba(167,139,250,0.6)':'rgba(150,170,205,0.1)'};background:${on?'rgba(167,139,250,0.16)':'rgba(255,255,255,0.02)'};border-radius:8px;padding:7px 10px;cursor:pointer;font-family:Inter;margin-bottom:4px`; }
+  function setAddType(t){ _lastAddType=t; st.addType=t;
+    if(panelHost){ panelHost.querySelectorAll('[data-add-row]').forEach(r=>r.setAttribute('style', addRowStyle(r.getAttribute('data-add-row')===t)));
+      const cur=panelHost.querySelector('[data-add-current]'); if(cur) cur.textContent=t; }
+    updateModeHint(); }
+  function renderAddPanel(){
+    const lib=(typeof FOOTING_TYPE_LIBRARY!=='undefined')?FOOTING_TYPE_LIBRARY:{};
+    const present={}; (getTypesSummary()||[]).forEach(r=>present[r.type]=r.count);
+    const fam=t=>{ t=t.toUpperCase(); if(t.startsWith('MPC'))return 2; if(t.startsWith('PC'))return 1; if(t[0]==='F')return 0; if(t.startsWith('GB'))return 3; if(t.startsWith('WF'))return 4; return 5; };
+    const types=[...new Set([...Object.keys(lib), ...Object.keys(present)])]
+      .sort((a,b)=>{ const fa=fam(a),fb=fam(b); if(fa!==fb)return fa-fb; return a.localeCompare(b,undefined,{numeric:true}); });
+    const q=(_addFilter||'').trim().toLowerCase();
+    const rows=types.map(t=>{ const [w,l]=addTypeWL(t); const cnt=present[t]||0; const hide=q&&t.toLowerCase().indexOf(q)<0;
+      return `<button data-add-type="${esc(t)}" data-add-row="${esc(t)}" style="${addRowStyle(t===st.addType)}${hide?';display:none':''}">`
+        +`<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#eef2f8">${esc(t)}</span>`
+        +`<span style="font-size:10.5px;color:rgba(170,188,218,0.6);font-family:'JetBrains Mono',monospace">${w}×${l} ft${cnt?` · ${cnt} on map`:''}</span></button>`; }).join('');
+    panelHost.innerHTML = `<div style="padding:14px 14px 18px">`
+      +`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px"><span style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#c4b5fd">Add footing</span><button data-add-stop="1" style="font-size:10px;font-weight:700;color:rgba(170,188,218,0.6);background:none;border:none;cursor:pointer;font-family:Inter">Done</button></div>`
+      +`<div style="font-size:10.5px;color:rgba(170,188,218,0.55);line-height:1.4;margin-bottom:9px">Pick a type → click on the map to place it. <b style="color:#c4b5fd">R</b> rotates · <b style="color:#c4b5fd">Esc</b> stops.</div>`
+      +`<div style="font-size:11px;color:rgba(200,212,230,0.7);margin-bottom:9px">Placing: <b data-add-current style="color:#c4b5fd;font-family:'JetBrains Mono',monospace">${esc(st.addType||_lastAddType)}</b></div>`
+      +`<input data-add-filter placeholder="Filter types…" value="${esc(_addFilter)}" style="width:100%;box-sizing:border-box;background:rgba(8,11,18,0.8);border:1px solid rgba(150,170,205,0.16);border-radius:8px;padding:7px 10px;color:#fff;font-size:12px;font-family:'JetBrains Mono',monospace;outline:none;margin-bottom:9px">`
+      +`<div style="display:flex;flex-direction:column">${rows}</div></div>`;
+  }
   function renderPanel(){
     if(!_showPanel || !panelHost) return;
     if(!footings){ panelHost.innerHTML=''; return; }
+    if(st.tool==='addfoot'){ renderAddPanel(); return; }
     const S=st, stat=FND_STAT;
     const selF=(selFootingNo!=null && byNo)?byNo[selFootingNo]:null;
     const selP=S.selId?pourById[S.selId]:null;
@@ -1438,6 +1644,13 @@ function createFoundationMap(opts){
         + `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#7df0ec">${gn} footings selected</span><button data-clear-sel="1" style="font-size:10px;font-weight:700;color:rgba(170,188,218,0.6);background:none;border:none;cursor:pointer;font-family:Inter">Clear</button></div>`
         + `<div style="display:flex;gap:10px;margin-bottom:11px"><div style="flex:1;padding:10px 12px;border-radius:11px;background:rgba(0,0,0,0.3);border:1px solid rgba(150,170,205,0.1)"><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:23px;color:#fff;line-height:1">${fmt(gcy)}</div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:rgba(170,188,218,0.45);margin-top:3px">Cubic yards</div></div><div style="flex:1;padding:10px 12px;border-radius:11px;background:rgba(0,0,0,0.3);border:1px solid rgba(150,170,205,0.1)"><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:23px;color:#fff;line-height:1">${gn}</div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:rgba(170,188,218,0.45);margin-top:3px">Footings</div></div></div>`
         + (trows?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:13px">${trows}</div>`:'')
+        + (()=>{ const ut=Object.keys(gtypes);
+            const inpb='width:100%;box-sizing:border-box;background:rgba(8,11,18,0.8);border:1px solid rgba(150,170,205,0.16);border-radius:7px;padding:6px 8px;color:#fff;font-size:12px;font-family:JetBrains Mono,monospace;outline:none';
+            const lbb='font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(170,188,218,0.45);margin:0 0 3px;display:block';
+            let h=`<div style="margin-bottom:13px;padding:10px;border-radius:9px;background:rgba(0,0,0,0.25);border:1px solid rgba(150,170,205,0.1)"><div style="font-size:9px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:rgba(170,188,218,0.5);margin-bottom:7px">Resize all selected</div><div style="display:flex;gap:6px"><div style="flex:1"><label style="${lbb}">W&nbsp;(ft)</label><input data-bulk-field="wFt" type="number" step="0.5" placeholder="—" style="${inpb}"></div><div style="flex:1"><label style="${lbb}">L&nbsp;(ft)</label><input data-bulk-field="lFt" type="number" step="0.5" placeholder="—" style="${inpb}"></div><div style="flex:1"><label style="${lbb}">Thk&nbsp;(in)</label><input data-bulk-field="thk" type="number" step="1" placeholder="—" style="${inpb}"></div></div>`;
+            h+=`<button data-rotate-sel="1" title="Swap width & length on all selected (R)" style="width:100%;margin-top:8px;border:1px solid rgba(167,139,250,0.4);background:rgba(167,139,250,0.12);color:#c4b5fd;border-radius:7px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter"><span class="material-symbols-outlined" style="font-size:13px;vertical-align:middle">rotate_90_degrees_cw</span> Rotate all 90°</button>`;
+            if(ut.length===1) h+=`<button data-edit-type="${esc(ut[0])}" style="width:100%;margin-top:6px;border:1px solid rgba(167,139,250,0.4);background:rgba(167,139,250,0.12);color:#c4b5fd;border-radius:7px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Edit type ${esc(ut[0])} library (updates whole map)</button>`;
+            h+=`</div>`; return h; })()
         + `<div style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.42);margin-bottom:7px">Assign selection to pour</div>`
         + (pours.length?pourBtns:`<div style="font-size:10.5px;color:rgba(170,188,218,0.45);margin-bottom:6px">No pours yet — hit <b style="color:#7df0ec">+ New pour</b>.</div>`)
         + `<button data-assign-pour="" style="width:100%;border:1px solid rgba(150,170,205,0.18);background:rgba(255,255,255,0.03);color:rgba(200,212,230,0.6);border-radius:9px;padding:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter;margin-top:4px">Unassign selection</button>`
@@ -1452,7 +1665,12 @@ function createFoundationMap(opts){
         + `<div style="display:flex;gap:8px"><div style="flex:1"><label style="${lb}">Width (ft)</label><input data-foot-field="wFt" type="number" step="0.5" value="${selF.wFt}" style="${inp}"></div><div style="flex:1"><label style="${lb}">Length (ft)</label><input data-foot-field="lFt" type="number" step="0.5" value="${selF.lFt}" style="${inp}"></div></div>`
         + `<div style="display:flex;gap:8px"><div style="flex:1"><label style="${lb}">Thickness (in)</label><input data-foot-field="thk" type="number" step="1" value="${selF.thk}" style="${inp}"></div><div style="flex:1"><label style="${lb}">Pour</label><div style="${inp};color:rgba(200,212,230,0.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(pnm)}</div></div></div>`
         + `<label style="${lb}">Note</label><input data-foot-field="note" value="${esc(selF.note||'')}" placeholder="e.g. needs rebar inspection" style="${inp}">`
-        + `<div style="display:flex;gap:6px;margin-top:10px"><button data-foot-dup="${selF.no}" style="flex:1;border:1px solid rgba(150,170,205,0.18);background:rgba(255,255,255,0.03);color:#cdd6e6;border-radius:8px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Duplicate</button><button data-foot-del="${selF.no}" style="flex:1;border:1px solid rgba(248,113,113,0.35);background:rgba(248,113,113,0.08);color:#fca5a5;border-radius:8px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Delete</button></div>`
+        + (()=>{ const tmix=mixFor(selF.type); const lib=(typeof window.getMixDesigns==='function')?window.getMixDesigns():{}; const mo=tmix?lib[tmix]:null; const mixTxt=mo?(mo.label||tmix):(tmix||'Not set');
+            const cnt=footings.filter(x=>!x.del&&x.type===selF.type).length;
+            return `<div style="margin-top:10px;padding:9px 10px;border-radius:9px;background:rgba(167,139,250,0.07);border:1px solid rgba(167,139,250,0.22)"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px"><span style="font-size:9px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#c4b5fd">Type ${esc(selF.type)} · ${cnt} on map</span><button data-edit-type="${esc(selF.type)}" style="font-size:10px;font-weight:700;color:#c4b5fd;background:none;border:none;cursor:pointer;font-family:Inter;text-decoration:underline">Edit type</button></div>`
+              + `<div style="font-size:10.5px;color:rgba(200,212,230,0.6);margin-top:4px">Default mix: <span style="color:#7dd3fc;font-weight:600">${esc(mixTxt)}</span></div>`
+              + `<button data-select-type="${esc(selF.type)}" style="width:100%;margin-top:7px;border:1px solid rgba(82,230,224,0.35);background:rgba(82,230,224,0.1);color:#7df0ec;border-radius:7px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Select all ${esc(selF.type)} (${cnt})</button></div>`; })()
+        + `<div style="display:flex;gap:6px;margin-top:10px"><button data-foot-rot="1" title="Rotate 90° — swap width & length (R)" style="flex:1;border:1px solid rgba(167,139,250,0.4);background:rgba(167,139,250,0.12);color:#c4b5fd;border-radius:8px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter"><span class="material-symbols-outlined" style="font-size:13px;vertical-align:middle">rotate_90_degrees_cw</span> Rotate</button><button data-foot-dup="${selF.no}" style="flex:1;border:1px solid rgba(150,170,205,0.18);background:rgba(255,255,255,0.03);color:#cdd6e6;border-radius:8px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Duplicate</button><button data-foot-del="${selF.no}" style="flex:1;border:1px solid rgba(248,113,113,0.35);background:rgba(248,113,113,0.08);color:#fca5a5;border-radius:8px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Delete</button></div>`
         + `<div style="font-size:9.5px;color:rgba(170,188,218,0.4);margin-top:7px;line-height:1.4">${_locked?'Map is locked — unlock (toolbar) to drag this footing.':'Drag the footing on the map to move it.'} Ctrl+C/V copy · Ctrl+Z undo.</div>`
         + `</div>`;
     } else if(selP){
@@ -1464,8 +1682,8 @@ function createFoundationMap(opts){
         + `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px"><span style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.42)">Selected Pour</span><span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;color:${scol};background:${hex2rgba(scol,0.14)};border:1px solid ${hex2rgba(scol,0.35)}">${sl}</span></div>`
         + `<div style="display:flex;align-items:center;gap:9px;margin-bottom:14px"><span style="width:14px;height:14px;border-radius:4px;background:${selP.color};box-shadow:0 0 10px ${hex2rgba(selP.color,0.6)}"></span><div><div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16px;color:#fff;line-height:1.1">${esc(selP.name)}</div><div style="font-size:11px;color:rgba(170,188,218,0.5);font-family:'JetBrains Mono',monospace;margin-top:2px">${selP.seq==='0.5'?'Sequence 0.5':'Sequence '+selP.seq}</div></div></div>`
         + `<div style="display:flex;gap:10px;margin-bottom:13px"><div style="flex:1;padding:10px 12px;border-radius:11px;background:rgba(0,0,0,0.3);border:1px solid rgba(150,170,205,0.10)"><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:24px;color:#fff;letter-spacing:-0.02em;line-height:1">${fmt(cy)}</div><div style="font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(170,188,218,0.45);margin-top:3px">Cubic yards</div></div><div style="flex:1;padding:10px 12px;border-radius:11px;background:rgba(0,0,0,0.3);border:1px solid rgba(150,170,205,0.10)"><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:24px;color:#fff;letter-spacing:-0.02em;line-height:1">${mem.length}</div><div style="font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(170,188,218,0.45);margin-top:3px">Footings</div></div></div>`
-        + `<button data-act="assign-toggle" style="width:100%;border:1px solid ${active?'rgba(82,230,224,0.5)':'rgba(150,170,205,0.18)'};background:${active?'rgba(82,230,224,0.14)':'rgba(255,255,255,0.03)'};color:${active?'#7df0ec':'#cdd6e6'};border-radius:10px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:Inter">${active?'✓ Assigning — tap to finish':'Assign footings to this pour'}</button>`
-        + `<div style="font-size:10px;color:rgba(170,188,218,0.4);margin-top:8px;line-height:1.45">${active?'Assign mode on — draw a box over footings to pull them in, or tap a footing to toggle it.':'Tap “Assign footings” then draw or tap on the map.'}</div>`
+        + `<button data-act="assign-toggle" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid ${active?'rgba(82,230,224,0.5)':'rgba(82,230,224,0.4)'};background:${active?'rgba(82,230,224,0.18)':'rgba(82,230,224,0.1)'};color:#7df0ec;border-radius:10px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:Inter"><span class="material-symbols-outlined" style="font-size:16px">${active?'check':'edit'}</span>${active?'Done — finish editing area':'Edit area — add / remove footings'}</button>`
+        + `<div style="font-size:10px;color:rgba(170,188,218,0.45);margin-top:8px;line-height:1.45">${active?'Editing “'+esc(selP.name)+'” — drag a box over footings to add them, or tap a footing to toggle it in/out. The pour outline fills to match.':'The pour’s area is the footings assigned to it. Tap above, then drag over footings on the map to set its footprint.'}</div>`
         + `<div style="display:flex;gap:6px;margin-top:9px"><button data-rename="${selP.id}" style="flex:1;border:1px solid rgba(150,170,205,0.18);background:rgba(255,255,255,0.03);color:#cdd6e6;border-radius:8px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Rename</button><button data-delpour="${selP.id}" style="flex:1;border:1px solid rgba(248,113,113,0.35);background:rgba(248,113,113,0.08);color:#fca5a5;border-radius:8px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Delete</button></div>`
         + `<div style="font-size:9.5px;color:rgba(170,188,218,0.38);margin-top:6px">Pick a swatch in the Markup row to recolor this pour.</div>`
         + `<div style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.42);margin:16px 0 8px">Takeoff by type</div><div style="display:flex;flex-direction:column;gap:5px">`
@@ -1493,18 +1711,20 @@ function createFoundationMap(opts){
         <span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;color:#fff">Foundation Map</span>
         <span data-fm="headline" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(170,188,218,0.42)"></span>
         <div style="width:1px;height:22px;background:rgba(150,170,205,0.14)"></div>
-        <div style="display:flex;gap:2px;padding:2px;border-radius:9px;background:rgba(0,0,0,0.35);border:1px solid rgba(150,170,205,0.10)"><button data-fm="modeExplore">Explore</button><button data-fm="modeAssign">Assign</button><button data-fm="modeFooting">Footing</button></div>
+        <div style="display:flex;gap:2px;padding:2px;border-radius:9px;background:rgba(0,0,0,0.35);border:1px solid rgba(150,170,205,0.10)"><button data-fm="modeExplore" title="Select (V) — click a footing to edit it, drag a box to select many, click a pour to inspect. Works locked.">Select</button><button data-fm="modeFooting" title="Move (M) — drag footings to reposition them.">Move</button><button data-fm="modeAssign" title="Assign (B) — pick a pour, then drag over footings to add them to it.">Assign</button></div>
         <div style="display:flex;align-items:center;gap:6px"><span style="font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgba(170,188,218,0.4)">Color</span><div style="display:flex;gap:2px;padding:2px;border-radius:9px;background:rgba(0,0,0,0.35);border:1px solid rgba(150,170,205,0.10)"><button data-fm="colorStatus">Status</button><button data-fm="colorSeq">Sequence</button></div></div>
+        <button data-fm="typesBtn" title="Edit footing types — set default size + mix per type; changes update the whole map" style="display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(167,139,250,0.45);background:rgba(167,139,250,0.14);color:#c4b5fd;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter"><span class="material-symbols-outlined" style="font-size:15px;line-height:1">category</span>Types</button>
+        <button data-fm="selectAllBtn" title="Select every footing (Ctrl+A)" style="display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(150,170,205,0.2);background:rgba(255,255,255,0.03);color:rgba(200,212,230,0.7);border-radius:8px;padding:6px 11px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter"><span class="material-symbols-outlined" style="font-size:15px;line-height:1">select_all</span>Select all</button>
         <div style="flex:1"></div>
         <input data-fm="search" placeholder="Search footing # or type…" style="width:190px;background:rgba(8,11,18,0.8);border:1px solid rgba(150,170,205,0.14);border-radius:9px;padding:7px 11px;color:#fff;font-size:12px;font-family:'JetBrains Mono',monospace;outline:none" />
         <div style="display:flex;align-items:center;gap:2px;padding:2px;border-radius:9px;background:rgba(0,0,0,0.35);border:1px solid rgba(150,170,205,0.10)"><button data-fm="zoomOut" style="width:30px;height:28px;border:none;background:transparent;color:rgba(220,230,245,0.7);font-size:17px;cursor:pointer;border-radius:7px">−</button><button data-fm="zoomFit" style="min-width:50px;height:28px;border:none;background:transparent;color:rgba(220,230,245,0.7);font-size:11px;font-weight:700;font-family:'JetBrains Mono',monospace;cursor:pointer;border-radius:7px">100%</button><button data-fm="zoomIn" style="width:30px;height:28px;border:none;background:transparent;color:rgba(220,230,245,0.7);font-size:17px;cursor:pointer;border-radius:7px">+</button></div>
       </div>
       <div data-fm="toolsrow" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:0 0 auto;padding:6px 12px;background:rgba(9,11,18,0.9);border-bottom:1px solid rgba(150,170,205,0.08)">
         <span style="font-size:9px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:rgba(170,188,218,0.4)">Markup</span>
-        <div style="display:flex;gap:2px;padding:2px;border-radius:9px;background:rgba(0,0,0,0.35);border:1px solid rgba(150,170,205,0.10)"><button data-tool="region">Highlight</button><button data-tool="polyline">Polyline</button><button data-tool="text">Text</button><button data-tool="markselect">Select</button></div>
+        <div style="display:flex;gap:2px;padding:2px;border-radius:9px;background:rgba(0,0,0,0.35);border:1px solid rgba(150,170,205,0.10)"><button data-tool="region" title="Draw a highlighted region">Highlight</button><button data-tool="polyline" title="Draw a line">Polyline</button><button data-tool="text" title="Place a text label">Text</button><button data-tool="markselect" title="Edit a markup — move it, drag corner handles to resize, Delete to remove">Edit markup</button></div>
         <div data-fm="swatches" style="display:flex;align-items:center;gap:4px"></div>
         <div style="flex:1"></div>
-        <button data-fm="lockbtn" style="display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(150,170,205,0.18);background:rgba(255,255,255,0.03);color:rgba(200,212,230,0.7);border-radius:8px;padding:6px 11px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter"></button>
+        <button data-fm="addfootBtn" title="Add a footing — pick a type, then click on the map to place it (R rotates)" style="border:1px solid rgba(167,139,250,0.45);background:rgba(167,139,250,0.14);color:#c4b5fd;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">+ Footing</button>
         <button data-fm="newpour" style="border:1px solid rgba(82,230,224,0.4);background:rgba(82,230,224,0.12);color:#7df0ec;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">+ New pour</button>
         <button data-fm="delmark" style="border:1px solid rgba(248,113,113,0.4);background:rgba(248,113,113,0.1);color:#fca5a5;border-radius:8px;padding:6px 11px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Delete</button>
         <button data-fm="clearmark" style="border:1px solid rgba(150,170,205,0.18);background:rgba(255,255,255,0.03);color:rgba(200,212,230,0.6);border-radius:8px;padding:6px 11px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Clear marks</button>
@@ -1519,7 +1739,7 @@ function createFoundationMap(opts){
         </div>
       </div>
       <div style="display:flex;flex:1;min-height:0">
-        <div data-fm="mapArea" style="position:relative;flex:1;min-width:0;background:radial-gradient(ellipse at 42% 36%,#141b27 0%,#0d1119 60%,#08090f 100%);overflow:hidden;cursor:grab;touch-action:none">
+        <div data-fm="mapArea" style="position:relative;flex:1;min-width:0;background:radial-gradient(ellipse at 42% 36%,#141b27 0%,#0d1119 60%,#08090f 100%);overflow:hidden;cursor:default;touch-action:none">
           <canvas data-fm="canvas" style="display:block;width:100%;height:100%"></canvas>
           <div data-fm="tip" style="position:absolute;left:0;top:0;display:none;pointer-events:none;z-index:6;background:rgba(8,11,18,0.96);border:1px solid rgba(150,170,205,0.18);border-radius:9px;padding:8px 11px;box-shadow:0 14px 36px rgba(0,0,0,0.55);min-width:140px"></div>
           <div data-fm="hintbar" style="position:absolute;left:14px;bottom:14px;z-index:6;display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:9px;background:rgba(8,11,18,0.78);border:1px solid rgba(150,170,205,0.12);max-width:440px"><span style="width:7px;height:7px;border-radius:50%;background:#52E6E0"></span><span data-fm="hint" style="font-size:11px;color:rgba(210,222,240,0.72);line-height:1.4"></span></div>
@@ -1534,10 +1754,11 @@ function createFoundationMap(opts){
     modeHintEl=q('hint'); headlineEl=q('headline');
     toolbarEl=q('toolbar'); subbarEl=q('subbar'); hintBarEl=q('hintbar'); toolsRowEl=q('toolsrow'); swatchesEl=q('swatches');
     [elModeExplore,elModeAssign,elColorStatus,elColorSeq].forEach(b=>b.setAttribute('style',btnStyle(false)));
-    elModeExplore.onclick=()=>setTool('explore');
+    elModeExplore.onclick=()=>setTool('select');
     elModeAssign.onclick=()=>setTool('assign');
-    q('modeFooting').onclick=()=>setTool('footedit');
-    q('lockbtn').onclick=()=>setLocked(!_locked);
+    q('modeFooting').onclick=()=>setTool('move');
+    q('typesBtn').onclick=()=>{ if(typeof window.showFootingTypesModal==='function') window.showFootingTypesModal(); };
+    q('selectAllBtn').onclick=()=>selectAllFootings();
     elColorStatus.onclick=()=>setColorMode('status');
     elColorSeq.onclick=()=>setColorMode('sequence');
     q('zoomOut').onclick=()=>zoomAt(cssW/2,cssH/2,1/1.3);
@@ -1547,20 +1768,34 @@ function createFoundationMap(opts){
     elChips.addEventListener('click', e=>{ const b=e.target.closest('[data-filter]'); if(b) setFilter(b.getAttribute('data-filter')); });
     toolsRowEl.addEventListener('click', e=>{ const b=e.target.closest('[data-tool]'); if(b){ const t=b.getAttribute('data-tool'); setTool(st.tool===t?'explore':t); } });
     swatchesEl.addEventListener('click', e=>{ const b=e.target.closest('[data-sw]'); if(b) setMarkColor(b.getAttribute('data-sw')); });
+    q('addfootBtn').onclick=()=>{ if(st.tool==='addfoot') setTool('explore'); else armAddFooting(_lastAddType); };   // picker lives in the right panel
     q('newpour').onclick=()=>{ if(typeof showAddFoundationPourModal==='function') showAddFoundationPourModal(); };
     q('delmark').onclick=()=>{ if(selMarkupId) deleteMarkup(selMarkupId); };
     q('clearmark').onclick=()=>{ if(markups.length && (typeof confirm!=='function'||confirm('Clear all '+markups.length+' markup(s)?'))) clearMarkups(); };
     panelHost.addEventListener('click', e=>{
+      const at=e.target.closest('[data-add-type]'); if(at){ setAddType(at.getAttribute('data-add-type')); return; }
+      const as=e.target.closest('[data-add-stop]'); if(as){ setTool('explore'); return; }
       const pb=e.target.closest('[data-pour]'); if(pb){ selectPourId(pb.getAttribute('data-pour')); return; }
       const rn=e.target.closest('[data-rename]'); if(rn){ if(typeof promptPourName==='function') promptPourName(rn.getAttribute('data-rename')); return; }
       const dl=e.target.closest('[data-delpour]'); if(dl){ if(typeof deleteFoundationPour==='function') deleteFoundationPour(dl.getAttribute('data-delpour')); return; }
       const ap=e.target.closest('[data-assign-pour]'); if(ap){ assignSelectedToPour(ap.getAttribute('data-assign-pour')||null); return; }
       const cs=e.target.closest('[data-clear-sel]'); if(cs){ selFootings=new Set(); selFootingNo=null; renderPanel(); scheduleDraw(); return; }
+      const st2=e.target.closest('[data-select-type]'); if(st2){ selectType(st2.getAttribute('data-select-type')); return; }
+      const et=e.target.closest('[data-edit-type]'); if(et){ if(typeof window.showFootingTypesModal==='function') window.showFootingTypesModal(et.getAttribute('data-edit-type')); return; }
       const fdup=e.target.closest('[data-foot-dup]'); if(fdup){ const f=byNo[+fdup.getAttribute('data-foot-dup')]; if(f) addFooting({type:f.type,wFt:f.wFt,lFt:f.lFt,thk:f.thk,note:f.note,cx:f.cx+22,cy:f.cy+22}); return; }
       const fdel=e.target.closest('[data-foot-del]'); if(fdel){ deleteFooting(+fdel.getAttribute('data-foot-del')); return; }
+      const frot=e.target.closest('[data-foot-rot]'); if(frot){ rotateSelection(); return; }
+      const rsel=e.target.closest('[data-rotate-sel]'); if(rsel){ rotateSelection(); return; }
       const ab=e.target.closest('[data-act]'); if(ab && ab.getAttribute('data-act')==='assign-toggle'){ setTool(st.mode==='assign'?'explore':'assign'); }
     });
-    panelHost.addEventListener('change', e=>{ const fld=e.target.closest('[data-foot-field]'); if(fld && selFootingNo!=null){ const k=fld.getAttribute('data-foot-field'); if(k==='note') setFootingNote(selFootingNo, fld.value); else editFooting(selFootingNo, k, fld.value); } });
+    panelHost.addEventListener('change', e=>{
+      const fld=e.target.closest('[data-foot-field]'); if(fld && selFootingNo!=null){ const k=fld.getAttribute('data-foot-field'); if(k==='note') setFootingNote(selFootingNo, fld.value); else editFooting(selFootingNo, k, fld.value); return; }
+      const blk=e.target.closest('[data-bulk-field]'); if(blk && fld!==blk){ setSelectionDim(blk.getAttribute('data-bulk-field'), blk.value); return; }
+    });
+    // live filter for the add-footing type picker (in-place row hide → keeps input focus)
+    panelHost.addEventListener('input', e=>{ const fi=e.target.closest('[data-add-filter]'); if(!fi) return;
+      _addFilter=fi.value; const q=_addFilter.trim().toLowerCase();
+      panelHost.querySelectorAll('[data-add-row]').forEach(r=>{ const t=r.getAttribute('data-add-row').toLowerCase(); r.style.display=(!q||t.indexOf(q)>=0)?'':'none'; }); });
     _ro=new ResizeObserver(()=>resize()); _ro.observe(mapArea);
     _built=true;
   }
@@ -1595,6 +1830,10 @@ function createFoundationMap(opts){
     setPours, clearPourMembership, getTakeoff, onTakeoffChange,
     setMarkups, getMarkups:getMarkupsObj, onMarkupChange,
     setFootingEdits, onFootingEditChange, setLocked,
+    setTypeDefs, onTypeDefChange, getTypesSummary, setTypeProp, clearTypeDef,
+    selectType, selectAllFootings, clearSelection, zoomToSelection, setSelectionDim,
+    rotateSelection, armAddFooting, addFooting, getMixForType:mixFor,
+    buildPourDayMap, members(pid){ return (members(pid)||[]).map(f=>f.no); },
     setTool, setMarkColor, finishPolyline,
     deleteSelectedMarkup(){ if(selMarkupId) deleteMarkup(selMarkupId); }, clearMarkups,
     getState(){ return { mode:st.mode, tool:st.tool, selId:st.selId, markColor:st.markColor, selMarkupId, markupCount:markups.length }; }
@@ -3853,7 +4092,110 @@ function saveFootingMap(key, data) {
   fbSet(`maps/${key}`, data);
 }
 
+// ── Foundation-map zone → Pour-Day footing map sync ──────────────────────────
+// When you assign footings to a pour on the Footing-map tab, generate that pour's
+// Pour-Day map (footings + gridlines, real scale) so it shows up there automatically.
+// Embeds + any manual Pour-Day position tweaks are preserved by footing id, so the
+// Pour-Day map stays editable. Keyed by the same pour id used for membership.
+// Force-rebuild one pour's Pour-Day map from its foundation footings (real positions/sizes/gridlines),
+// keeping only embeds. Use when you want the Pour-Day layout to snap back to the Footing-map zone.
+function resyncPourDayMap(pourId) {
+  if (isManagerView) return;
+  let fm; try { fm = getFoundationMap(); } catch (e) { return; }
+  let m; try { m = fm.buildPourDayMap(pourId); } catch (e) { m = null; }
+  if (!m) { alert('No footings are assigned to this pour yet — assign some on the Footing-map tab first.'); return; }
+  const prev = loadFootingMap(pourId);
+  if (prev && Array.isArray(prev.footings)) {
+    const byId = {}; prev.footings.forEach(f => { if (f && f.id) byId[f.id] = f; });
+    m.footings.forEach(f => { const p = byId[f.id]; if (p && p.embeds) f.embeds = p.embeds; });
+    if (prev.label) m.label = prev.label;
+  }
+  if (!m.label) { const fp = foundationPours[pourId]; m.label = (fp && fp.name) ? fp.name : pourId; }
+  saveFootingMap(pourId, m);
+  try { renderPourDay(); } catch (e) {}
+}
+let _pdSyncTimer = 0;
+function syncPourDayMapsFromFoundation() {
+  if (isManagerView) return;
+  if (typeof mapEditMode !== 'undefined' && mapEditMode) return;   // don't clobber a map being hand-edited
+  clearTimeout(_pdSyncTimer);
+  _pdSyncTimer = setTimeout(() => {
+    let fm; try { fm = getFoundationMap(); } catch (e) { return; }
+    const ids = Object.keys(foundationPours || {});
+    let activeId = null; try { activeId = (getActivePour() || {}).id; } catch (e) {}
+    let activeChanged = false;
+    ids.forEach(pid => {
+      let m; try { m = fm.buildPourDayMap(pid); } catch (e) { m = null; }
+      if (!m) return;
+      const prev = loadFootingMap(pid);
+      // positions always come fresh from the foundation (consistent scale); keep only embeds + label
+      if (prev && Array.isArray(prev.footings)) {
+        const byId = {}; prev.footings.forEach(f => { if (f && f.id) byId[f.id] = f; });
+        m.footings.forEach(f => { const p = byId[f.id]; if (p && p.embeds) f.embeds = p.embeds; });
+        if (prev.label) m.label = prev.label;
+      }
+      if (!m.label) { const fp = foundationPours[pid]; m.label = (fp && fp.name) ? fp.name : pid; }
+      // skip the write if nothing actually changed (avoids redundant Firebase traffic)
+      let same = false; try { same = prev && JSON.stringify(prev) === JSON.stringify(m); } catch (e) {}
+      if (same) return;
+      saveFootingMap(pid, m);
+      if (pid === activeId) activeChanged = true;
+    });
+    // only re-render Pour Day if the pour the user is actually looking at changed (avoids constant refresh)
+    if (activeChanged && !document.getElementById('pourdayView')?.classList.contains('hidden') && !mapEditMode) {
+      try { renderPourDay(); } catch (e) {}
+    }
+  }, 400);
+}
+
 let mapEditMode = false;
+// Pour-Day map zoom (scales the SVG larger inside its scroll container; persisted)
+let pdMapZoom = parseFloat(localStorage.getItem('cup_pdmap_zoom') || '1.5') || 1.5;
+function pdMapApplyZoom() {
+  const svg = document.getElementById('mapSvg');
+  if (svg) { svg.style.width = Math.round(pdMapZoom * 100) + '%'; svg.style.minWidth = Math.round(800 * pdMapZoom) + 'px'; }
+  const lbl = document.getElementById('pdZoomLbl'); if (lbl) lbl.textContent = Math.round(pdMapZoom * 100) + '%';
+}
+function pdMapZoomBy(d) { pdMapZoom = Math.max(0.5, Math.min(6, +(pdMapZoom + d).toFixed(2))); localStorage.setItem('cup_pdmap_zoom', String(pdMapZoom)); pdMapApplyZoom(); }
+function pdMapZoomReset() { pdMapZoom = 1; localStorage.setItem('cup_pdmap_zoom', '1'); pdMapApplyZoom(); }
+function pdMapWheel(e) { if (e.ctrlKey || e.metaKey) { e.preventDefault(); pdMapZoomBy(e.deltaY < 0 ? 0.2 : -0.2); } }
+// Pan mode for the Pour-Day map — OFF by default so taps cycle footings; ON lets you drag to pan
+// (touch pans natively via the scroll container once footings stop capturing the touch). Toggle: button or V.
+let pdMapPan = false;
+function pdMapApplyPan() {
+  const svg = document.getElementById('mapSvg');
+  const sc = document.getElementById('pdMapScroll');
+  if (svg) svg.style.pointerEvents = pdMapPan ? 'none' : '';   // footings transparent → drags reach the scroller
+  if (sc) sc.style.cursor = pdMapPan ? 'grab' : '';
+  const btn = document.getElementById('pdPanBtn');
+  if (btn) {
+    btn.style.background = pdMapPan ? 'rgba(82,230,224,0.2)' : '';
+    btn.style.color = pdMapPan ? '#7df0ec' : '';
+    btn.style.borderColor = pdMapPan ? 'rgba(82,230,224,0.5)' : '';
+  }
+}
+function togglePdMapPan() { pdMapPan = !pdMapPan; pdMapApplyPan(); }
+let _pdPanWired = false, _pdPanDrag = null;
+function setupPdMapPan() {
+  if (_pdPanWired) return; _pdPanWired = true;
+  document.addEventListener('pointerdown', function (e) {
+    if (!pdMapPan || e.pointerType === 'touch') return;   // touch uses native scroll-pan
+    const sc = e.target.closest && e.target.closest('#pdMapScroll'); if (!sc) return;
+    _pdPanDrag = { sc, x: e.clientX, y: e.clientY, sl: sc.scrollLeft, st: sc.scrollTop }; sc.style.cursor = 'grabbing';
+  });
+  document.addEventListener('pointermove', function (e) {
+    if (!_pdPanDrag) return;
+    _pdPanDrag.sc.scrollLeft = _pdPanDrag.sl - (e.clientX - _pdPanDrag.x);
+    _pdPanDrag.sc.scrollTop = _pdPanDrag.st - (e.clientY - _pdPanDrag.y);
+  });
+  document.addEventListener('pointerup', function () { if (_pdPanDrag) { _pdPanDrag.sc.style.cursor = 'grab'; _pdPanDrag = null; } });
+  // V toggles pan while on the Pour Day tab
+  window.addEventListener('keydown', function (e) {
+    if (/INPUT|TEXTAREA|SELECT/.test((e.target && e.target.tagName) || '')) return;
+    const pd = document.getElementById('pourdayView'); if (!pd || pd.classList.contains('hidden')) return;
+    if (e.key === 'v' || e.key === 'V') { togglePdMapPan(); e.preventDefault(); }
+  });
+}
 let mapDragging = null;
 let mapSelected = []; // array of selected footing IDs
 let mapClipboard = []; // copied footings for paste
@@ -4925,6 +5267,13 @@ function getActivePour() {
 function selectPourDay(pourId) {
   pourDay.activePourId = pourId;
   renderPourDay();
+  // keep the chosen pour visible in the selector
+  requestAnimationFrame(function(){
+    var sc = document.getElementById('pdPourScroller');
+    if (!sc) return;
+    var btn = sc.querySelector('[data-pour-pill="' + (window.CSS && CSS.escape ? CSS.escape(pourId) : pourId) + '"]');
+    if (btn && btn.scrollIntoView) btn.scrollIntoView({ inline: 'center', block: 'nearest' });
+  });
 }
 
 // Render a human label for any mix value — standard codes 8000/5000/slurry, or a custom numeric PSI.
@@ -5757,6 +6106,13 @@ function renderMapSection() {
     mh += '<div class="flex items-center gap-3">';
     mh += '<span class="text-[10px] mono text-white/30">' + doneCount + ' done' + (inProgressCount ? ', '+inProgressCount+' in progress' : '') + '</span>';
     mh += '<span class="text-[10px] mono font-bold" style="color:' + c + '">' + completedCY.toFixed(1) + '/' + totalCY.toFixed(0) + ' CY</span>';
+    mh += '<button id="pdPanBtn" onclick="togglePdMapPan()" title="Pan mode (V) — drag to move the map. Turn off to tap footings." class="flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded bg-white/5 text-white/40 border border-white/10 hover:text-white/70 transition-all"><span class="material-symbols-outlined" style="font-size:13px">pan_tool</span>Pan</button>';
+    mh += '<div class="flex items-center gap-0.5 rounded-lg bg-white/5 border border-white/10 px-1 py-0.5">'
+      + '<button onclick="pdMapZoomBy(-0.2)" title="Zoom out" class="w-5 h-5 flex items-center justify-center text-white/50 hover:text-white text-base leading-none">&minus;</button>'
+      + '<button onclick="pdMapZoomReset()" id="pdZoomLbl" title="Reset zoom" class="text-[9px] mono font-bold text-white/50 hover:text-white px-1 text-center" style="min-width:30px">' + Math.round((typeof pdMapZoom !== 'undefined' ? pdMapZoom : 1) * 100) + '%</button>'
+      + '<button onclick="pdMapZoomBy(0.2)" title="Zoom in" class="w-5 h-5 flex items-center justify-center text-white/50 hover:text-white text-base leading-none">+</button>'
+      + '</div>';
+    if (!isManagerView) mh += '<button onclick="resyncPourDayMap(\'' + pour.id + '\')" title="Rebuild this map from the footings assigned to this pour on the Footing-map tab" class="text-[9px] font-bold px-2 py-1 rounded bg-violet-500/15 text-violet-300 border border-violet-500/25 hover:bg-violet-500/25 transition-all">&#8635; Sync</button>';
     if (!isManagerView) mh += '<button onclick="toggleMapEdit()" class="text-[9px] font-bold px-2 py-1 rounded transition-all ' + (mapEditMode ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-white/5 text-white/30 hover:text-white/50') + '">' + (mapEditMode ? 'EDITING' : 'EDIT MAP') + '</button>';
     mh += '</div></div>';
     // Mix breakdown strip
@@ -5896,10 +6252,11 @@ function renderMapSection() {
       return s;
     }).join('');
 
-    // SVG container — scrollable, min-height scales with content
+    // SVG container — scrollable; zoom scales the SVG larger and the container scrolls (Ctrl+wheel or the ± buttons)
     var svgMinH = Math.max(maxY * 0.8, 500);
-    mh += '<div style="height:80vh;min-height:' + svgMinH + 'px;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y">'
-      + '<svg id="mapSvg" viewBox="' + dynViewBox + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;min-width:800px;min-height:' + svgMinH + 'px;touch-action:none">'
+    var _pz = (typeof pdMapZoom !== 'undefined' && pdMapZoom) ? pdMapZoom : 1;
+    mh += '<div id="pdMapScroll" onwheel="pdMapWheel(event)" style="height:82vh;min-height:' + svgMinH + 'px;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y">'
+      + '<svg id="mapSvg" viewBox="' + dynViewBox + '" preserveAspectRatio="xMidYMid meet" style="display:block;width:' + Math.round(_pz*100) + '%;height:auto;aspect-ratio:' + maxX + ' / ' + maxY + ';min-width:' + Math.round(800*_pz) + 'px;touch-action:none">'
       + '<defs>'
         + '<radialGradient id="ftgBg" cx="42%" cy="32%" r="92%"><stop offset="0%" stop-color="#141B27"/><stop offset="55%" stop-color="#0C111A"/><stop offset="100%" stop-color="#070A11"/></radialGradient>'
         + '<radialGradient id="ftgVig" cx="50%" cy="50%" r="75%"><stop offset="62%" stop-color="#05070C" stop-opacity="0"/><stop offset="100%" stop-color="#05070C" stop-opacity="0.45"/></radialGradient>'
@@ -5926,6 +6283,8 @@ function renderMapSection() {
     mh += '</div>';
   }
   container.innerHTML = mh;
+  setupPdMapPan();
+  pdMapApplyPan();   // restore pan state on the freshly-rendered SVG
   if (mapEditMode) requestAnimationFrame(initMapDrag);
 }
 
@@ -5957,7 +6316,7 @@ function renderPourDay() {
   const sortedDates = Object.keys(datedGroups).sort((a,b) => dateSortVal(a) - dateSortVal(b));
   h += '<div class="mb-4"><div class="text-[10px] font-bold text-white/30 uppercase tracking-wider mb-2">Select Pour</div>';
   // Horizontal: dates as columns, pour pills stacked under each
-  h += '<div class="flex gap-2 overflow-x-auto slim-scroll pb-2 -mx-1 px-1 snap-x">';
+  h += '<div id="pdPourScroller" class="flex gap-2 overflow-x-auto slim-scroll pb-2 -mx-1 px-1 snap-x">';
   sortedDates.forEach(d => {
     h += '<div class="flex-none min-w-[84px] snap-start">';
     h += '<div class="mono text-[10px] font-bold text-blue-300/80 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-center mb-1.5 sticky top-0">' + d + '</div>';
@@ -5966,7 +6325,7 @@ function renderPourDay() {
       const pc = SEC_COLORS[p.section] || '#888';
       const active = p.id === pour.id;
       const tag = p.userAdded ? ' <span class="text-amber-400/70">+</span>' : '';
-      h += '<button onclick="selectPourDay(\'' + p.id + '\')" class="w-full px-2 py-1 rounded text-[10px] mono font-bold transition-all ' + (active?'text-white':'text-white/40 hover:text-white/70') + '" style="' + (active?'background:'+pc+'33;border:1px solid '+pc+'55':'background:'+pc+'10;border:1px solid '+pc+'22') + '">' + escapeHtmlSeq(pourDayLabel(p)) + tag + '</button>';
+      h += '<button data-pour-pill="' + p.id + '" onclick="selectPourDay(\'' + p.id + '\')" class="w-full px-2 py-1 rounded text-[10px] mono font-bold transition-all ' + (active?'text-white':'text-white/40 hover:text-white/70') + '" style="' + (active?'background:'+pc+'33;border:1px solid '+pc+'55':'background:'+pc+'10;border:1px solid '+pc+'22') + '">' + escapeHtmlSeq(pourDayLabel(p)) + tag + '</button>';
     });
     h += '</div></div>';
   });
@@ -5978,7 +6337,7 @@ function renderPourDay() {
       const pc = SEC_COLORS[p.section] || '#888';
       const active = p.id === pour.id;
       const tag = p.userAdded ? ' <span class="text-amber-400/70">+</span>' : '';
-      h += '<button onclick="selectPourDay(\'' + p.id + '\')" class="w-full px-2 py-1 rounded text-[10px] mono font-bold transition-all ' + (active?'text-white':'text-white/30 hover:text-white/60') + '" style="' + (active?'background:'+pc+'33;border:1px solid '+pc+'55':'background:'+pc+'10;border:1px solid '+pc+'22') + '">' + escapeHtmlSeq(pourDayLabel(p)) + tag + '</button>';
+      h += '<button data-pour-pill="' + p.id + '" onclick="selectPourDay(\'' + p.id + '\')" class="w-full px-2 py-1 rounded text-[10px] mono font-bold transition-all ' + (active?'text-white':'text-white/30 hover:text-white/60') + '" style="' + (active?'background:'+pc+'33;border:1px solid '+pc+'55':'background:'+pc+'10;border:1px solid '+pc+'22') + '">' + escapeHtmlSeq(pourDayLabel(p)) + tag + '</button>';
     });
     h += '</div></div>';
   }
@@ -6420,13 +6779,15 @@ function renderPourDay() {
     h += `<button onclick="resetPourDay()" class="w-full mt-4 py-2 rounded-lg text-xs font-bold text-red-400/40 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all">Reset Pour Day</button>`;
   }
 
-  // Preserve scroll position across re-renders
+  // Preserve scroll position across re-renders (page + the horizontal pour selector)
   var prevScroll = window.scrollY;
+  var prevSelScroll = document.getElementById('pdPourScroller')?.scrollLeft || 0;
   el.innerHTML = h;
+  var selEl = document.getElementById('pdPourScroller'); if (selEl) selEl.scrollLeft = prevSelScroll;
   renderMapSection();
   renderLiveFeed();
   if (mapEditMode) requestAnimationFrame(initMapDrag);
-  requestAnimationFrame(function(){ window.scrollTo(0, prevScroll); });
+  requestAnimationFrame(function(){ window.scrollTo(0, prevScroll); var s=document.getElementById('pdPourScroller'); if(s) s.scrollLeft=prevSelScroll; });
   } catch(err) {
     el.innerHTML = `<div class="p-4 text-red-400 text-sm"><p class="font-bold mb-1">Pour Day render error:</p><pre class="text-xs text-red-300/60 overflow-auto">${err.message}\n${err.stack}</pre></div>`;
     console.error('renderPourDay error:', err);
@@ -9414,7 +9775,82 @@ function rebuildFoundationPours() {
   const pdView = document.getElementById('pourdayView');
   if (pdView && !pdView.classList.contains('hidden') && !mapEditMode && !isPourDayBusy()) renderPourDay();
   try { getFoundationMap().setPours(foundationPours); } catch (e) { console.error('setPours', e); }
+  syncPourDayMapsFromFoundation();   // keep each pour's Pour-Day map in step with its foundation footings
 }
+// ── FOOTING TYPES MANAGER ───────────────────────────────────────────────────
+// Revit-style type editor: one row per footing type, with default W/L/Thk + a
+// default mix. Editing a row updates every footing of that type on the map.
+let _ftypesFilter = '';
+let _ftypesFocus = '';
+function showFootingTypesModal(focusType){
+  _ftypesFocus = focusType || '';
+  let modal = document.getElementById('footingTypesModal');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'footingTypesModal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:120;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(4,5,12,0.72);backdrop-filter:blur(4px)';
+    modal.addEventListener('click', e=>{ if(e.target===modal) modal.remove(); });
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `
+    <div style="width:min(840px,96vw);max-height:88vh;display:flex;flex-direction:column;background:rgba(9,11,18,0.97);border:1px solid rgba(167,139,250,0.25);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,0.6);overflow:hidden;font-family:Inter,sans-serif">
+      <div style="display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid rgba(150,170,205,0.12)">
+        <span class="material-symbols-outlined" style="font-size:20px;color:#c4b5fd">category</span>
+        <div style="flex:1;min-width:0"><div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16px;color:#fff">Footing Types</div><div style="font-size:11px;color:rgba(170,188,218,0.55);margin-top:1px">Set a default size + mix per type — changes apply to every footing of that type on the map.</div></div>
+        <input id="ftypesSearch" placeholder="Filter type…" value="${escapeHtmlSeq(_ftypesFilter)}" style="width:150px;background:rgba(8,11,18,0.8);border:1px solid rgba(150,170,205,0.16);border-radius:8px;padding:7px 10px;color:#fff;font-size:12px;font-family:'JetBrains Mono',monospace;outline:none">
+        <button onclick="document.getElementById('footingTypesModal').remove()" style="background:none;border:none;color:rgba(200,212,230,0.5);font-size:22px;line-height:1;cursor:pointer">&times;</button>
+      </div>
+      <div id="ftypesBody" style="overflow-y:auto;padding:0 0 6px"></div>
+      <div style="padding:11px 18px;border-top:1px solid rgba(150,170,205,0.12);font-size:10.5px;color:rgba(170,188,218,0.45);line-height:1.5">Sizes are pre-filled from the LACC footing schedule. Edit a value to override that type everywhere (and persist it); <b>Reset</b> reverts to the schedule size. <b>Select</b> highlights every footing of that type on the map. ${isManagerView?'<span style="color:#fbbf24">Manager view is read-only.</span>':''}</div>
+    </div>`;
+  const s = modal.querySelector('#ftypesSearch');
+  if(s) s.addEventListener('input', e=>{ _ftypesFilter = e.target.value; renderFootingTypesModal(); });
+  renderFootingTypesModal();
+}
+function renderFootingTypesModal(){
+  const body = document.getElementById('ftypesBody');
+  if(!body) return;
+  // don't yank focus while the user is editing a cell (Firebase echo can re-fire this)
+  const ae = document.activeElement;
+  if(ae && body.contains(ae) && /INPUT|SELECT/.test(ae.tagName||'')) return;
+  const fm = getFoundationMap();
+  let rows; try{ rows = fm.getTypesSummary() || []; }catch(e){ rows = []; }
+  const lib = (typeof getMixDesigns==='function') ? getMixDesigns() : {};
+  const mixOpts = Object.values(lib);
+  const filt = (_ftypesFilter||'').trim().toLowerCase();
+  const shown = filt ? rows.filter(r=>r.type.toLowerCase().indexOf(filt)>=0) : rows;
+  const ro = isManagerView ? 'disabled' : '';
+  const GRID = 'display:grid;grid-template-columns:90px 50px 52px 58px 58px 58px 1fr 92px;gap:8px;align-items:center';
+  const inp = "box-sizing:border-box;width:100%;background:rgba(8,11,18,0.8);border:1px solid rgba(150,170,205,0.16);border-radius:6px;padding:5px 6px;color:#fff;font-size:12px;font-family:'JetBrains Mono',monospace;outline:none;text-align:center";
+  const head = `<div style="${GRID};padding:8px 18px;position:sticky;top:0;z-index:1;background:rgba(9,11,18,0.98);border-bottom:1px solid rgba(150,170,205,0.1);font-size:9px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:rgba(170,188,218,0.5)"><span>Type</span><span style="text-align:center">On&nbsp;map</span><span style="text-align:center">CY</span><span style="text-align:center">W&nbsp;ft</span><span style="text-align:center">L&nbsp;ft</span><span style="text-align:center">Thk</span><span>Default&nbsp;mix</span><span></span></div>`;
+  if(!shown.length){ body.innerHTML = head + `<div style="padding:24px;text-align:center;font-size:12px;color:rgba(170,188,218,0.4)">No types${filt?' match “'+escapeHtmlSeq(filt)+'”':''}.</div>`; return; }
+  body.innerHTML = head + shown.map(r=>{
+    const d = r.def || {};
+    const ov = r.over || {};
+    const hl = (_ftypesFocus && r.type===_ftypesFocus);
+    const opts = `<option value="">— none —</option>` + mixOpts.map(m=>{ const code=String(m.code||''); const lbl=(m.label||code)+(m.psi!=null?(' · '+fmtPsi(m.psi)):''); return `<option value="${escapeHtmlSeq(code)}" ${d.mix===code?'selected':''}>${escapeHtmlSeq(lbl)}</option>`; }).join('');
+    return `<div data-trow="${escapeHtmlSeq(r.type)}" style="${GRID};padding:8px 18px;border-bottom:1px solid rgba(150,170,205,0.05);${hl?'background:rgba(82,230,224,0.07)':''}">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${r.beam?'#9fb0cc':'#eef2f8'}">${escapeHtmlSeq(r.type)}${r.beam?' <span style="font-size:8px;color:#64748b">GB</span>':''}</span>
+      <span style="text-align:center;font-size:11px;color:rgba(200,212,230,0.7)">${r.count}</span>
+      <span style="text-align:center;font-size:11px;color:rgba(200,212,230,0.5);font-family:'JetBrains Mono',monospace">${r.cy.toFixed(1)}</span>
+      <input data-tf="wFt" data-type="${escapeHtmlSeq(r.type)}" type="number" step="0.5" value="${d.wFt!=null?d.wFt:''}" placeholder="${(Math.round((r.wFt||0)*10)/10)}" style="${inp}" ${ro}>
+      <input data-tf="lFt" data-type="${escapeHtmlSeq(r.type)}" type="number" step="0.5" value="${d.lFt!=null?d.lFt:''}" placeholder="${(Math.round((r.lFt||0)*10)/10)}" style="${inp}" ${ro}>
+      <input data-tf="thk" data-type="${escapeHtmlSeq(r.type)}" type="number" step="1" value="${d.thk!=null?d.thk:''}" placeholder="${(Math.round(r.thk||0))}" style="${inp}" ${ro}>
+      <select data-tf="mix" data-type="${escapeHtmlSeq(r.type)}" style="box-sizing:border-box;width:100%;background:rgba(8,11,18,0.8);border:1px solid rgba(150,170,205,0.16);border-radius:6px;padding:5px 6px;color:#fff;font-size:11px;font-family:Inter;outline:none" ${ro}>${opts}</select>
+      <div style="display:flex;gap:5px;justify-content:flex-end">
+        <button data-tsel="${escapeHtmlSeq(r.type)}" title="Select every ${escapeHtmlSeq(r.type)} on the map" style="border:1px solid rgba(82,230,224,0.35);background:rgba(82,230,224,0.1);color:#7df0ec;border-radius:6px;padding:5px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:Inter">Select</button>
+        ${(!isManagerView && (ov.wFt!=null||ov.lFt!=null||ov.thk!=null||ov.mix))?`<button data-treset="${escapeHtmlSeq(r.type)}" title="Clear your override — revert to the standard library size" style="border:1px solid rgba(150,170,205,0.2);background:rgba(255,255,255,0.03);color:rgba(200,212,230,0.6);border-radius:6px;padding:5px 7px;font-size:10px;font-weight:700;cursor:pointer;font-family:Inter">Reset</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  body.querySelectorAll('input[data-tf], select[data-tf]').forEach(el=>{
+    el.addEventListener('change', ()=>{ if(isManagerView) return; fm.setTypeProp(el.getAttribute('data-type'), el.getAttribute('data-tf'), el.value); });
+  });
+  body.querySelectorAll('[data-tsel]').forEach(b=> b.addEventListener('click', ()=>{ fm.selectType(b.getAttribute('data-tsel')); const m=document.getElementById('footingTypesModal'); if(m) m.remove(); }));
+  body.querySelectorAll('[data-treset]').forEach(b=> b.addEventListener('click', ()=>{ if(isManagerView) return; fm.clearTypeDef(b.getAttribute('data-treset')); }));
+  if(_ftypesFocus){ const safe=(window.CSS&&CSS.escape)?CSS.escape(_ftypesFocus):_ftypesFocus.replace(/"/g,'\\"'); const fr=body.querySelector('[data-trow="'+safe+'"]'); if(fr&&fr.scrollIntoView) fr.scrollIntoView({block:'center'}); _ftypesFocus=''; }
+}
+
 function attachFoundationListeners() {
   if (!db) return;
   const fm = getFoundationMap();
@@ -9422,9 +9858,12 @@ function attachFoundationListeners() {
   // Footing edits (type/dims/thickness/position/note/added/deleted) — CUP-private.
   fm.onFootingEditChange((map) => { if (isManagerView) return; fbSet('cup-foundation/footingEdits', map); });
   fbListen('cup-foundation/footingEdits', (val) => { getFoundationMap().setFootingEdits(val || {}); });
+  // Footing TYPE library (default size + mix per type) — CUP-private (cup-foundation/footingTypes).
+  fm.onTypeDefChange((map) => { if (isManagerView) return; fbSet('cup-foundation/footingTypes', map); });
+  fbListen('cup-foundation/footingTypes', (val) => { getFoundationMap().setTypeDefs(val || {}); });
   // Footing→pour membership — CUP-private (cup-foundation/footingPours).
-  fm.onMembershipChange((map) => { if (isManagerView) return; fbSet('cup-foundation/footingPours', map); });
-  fbListen('cup-foundation/footingPours', (val) => { if (val) getFoundationMap().setMembership(val); });
+  fm.onMembershipChange((map) => { if (isManagerView) return; fbSet('cup-foundation/footingPours', map); syncPourDayMapsFromFoundation(); });
+  fbListen('cup-foundation/footingPours', (val) => { if (val) { getFoundationMap().setMembership(val); syncPourDayMapsFromFoundation(); } });
   // Map markups / annotations — CUP-private (cup-foundation/markups).
   fm.onMarkupChange((map) => { if (isManagerView) return; fbSet('cup-foundation/markups', map); });
   fbListen('cup-foundation/markups', (val) => { getFoundationMap().setMarkups(val || {}); });
