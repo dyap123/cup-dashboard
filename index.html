@@ -1118,7 +1118,7 @@ function createFoundationMap(opts){
       if(_moved && (Math.abs(b.x1-b.x0)+Math.abs(b.y1-b.y0))*scale > 5){
         const x0=Math.min(b.x0,b.x1),x1=Math.max(b.x0,b.x1),y0=Math.min(b.y0,b.y1),y1=Math.max(b.y0,b.y1);
         if(!b.add) selFootings=new Set();
-        footings.forEach(f=>{ if(f.isBeam||f.del) return; if(f.cx>=x0&&f.cx<=x1&&f.cy>=y0&&f.cy<=y1) selFootings.add(f.no); });
+        footings.forEach(f=>{ if(f.del) return; let px=f.cx, py=f.cy; if(f.isBeam&&f.beam){ px=(f.beam.x1+f.beam.x2)/2; py=(f.beam.y1+f.beam.y2)/2; } if(px>=x0&&px<=x1&&py>=y0&&py<=y1) selFootings.add(f.no); });
         selFootingNo = selFootings.size===1 ? [...selFootings][0] : null; selMarkupId=null;
         syncChrome(); renderPanel(); scheduleDraw();
       } else {
@@ -1147,7 +1147,7 @@ function createFoundationMap(opts){
       if(_moved){
         const x0=Math.min(b.x0,b.x1),x1=Math.max(b.x0,b.x1),y0=Math.min(b.y0,b.y1),y1=Math.max(b.y0,b.y1);
         let changed=false; pushUndo();
-        for(const f of footings){ if(f.del) continue; if(f.cx>=x0&&f.cx<=x1&&f.cy>=y0&&f.cy<=y1 && f.pourId!==st.selId){ f.pourId=st.selId; f.seq=pourById[st.selId].seq; changed=true; } }
+        for(const f of footings){ if(f.del) continue; let px=f.cx, py=f.cy; if(f.isBeam&&f.beam){ px=(f.beam.x1+f.beam.x2)/2; py=(f.beam.y1+f.beam.y2)/2; } if(px>=x0&&px<=x1&&py>=y0&&py<=y1 && f.pourId!==st.selId){ f.pourId=st.selId; f.seq=pourById[st.selId].seq; changed=true; } }
         if(!changed) undoStack.pop();
         refresh(); if(changed) fireMembershipChange();
       } else {
