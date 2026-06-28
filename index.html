@@ -789,7 +789,7 @@ function getFoundationMap(){ if(!_fndMap) _fndMap = createFoundationMap({ colorM
 
 function createFoundationMap(opts){
   opts = opts || {};
-  const st = { mode:'explore', colorMode:opts.colorMode||'status', filter:'ALL', selId:null, zoomPct:100, tool:'none', markColor:'#fbbf24' };
+  const st = { mode:'explore', colorMode:opts.colorMode||'status', filter:'ALL', hideComplete:(localStorage.getItem('cup_fnd_hidedone')==='1'), selId:null, zoomPct:100, tool:'none', markColor:'#fbbf24' };
   // geometry / render state
   let footings=null, pours=null, pourById=null, byNo=null, gridCols=null, gridRows=null;
   let ox=0, oy=0, planW=0, planH=0, colPitch=73, rowPitch=72, siteHull=null;
@@ -1011,16 +1011,17 @@ function createFoundationMap(opts){
   function evPos(e){ const r=canvas.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
   function hitFoot(wx,wy){
     const pad=4/scale;
-    for(let i=footings.length-1;i>=0;i--){ const f=footings[i]; if(f.isBeam||f.del) continue;
+    const fComplete=f=>st.hideComplete && f.pourId && pourById[f.pourId] && pourById[f.pourId].status==='complete';   // hidden → not pickable
+    for(let i=footings.length-1;i>=0;i--){ const f=footings[i]; if(f.isBeam||f.del||fComplete(f)) continue;
       if(wx>=f.cx-f.w/2-pad&&wx<=f.cx+f.w/2+pad&&wy>=f.cy-f.h/2-pad&&wy<=f.cy+f.h/2+pad) return f; }
-    for(let i=footings.length-1;i>=0;i--){ const f=footings[i]; if(!f.isBeam||!f.beam||f.del) continue;
+    for(let i=footings.length-1;i>=0;i--){ const f=footings[i]; if(!f.isBeam||!f.beam||f.del||fComplete(f)) continue;
       const b=f.beam, bw=Math.max(5,f.w*0.78)/2+pad;
       if(b.horizontal){ if(wx>=Math.min(b.x1,b.x2)-pad&&wx<=Math.max(b.x1,b.x2)+pad&&Math.abs(wy-f.cy)<=bw) return f; }
       else { if(wy>=Math.min(b.y1,b.y2)-pad&&wy<=Math.max(b.y1,b.y2)+pad&&Math.abs(wx-f.cx)<=bw) return f; }
     }
     return null;
   }
-  function hitPour(wx,wy){ for(const p of pours){ const b=pourBox(p.id); if(!b) continue; if(wx>=b.x&&wx<=b.x+b.w&&wy>=b.y&&wy<=b.y+b.h) return p; } return null; }
+  function hitPour(wx,wy){ for(const p of pours){ if(st.hideComplete && p.status==='complete') continue; const b=pourBox(p.id); if(!b) continue; if(wx>=b.x&&wx<=b.x+b.w&&wy>=b.y&&wy<=b.y+b.h) return p; } return null; }
 
   // ───────── interaction ─────────
   const onWheel=(e)=>{ e.preventDefault();
@@ -1183,10 +1184,11 @@ function createFoundationMap(opts){
       gridRows.forEach(c=>{ if(c.y<vy0-4||c.y>vy1+4)return; ctx.beginPath(); ctx.moveTo(vx0,c.y); ctx.lineTo(vx1,c.y); ctx.stroke(); });
       ctx.setLineDash([]);
     }
-    const filter=st.filter, cm=st.colorMode, sel=st.selId;
+    const filter=st.filter, cm=st.colorMode, sel=st.selId, hideC=st.hideComplete;
     const showTags=sc>base*2.0;
     const footAlpha=Math.max(0.4,Math.min(0.95,(sc/base-0.4)/1.2));
     pours.forEach(p=>{
+      if(hideC && p.status==='complete') return;                 // "Hide complete" — declutter finished pours
       const b=pourBox(p.id); if(!b) return;
       if(b.x>vx1||b.y>vy1||b.x+b.w<vx0||b.y+b.h<vy0) return;
       const hu=pourHull(p.id); if(!hu||hu.length<3) return;
@@ -1203,7 +1205,8 @@ function createFoundationMap(opts){
       const ia=introOf(f); if(ia<=0) return;
       const minx=Math.min(b.x1,b.x2),maxx=Math.max(b.x1,b.x2),miny=Math.min(b.y1,b.y2),maxy=Math.max(b.y1,b.y2);
       if(minx>vx1||miny>vy1||maxx<vx0||maxy<vy0) return;
-      const [p,col]=colOf(f); const dim=filter!=='ALL'&&f.seq!==filter; const isSel=p&&p.id===sel;
+      const [p,col]=colOf(f); if(hideC && p && p.status==='complete') return;
+      const dim=filter!=='ALL'&&f.seq!==filter; const isSel=p&&p.id===sel;
       let a=Math.max(footAlpha,0.55); if(isSel)a=0.95; if(dim)a*=0.12;
       const bw=Math.max(5,f.w*0.78);
       ctx.globalAlpha=a*ia; ctx.fillStyle=hex2rgba(col,0.5);
@@ -1217,7 +1220,8 @@ function createFoundationMap(opts){
       const ia=introOf(f); if(ia<=0) return;
       const gw=f.w*(0.6+0.4*ia), gh=f.h*(0.6+0.4*ia); const x=f.cx-gw/2, y=f.cy-gh/2;
       if(x>vx1||y>vy1||x+gw<vx0||y+gh<vy0) return;
-      const [p,col]=colOf(f); const dim=filter!=='ALL'&&f.seq!==filter;
+      const [p,col]=colOf(f); if(hideC && p && p.status==='complete') return;
+      const dim=filter!=='ALL'&&f.seq!==filter;
       const isSelPour=p&&p.id===sel; let a=footAlpha; if(isSelPour)a=Math.max(a,0.97); if(dim)a*=0.12;
       ctx.globalAlpha=a*ia; ctx.fillStyle=hex2rgba(col,0.62); ctx.fillRect(x,y,gw,gh);
       ctx.globalAlpha=(dim?0.18:1)*ia; ctx.lineWidth=(isSelPour?1.6:0.9)/sc; ctx.strokeStyle=col; ctx.strokeRect(x,y,gw,gh);
@@ -1554,6 +1558,9 @@ function createFoundationMap(opts){
   function btnStyle(on){ return `border:none;cursor:pointer;border-radius:7px;padding:6px 13px;font-size:11px;font-weight:700;font-family:Inter,sans-serif;transition:all .15s;${on?'background:rgba(82,230,224,0.16);color:#7df0ec;box-shadow:inset 0 0 0 1px rgba(82,230,224,0.4)':'background:transparent;color:rgba(200,212,230,0.55)'}`; }
   function selectPourId(id){ st.selId=id||null; selFootingNo=null; selFootings=new Set(); syncChrome(); renderPanel(); scheduleDraw(); }
   function setFilter(f){ st.filter=f; syncChrome(); scheduleDraw(); }
+  function setHideComplete(v){ st.hideComplete=!!v; try{ localStorage.setItem('cup_fnd_hidedone', v?'1':'0'); }catch(e){} syncChrome(); scheduleDraw(); }
+  function toggleHideComplete(){ setHideComplete(!st.hideComplete); }
+  function hideCompleteStyle(on){ return `display:inline-flex;align-items:center;gap:5px;border:1px solid ${on?'rgba(82,230,224,0.5)':'rgba(150,170,205,0.2)'};background:${on?'rgba(82,230,224,0.14)':'rgba(255,255,255,0.03)'};color:${on?'#7df0ec':'rgba(200,212,230,0.7)'};border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter`; }
   function setColorMode(m){ st.colorMode=m; syncChrome(); scheduleDraw(); }
   function setMode(m){ st.mode=m; syncChrome(); renderPanel(); }
   function refresh(){ scheduleDraw(); renderPanel(); fireTakeoff(); }
@@ -1596,6 +1603,7 @@ function createFoundationMap(opts){
     const afb=root.querySelector('[data-fm="addfootBtn"]'); if(afb){ const on=st.tool==='addfoot'; afb.textContent = on?('Placing '+(st.addType||_lastAddType)+'… (Esc)'):'+ Footing'; afb.style.background=on?'rgba(167,139,250,0.3)':'rgba(167,139,250,0.14)'; afb.style.borderColor=on?'rgba(167,139,250,0.8)':'rgba(167,139,250,0.45)'; }
     elColorStatus.setAttribute('style', btnStyle(st.colorMode==='status'));
     elColorSeq.setAttribute('style', btnStyle(st.colorMode==='sequence'));
+    const hc=root.querySelector('[data-fm="hideComplete"]'); if(hc){ const on=st.hideComplete; hc.setAttribute('style', hideCompleteStyle(on)); const ic=hc.querySelector('[data-ic]'); if(ic) ic.textContent=on?'visibility_off':'visibility'; const lb=hc.querySelector('[data-lbl]'); if(lb) lb.textContent=on?'Complete hidden':'Hide complete'; }
     if(toolsRowEl) toolsRowEl.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('style', btnStyle(st.tool===b.getAttribute('data-tool'))));
     renderSwatches();
     if(footings && headlineEl) headlineEl.textContent = footings.length+' footings · '+pours.length+' pours · real plan';
@@ -1732,6 +1740,8 @@ function createFoundationMap(opts){
       <div data-fm="subbar" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;flex:0 0 auto;padding:6px 12px;background:rgba(8,10,16,0.85);border-bottom:1px solid rgba(150,170,205,0.08)">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.45)">Sequence</span><div data-fm="chips" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <button data-fm="hideComplete" title="Hide completed pours so the map isn't congested"><span class="material-symbols-outlined" data-ic style="font-size:15px;line-height:1">visibility</span><span data-lbl>Hide complete</span></button>
+          <div style="width:1px;height:18px;background:rgba(150,170,205,0.14)"></div>
           <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#34d399"></span><span style="font-size:10px;color:rgba(200,212,230,0.6)">Complete</span></div>
           <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#fbbf24"></span><span style="font-size:10px;color:rgba(200,212,230,0.6)">In&nbsp;progress</span></div>
           <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#38bdf8"></span><span style="font-size:10px;color:rgba(200,212,230,0.6)">Scheduled</span></div>
@@ -1754,6 +1764,7 @@ function createFoundationMap(opts){
     modeHintEl=q('hint'); headlineEl=q('headline');
     toolbarEl=q('toolbar'); subbarEl=q('subbar'); hintBarEl=q('hintbar'); toolsRowEl=q('toolsrow'); swatchesEl=q('swatches');
     [elModeExplore,elModeAssign,elColorStatus,elColorSeq].forEach(b=>b.setAttribute('style',btnStyle(false)));
+    { const _hc=root.querySelector('[data-fm="hideComplete"]'); if(_hc) _hc.setAttribute('style', hideCompleteStyle(st.hideComplete)); }
     elModeExplore.onclick=()=>setTool('select');
     elModeAssign.onclick=()=>setTool('assign');
     q('modeFooting').onclick=()=>setTool('move');
@@ -1766,6 +1777,7 @@ function createFoundationMap(opts){
     q('zoomFit').onclick=()=>{ _fitted=true; fit(); };
     searchEl.addEventListener('input', e=>doSearch(e.target.value));
     elChips.addEventListener('click', e=>{ const b=e.target.closest('[data-filter]'); if(b) setFilter(b.getAttribute('data-filter')); });
+    q('hideComplete').onclick=()=>toggleHideComplete();
     toolsRowEl.addEventListener('click', e=>{ const b=e.target.closest('[data-tool]'); if(b){ const t=b.getAttribute('data-tool'); setTool(st.tool===t?'explore':t); } });
     swatchesEl.addEventListener('click', e=>{ const b=e.target.closest('[data-sw]'); if(b) setMarkColor(b.getAttribute('data-sw')); });
     q('addfootBtn').onclick=()=>{ if(st.tool==='addfoot') setTool('explore'); else armAddFooting(_lastAddType); };   // picker lives in the right panel
