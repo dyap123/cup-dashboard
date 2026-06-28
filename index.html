@@ -806,6 +806,7 @@ function createFoundationMap(opts){
   let _baseFoot=null, _footEdits=null, _footEditCb=null, _footEditTimer=0, selFootingNo=null, _locked=true, _footDrag=null;
   let _typeDefs=null, _typeDefCb=null, _typeDefTimer=0;     // type-level property library (cup-foundation/footingTypes)
   let _lastAddType='F8', _markResize=null, _addFilter='';    // add-footing armed type · region-markup corner resize · type-picker filter
+  let _groupDrag=null;                                        // dragging a whole multi-selection at once
   let selFootings=new Set(), _selBand=null, _spaceDown=false;
   let clipboard=null, undoStack=[];
   // DOM refs
@@ -1044,7 +1045,7 @@ function createFoundationMap(opts){
     canvas.setPointerCapture?.(e.pointerId);
     const [mx,my]=evPos(e); pointers.set(e.pointerId,{x:mx,y:my});
     if(pointers.size===2){ drag=null; band=null; _markBand=null; _markDrag=null; _selBand=null; _pinch=pinchState(); return; }
-    if(e.button===1){ drag={mx,my,tx,ty,downx:mx,downy:my,pan:true}; _moved=false; canvas.style.cursor='grabbing'; return; }   // PAN = middle wheel button ONLY
+    if(e.button===1 || _spaceDown){ drag={mx,my,tx,ty,downx:mx,downy:my,pan:true}; _moved=false; canvas.style.cursor='grabbing'; return; }   // PAN = middle wheel button OR hold Space
     const [wx,wy]=s2w(mx,my);
     // ── markup tools ──
     if(st.tool==='region'){ _markBand={x0:wx,y0:wy,x1:wx,y1:wy}; _moved=false; return; }
@@ -1061,13 +1062,14 @@ function createFoundationMap(opts){
     if(st.tool==='polyline' || st.tool==='text' || st.tool==='addfoot'){ drag={mx,my,tx,ty,downx:mx,downy:my}; _moved=false; return; }  // click→action on up (no pan)
     // ── MOVE tool (footedit): drag a footing to reposition; empty drag = marquee select ──
     if(st.tool==='footedit'){ const f=hitFoot(wx,wy);
-      if(f){ selectFooting(f.no); _footDrag={no:f.no,dx:wx-f.cx,dy:wy-f.cy,moved:false}; }
+      if(f){ if(tryGroupDrag(f,wx,wy)) return; selectFooting(f.no); _footDrag={no:f.no,dx:wx-f.cx,dy:wy-f.cy,moved:false}; }
       else { selFootingNo=null; renderPanel(); _selBand={x0:wx,y0:wy,x1:wx,y1:wy,add:e.shiftKey}; _moved=false; }
       return;
     }
     // ── ASSIGN tool: paint footings into the selected pour ──
     if(st.mode==='assign' && st.selId && !e.shiftKey){ band={x0:wx,y0:wy,x1:wx,y1:wy}; _moved=false; return; }
-    // ── SELECT tool (default): click a footing/pour to select, drag to marquee — works locked ──
+    // ── SELECT tool (default): grab a multi-selection to move it, else click to select / drag to marquee ──
+    if(tryGroupDrag(hitFoot(wx,wy), wx, wy)) return;
     _selBand={x0:wx,y0:wy,x1:wx,y1:wy,add:e.shiftKey}; _moved=false;
   };
   const onMove=(e)=>{
@@ -1083,6 +1085,10 @@ function createFoundationMap(opts){
       if(m){ resizeRegionCorner(m,_markResize.corner,w[0],w[1]); _moved=true; scheduleDraw(); } return; }
     if(_markDrag){ const w=s2w(mx,my); const dx=w[0]-_markDrag.wx, dy=w[1]-_markDrag.wy; const m=markups.find(x=>x.id===_markDrag.id);
       if(m){ m.pts=_markDrag.orig.map(p=>[p[0]+dx,p[1]+dy]); _moved=true; scheduleDraw(); } return; }
+    if(_groupDrag){ const w=s2w(mx,my); const dx=w[0]-_groupDrag.wx, dy=w[1]-_groupDrag.wy;
+      if(!_groupDrag.moved){ pushUndo(); _groupDrag.moved=true; }
+      Object.keys(_groupDrag.orig).forEach(no=>{ const o=_groupDrag.orig[no]; moveFooting(+no, o.cx+dx, o.cy+dy, false); });
+      scheduleDraw(); return; }
     if(_footDrag){ const w=s2w(mx,my); const f=byNo[_footDrag.no]; if(f){ moveFooting(f.no, w[0]-_footDrag.dx, w[1]-_footDrag.dy, !_footDrag.moved); _footDrag.moved=true; scheduleDraw(); } return; }
     if(st.tool==='polyline' && _markDraft && !drag){ _markDraft.cursor=s2w(mx,my); scheduleDraw(); return; }
     if(band){ const w=s2w(mx,my); band.x1=w[0]; band.y1=w[1]; _moved=true; scheduleDraw(); return; }
@@ -1104,7 +1110,8 @@ function createFoundationMap(opts){
     if(_markResize){ const moved=_moved; _markResize=null; if(moved){ fireMarkupChange(); refresh(); } return; }
     // ── markup: end move-drag ──
     if(_markDrag){ const moved=_moved; _markDrag=null; if(moved){ fireMarkupChange(); refresh(); } return; }
-    // ── footing: end move-drag ──
+    // ── footing: end group / single move-drag ──
+    if(_groupDrag){ const moved=_groupDrag.moved; _groupDrag=null; if(moved){ fireFootingEdit(); refresh(); } else scheduleDraw(); return; }
     if(_footDrag){ _footDrag=null; refresh(); return; }
     // ── Explore: marquee multi-select (or click to select one) ──
     if(_selBand){ const b=_selBand; _selBand=null;
@@ -1324,10 +1331,11 @@ function createFoundationMap(opts){
     canvas.addEventListener('auxclick', (e)=>{ if(e.button===1) e.preventDefault(); });
     if(!_keyWired){ _keyWired=true; window.addEventListener('keydown', onKey); window.addEventListener('keyup', onKeyUp); }
   }
-  function onKeyUp(e){}
+  function onKeyUp(e){ if(e.code==='Space' || e.key===' '){ _spaceDown=false; if(canvas) canvas.style.cursor=(st.tool==='region'||st.tool==='polyline'||st.tool==='text'||st.tool==='addfoot')?'crosshair':(st.tool==='footedit'?'move':'default'); } }
   function onKey(e){
     if(!root || root.offsetParent===null) return;                       // only when this map is visible
     if(/INPUT|TEXTAREA|SELECT/.test((e.target&&e.target.tagName)||'')) return;
+    if(e.code==='Space' || e.key===' '){ if(!_spaceDown){ _spaceDown=true; if(canvas) canvas.style.cursor='grab'; } e.preventDefault(); return; }   // hold Space to pan
     if((e.ctrlKey||e.metaKey) && !e.altKey){
       const k=(e.key||'').toLowerCase();
       if(k==='z' && !e.shiftKey){ doUndo(); e.preventDefault(); return; }
@@ -1514,7 +1522,7 @@ function createFoundationMap(opts){
   function footEdit(no){ if(!_footEdits)_footEdits={}; if(!_footEdits[no])_footEdits[no]={}; if(byNo&&byNo[no]&&byNo[no].added)_footEdits[no].added=true; return _footEdits[no]; }
   function editFooting(no, field, value){ const f=byNo&&byNo[no]; if(!f) return; pushUndo();
     if(field==='type'){ const t=String(value); f.type=t; const e=footEdit(no); e.type=t;
-      // changing type pulls in that type's library size (unless this footing has its own size override)
+      delete e.wFt; delete e.lFt; delete e.thk; delete e.beam;   // drop manual size so it adopts the new type's properties
       const s=sideFt(t); f.wFt=dimFor('wFt',t,e,s); f.lFt=dimFor('lFt',t,e,s); f.thk=dimFor('thk',t,e,30); f.mix=mixFor(t); }
     else { const v=parseFloat(value); if(isNaN(v))return;
       if(f.isBeam && f.beam && field==='lFt'){            // beam Length = its span; rescale (centered, keep orientation)
@@ -1526,10 +1534,21 @@ function createFoundationMap(opts){
     }
     recompFoot(f); fireFootingEdit(); refresh(); }
   function setFootingNote(no, note){ const f=byNo&&byNo[no]; if(!f)return; pushUndo(); f.note=note; footEdit(no).note=note; fireFootingEdit(); renderPanel(); }
+  // Drop this footing's manual size tweaks so it follows its type's schedule/library properties again.
+  function resetFootingToType(no){ const f=byNo&&byNo[no]; if(!f) return; const e=_footEdits&&_footEdits[no]; if(!e) return; pushUndo();
+    delete e.wFt; delete e.lFt; delete e.thk; delete e.beam;
+    const keys=Object.keys(e).filter(k=>k!=='added'); if(!keys.length && !e.added) delete _footEdits[no];
+    materializeFootings(); rebuildPours(); applyMembership(); fireFootingEdit(); refresh(); }
   function moveFooting(no, cx, cy, snap){ const f=byNo&&byNo[no]; if(!f)return; if(snap)pushUndo(); const e=footEdit(no);
     if(f.isBeam && f.beam){ const dx=cx-f.cx, dy=cy-f.cy; f.beam={x1:f.beam.x1+dx,y1:f.beam.y1+dy,x2:f.beam.x2+dx,y2:f.beam.y2+dy,horizontal:f.beam.horizontal};   // drag the whole beam span
       if(e.beam) e.beam=Object.assign({}, f.beam); }
     f.cx=cx; f.cy=cy; e.cx=cx; e.cy=cy; fireFootingEdit(); }
+  // If you press on a footing that's part of a multi-selection, drag the whole group at once.
+  function tryGroupDrag(f, wx, wy){
+    if(!f || f.del || selFootings.size<2 || !selFootings.has(f.no)) return false;
+    const orig={}; selFootings.forEach(no=>{ const g=byNo[no]; if(g&&!g.del) orig[no]={cx:g.cx,cy:g.cy}; });
+    _groupDrag={ wx, wy, orig, moved:false }; return true;
+  }
   function deleteFooting(no){ const f=byNo&&byNo[no]; if(!f)return; pushUndo(); f.del=true; footEdit(no).deleted=true; if(selFootingNo===no)selFootingNo=null; fireFootingEdit(); rebuildPours(); refresh(); }
   function nextFootNo(){ let m=9999; if(footings) footings.forEach(f=>{ if(f.no>m)m=f.no; }); return m+1; }
   function addFooting(spec){ pushUndo(); const no=nextFootNo(); const t=spec.type||'F8'; const s=sideFt(t);
@@ -1688,9 +1707,12 @@ function createFoundationMap(opts){
         + `<label style="${lb}">Note</label><input data-foot-field="note" value="${esc(selF.note||'')}" placeholder="e.g. needs rebar inspection" style="${inp}">`
         + (()=>{ const tmix=mixFor(selF.type); const lib=(typeof window.getMixDesigns==='function')?window.getMixDesigns():{}; const mo=tmix?lib[tmix]:null; const mixTxt=mo?(mo.label||tmix):(tmix||'Not set');
             const cnt=footings.filter(x=>!x.del&&x.type===selF.type).length;
+            const ov=_footEdits&&_footEdits[selF.no]; const hasOv=!!(ov&&(ov.wFt!=null||ov.lFt!=null||ov.thk!=null||ov.beam!=null));
             return `<div style="margin-top:10px;padding:9px 10px;border-radius:9px;background:rgba(167,139,250,0.07);border:1px solid rgba(167,139,250,0.22)"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px"><span style="font-size:9px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#c4b5fd">Type ${esc(selF.type)} · ${cnt} on map</span><button data-edit-type="${esc(selF.type)}" style="font-size:10px;font-weight:700;color:#c4b5fd;background:none;border:none;cursor:pointer;font-family:Inter;text-decoration:underline">Edit type</button></div>`
               + `<div style="font-size:10.5px;color:rgba(200,212,230,0.6);margin-top:4px">Default mix: <span style="color:#7dd3fc;font-weight:600">${esc(mixTxt)}</span></div>`
-              + `<button data-select-type="${esc(selF.type)}" style="width:100%;margin-top:7px;border:1px solid rgba(82,230,224,0.35);background:rgba(82,230,224,0.1);color:#7df0ec;border-radius:7px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Select all ${esc(selF.type)} (${cnt})</button></div>`; })()
+              + `<button data-select-type="${esc(selF.type)}" style="width:100%;margin-top:7px;border:1px solid rgba(82,230,224,0.35);background:rgba(82,230,224,0.1);color:#7df0ec;border-radius:7px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Select all ${esc(selF.type)} (${cnt})</button>`
+              + (hasOv ? `<button data-foot-reset="${selF.no}" title="Drop this footing's manual size and follow the ${esc(selF.type)} type defaults" style="width:100%;margin-top:6px;border:1px solid rgba(167,139,250,0.4);background:rgba(167,139,250,0.12);color:#c4b5fd;border-radius:7px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Reset to ${esc(selF.type)} defaults</button>` : '')
+              + `</div>`; })()
         + `<div style="display:flex;gap:6px;margin-top:10px"><button data-foot-rot="1" title="Rotate 90° — swap width & length (R)" style="flex:1;border:1px solid rgba(167,139,250,0.4);background:rgba(167,139,250,0.12);color:#c4b5fd;border-radius:8px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter"><span class="material-symbols-outlined" style="font-size:13px;vertical-align:middle">rotate_90_degrees_cw</span> Rotate</button><button data-foot-dup="${selF.no}" style="flex:1;border:1px solid rgba(150,170,205,0.18);background:rgba(255,255,255,0.03);color:#cdd6e6;border-radius:8px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Duplicate</button><button data-foot-del="${selF.no}" style="flex:1;border:1px solid rgba(248,113,113,0.35);background:rgba(248,113,113,0.08);color:#fca5a5;border-radius:8px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Delete</button></div>`
         + `<div style="font-size:9.5px;color:rgba(170,188,218,0.4);margin-top:7px;line-height:1.4">${_locked?'Map is locked — unlock (toolbar) to drag this footing.':'Drag the footing on the map to move it.'} Ctrl+C/V copy · Ctrl+Z undo.</div>`
         + `</div>`;
@@ -1809,6 +1831,7 @@ function createFoundationMap(opts){
       const et=e.target.closest('[data-edit-type]'); if(et){ if(typeof window.showFootingTypesModal==='function') window.showFootingTypesModal(et.getAttribute('data-edit-type')); return; }
       const fdup=e.target.closest('[data-foot-dup]'); if(fdup){ const f=byNo[+fdup.getAttribute('data-foot-dup')]; if(f) addFooting({type:f.type,wFt:f.wFt,lFt:f.lFt,thk:f.thk,note:f.note,cx:f.cx+22,cy:f.cy+22}); return; }
       const fdel=e.target.closest('[data-foot-del]'); if(fdel){ deleteFooting(+fdel.getAttribute('data-foot-del')); return; }
+      const frst=e.target.closest('[data-foot-reset]'); if(frst){ resetFootingToType(+frst.getAttribute('data-foot-reset')); return; }
       const frot=e.target.closest('[data-foot-rot]'); if(frot){ rotateSelection(); return; }
       const rsel=e.target.closest('[data-rotate-sel]'); if(rsel){ rotateSelection(); return; }
       const ab=e.target.closest('[data-act]'); if(ab && ab.getAttribute('data-act')==='assign-toggle'){ setTool(st.mode==='assign'?'explore':'assign'); }
