@@ -865,8 +865,9 @@ function createFoundationMap(opts){
     const E=_footEdits||{};
     const arr=_baseFoot.map(b=>{ const f=Object.assign({}, b); const e=E[b.no];
       if(e){ if(e.type!=null)f.type=e.type; if(e.cx!=null)f.cx=+e.cx; if(e.cy!=null)f.cy=+e.cy; if(e.note!=null)f.note=e.note; f.del=!!e.deleted; }
-      // a moved beam: translate its span by the same offset (fresh object — never mutate _baseFoot)
-      if(b.beam){ const dx=f.cx-b.cx, dy=f.cy-b.cy; f.beam={x1:b.beam.x1+dx,y1:b.beam.y1+dy,x2:b.beam.x2+dx,y2:b.beam.y2+dy,horizontal:b.beam.horizontal}; }
+      // beam span: use an explicit per-footing override if set (resized), else translate the base span
+      if(b.beam){ if(e && e.beam){ f.beam=Object.assign({}, e.beam); }
+        else { const dx=f.cx-b.cx, dy=f.cy-b.cy; f.beam={x1:b.beam.x1+dx,y1:b.beam.y1+dy,x2:b.beam.x2+dx,y2:b.beam.y2+dy,horizontal:b.beam.horizontal}; } }
       // width/length/thickness flow from the type library unless this footing has its own override
       f.wFt=dimFor('wFt',f.type,e,b.wFt); f.lFt=dimFor('lFt',f.type,e,b.lFt); f.thk=dimFor('thk',f.type,e,b.thk);
       f.mix=mixFor(f.type);
@@ -1263,7 +1264,7 @@ function createFoundationMap(opts){
     });
     if(showTags){
       ctx.font='600 9px JetBrains Mono, monospace'; ctx.textBaseline='middle'; ctx.textAlign='center';
-      footings.forEach(f=>{ const dim=filter!=='ALL'&&f.seq!==filter; if(dim)return;
+      footings.forEach(f=>{ if(f.del)return; const dim=filter!=='ALL'&&f.seq!==filter; if(dim)return;
         const sx=f.cx*sc+tx, sy=f.cy*sc+ty; if(sx<-20||sy<-10||sx>cssW+20||sy>cssH+10)return;
         ctx.fillStyle='rgba(245,250,255,0.92)'; ctx.fillText(f.type,sx,sy); });
       ctx.textAlign='left';
@@ -1515,12 +1516,20 @@ function createFoundationMap(opts){
     if(field==='type'){ const t=String(value); f.type=t; const e=footEdit(no); e.type=t;
       // changing type pulls in that type's library size (unless this footing has its own size override)
       const s=sideFt(t); f.wFt=dimFor('wFt',t,e,s); f.lFt=dimFor('lFt',t,e,s); f.thk=dimFor('thk',t,e,30); f.mix=mixFor(t); }
-    else { const v=parseFloat(value); if(isNaN(v))return; f[field]=v; footEdit(no)[field]=v; }
+    else { const v=parseFloat(value); if(isNaN(v))return;
+      if(f.isBeam && f.beam && field==='lFt'){            // beam Length = its span; rescale (centered, keep orientation)
+        const len=Math.max(9, v*2.43);
+        f.beam = f.beam.horizontal ? {x1:f.cx-len/2,y1:f.cy,x2:f.cx+len/2,y2:f.cy,horizontal:true}
+                                   : {x1:f.cx,y1:f.cy-len/2,x2:f.cx,y2:f.cy+len/2,horizontal:false};
+        footEdit(no).beam=Object.assign({}, f.beam); f.lFt=v; footEdit(no).lFt=v;
+      } else { f[field]=v; footEdit(no)[field]=v; }
+    }
     recompFoot(f); fireFootingEdit(); refresh(); }
   function setFootingNote(no, note){ const f=byNo&&byNo[no]; if(!f)return; pushUndo(); f.note=note; footEdit(no).note=note; fireFootingEdit(); renderPanel(); }
-  function moveFooting(no, cx, cy, snap){ const f=byNo&&byNo[no]; if(!f)return; if(snap)pushUndo();
-    if(f.isBeam && f.beam){ const dx=cx-f.cx, dy=cy-f.cy; f.beam={x1:f.beam.x1+dx,y1:f.beam.y1+dy,x2:f.beam.x2+dx,y2:f.beam.y2+dy,horizontal:f.beam.horizontal}; }   // drag the whole beam span
-    f.cx=cx; f.cy=cy; const e=footEdit(no); e.cx=cx; e.cy=cy; fireFootingEdit(); }
+  function moveFooting(no, cx, cy, snap){ const f=byNo&&byNo[no]; if(!f)return; if(snap)pushUndo(); const e=footEdit(no);
+    if(f.isBeam && f.beam){ const dx=cx-f.cx, dy=cy-f.cy; f.beam={x1:f.beam.x1+dx,y1:f.beam.y1+dy,x2:f.beam.x2+dx,y2:f.beam.y2+dy,horizontal:f.beam.horizontal};   // drag the whole beam span
+      if(e.beam) e.beam=Object.assign({}, f.beam); }
+    f.cx=cx; f.cy=cy; e.cx=cx; e.cy=cy; fireFootingEdit(); }
   function deleteFooting(no){ const f=byNo&&byNo[no]; if(!f)return; pushUndo(); f.del=true; footEdit(no).deleted=true; if(selFootingNo===no)selFootingNo=null; fireFootingEdit(); rebuildPours(); refresh(); }
   function nextFootNo(){ let m=9999; if(footings) footings.forEach(f=>{ if(f.no>m)m=f.no; }); return m+1; }
   function addFooting(spec){ pushUndo(); const no=nextFootNo(); const t=spec.type||'F8'; const s=sideFt(t);
@@ -1667,10 +1676,14 @@ function createFoundationMap(opts){
       const pnm = selF.pourId&&pourById[selF.pourId]?pourById[selF.pourId].name:'Unassigned';
       const inp='width:100%;box-sizing:border-box;background:rgba(8,11,18,0.8);border:1px solid rgba(150,170,205,0.16);border-radius:7px;padding:6px 8px;color:#fff;font-size:12px;font-family:JetBrains Mono,monospace;outline:none';
       const lb='font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(170,188,218,0.45);margin:8px 0 3px;display:block';
+      // for a grade beam, "Length" is its drawn span — show the real value so editing it makes sense
+      const isBm = selF.isBeam && selF.beam;
+      const lenVal = isBm ? +(Math.hypot(selF.beam.x2-selF.beam.x1, selF.beam.y2-selF.beam.y1)/2.43).toFixed(1) : selF.lFt;
+      const wLbl = isBm ? 'Width (ft)' : 'Width (ft)', lLbl = isBm ? 'Length / span (ft)' : 'Length (ft)';
       html += `<div style="padding:14px 16px 16px;border-bottom:1px solid rgba(150,170,205,0.08)">`
         + `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><span style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.42)">Footing ${esc(selF.tag)}${selF.added?' · added':''}</span><span style="font-size:12px;font-weight:700;color:#52E6E0;font-family:JetBrains Mono,monospace">${selF.cyv.toFixed(2)} CY</span></div>`
         + `<label style="${lb}">Type</label><input data-foot-field="type" value="${esc(selF.type)}" style="${inp}">`
-        + `<div style="display:flex;gap:8px"><div style="flex:1"><label style="${lb}">Width (ft)</label><input data-foot-field="wFt" type="number" step="0.5" value="${selF.wFt}" style="${inp}"></div><div style="flex:1"><label style="${lb}">Length (ft)</label><input data-foot-field="lFt" type="number" step="0.5" value="${selF.lFt}" style="${inp}"></div></div>`
+        + `<div style="display:flex;gap:8px"><div style="flex:1"><label style="${lb}">${wLbl}</label><input data-foot-field="wFt" type="number" step="0.5" value="${selF.wFt}" style="${inp}"></div><div style="flex:1"><label style="${lb}">${lLbl}</label><input data-foot-field="lFt" type="number" step="0.5" value="${lenVal}" style="${inp}"></div></div>`
         + `<div style="display:flex;gap:8px"><div style="flex:1"><label style="${lb}">Thickness (in)</label><input data-foot-field="thk" type="number" step="1" value="${selF.thk}" style="${inp}"></div><div style="flex:1"><label style="${lb}">Pour</label><div style="${inp};color:rgba(200,212,230,0.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(pnm)}</div></div></div>`
         + `<label style="${lb}">Note</label><input data-foot-field="note" value="${esc(selF.note||'')}" placeholder="e.g. needs rebar inspection" style="${inp}">`
         + (()=>{ const tmix=mixFor(selF.type); const lib=(typeof window.getMixDesigns==='function')?window.getMixDesigns():{}; const mo=tmix?lib[tmix]:null; const mixTxt=mo?(mo.label||tmix):(tmix||'Not set');
