@@ -446,6 +446,14 @@
       <!-- legacy synthetic plan SVG (hidden; the canvas foundation map mounts here) -->
       <svg id="embedPlanOverlay" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:none"></svg>
     </div>
+    <div class="absolute top-3 right-3 z-10 flex flex-col items-end gap-1.5">
+      <button id="seqHideCompleteBtn" onclick="seqToggleHideComplete()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all hover:scale-105" style="backdrop-filter:blur(8px)" title="Hide completed pours so the map isn't congested">
+        <span class="material-symbols-outlined" id="seqHideCompleteIc" style="font-size:15px">visibility</span><span id="seqHideCompleteLbl">Hide complete</span>
+      </button>
+      <button id="seqHideRatslabBtn" onclick="seqToggleHideRatslab()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all hover:scale-105" style="backdrop-filter:blur(8px);display:none" title="Hide rat slab pours so the map isn't congested">
+        <span class="material-symbols-outlined" id="seqHideRatslabIc" style="font-size:15px">grid_on</span><span id="seqHideRatslabLbl">Rat slabs</span>
+      </button>
+    </div>
     <button onclick="switchTab('footing')" class="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-transform hover:scale-105" style="background:rgba(8,11,18,0.85);border:1px solid rgba(82,230,224,0.4);color:#7df0ec;backdrop-filter:blur(8px)" title="Open the full, immersive footing map">
       <span class="material-symbols-outlined" style="font-size:15px">open_in_full</span>Full&nbsp;map
     </button>
@@ -789,7 +797,8 @@ function getFoundationMap(){ if(!_fndMap) _fndMap = createFoundationMap({ colorM
 
 function createFoundationMap(opts){
   opts = opts || {};
-  const st = { mode:'explore', colorMode:opts.colorMode||'status', filter:'ALL', hideComplete:(localStorage.getItem('cup_fnd_hidedone')==='1'), selId:null, zoomPct:100, tool:'none', markColor:'#fbbf24' };
+  const st = { mode:'explore', colorMode:opts.colorMode||'status', filter:'ALL', hideComplete:(localStorage.getItem('cup_fnd_hidedone')==='1'), showNames:(localStorage.getItem('cup_fnd_shownames')==='1'), hideRatslab:(localStorage.getItem('cup_fnd_hideratslab')==='1'), selId:null, zoomPct:100, tool:'none', markColor:'#fbbf24' };
+  const RATSLAB_COL = '#f472b6';   // distinct category color for rat slab pours (pink — not a sequence/status hue)
   // geometry / render state
   let footings=null, pours=null, pourById=null, byNo=null, gridCols=null, gridRows=null;
   let ox=0, oy=0, planW=0, planH=0, colPitch=73, rowPitch=72, siteHull=null;
@@ -957,7 +966,7 @@ function createFoundationMap(opts){
       const e=ext[id];
       const seq=(e.sequence!=null&&e.sequence!=='')?String(e.sequence):(e.area?seqOf(e.area):'');
       let color; try{ color=seqColor(e.sequence,e.color); }catch(_){ color=FND_SEQCOL[seq]||'#94a3b8'; }
-      return { id, name:e.name||('Pour '+id), seq, color, status:(FND_POUR_STATUS[e.status]||'scheduled') };
+      return { id, name:e.name||('Pour '+id), seq, color, status:(FND_POUR_STATUS[e.status]||'scheduled'), category:(e.category==='ratslab'?'ratslab':'foundation') };
     });
     pourById={}; pours.forEach(p=>pourById[p.id]=p);
     // re-resolve membership against current pours (drop orphans whose pour vanished)
@@ -1192,28 +1201,29 @@ function createFoundationMap(opts){
       gridRows.forEach(c=>{ if(c.y<vy0-4||c.y>vy1+4)return; ctx.beginPath(); ctx.moveTo(vx0,c.y); ctx.lineTo(vx1,c.y); ctx.stroke(); });
       ctx.setLineDash([]);
     }
-    const filter=st.filter, cm=st.colorMode, sel=st.selId, hideC=st.hideComplete;
+    const filter=st.filter, cm=st.colorMode, sel=st.selId, hideC=st.hideComplete, hideRat=st.hideRatslab;
     const showTags=sc>base*2.0;
     const footAlpha=Math.max(0.4,Math.min(0.95,(sc/base-0.4)/1.2));
     pours.forEach(p=>{
       if(hideC && p.status==='complete') return;                 // "Hide complete" — declutter finished pours
+      if(hideRat && p.category==='ratslab') return;              // "Hide rat slabs"
       const b=pourBox(p.id); if(!b) return;
       if(b.x>vx1||b.y>vy1||b.x+b.w<vx0||b.y+b.h<vy0) return;
       const hu=pourHull(p.id); if(!hu||hu.length<3) return;
-      const dim=filter!=='ALL'&&p.seq!==filter; const col=cm==='status'?FND_STAT[p.status][1]:p.color; const isSel=p.id===sel;
+      const dim=filter!=='ALL'&&p.seq!==filter; const col=p.category==='ratslab'?RATSLAB_COL:(cm==='status'?FND_STAT[p.status][1]:p.color); const isSel=p.id===sel;
       ctx.globalAlpha=dim?0.1:1;
       ctx.beginPath(); hu.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1])); ctx.closePath();
       ctx.fillStyle=hex2rgba(col,isSel?0.15:0.05); ctx.fill();
       ctx.lineWidth=(isSel?3:1.8)/sc; ctx.strokeStyle=col; ctx.setLineDash(p.status==='complete'?[]:[9/sc,7/sc]); ctx.stroke(); ctx.setLineDash([]);
     });
-    const colOf=(f)=>{ const p=f.pourId?pourById[f.pourId]:null; return [p, !p?(_typeColor?fndTypeCol(f.type):'#64748b'):(cm==='status'?FND_STAT[p.status][1]:(FND_SEQCOL[p.seq]||'#94a3b8'))]; };
+    const colOf=(f)=>{ const p=f.pourId?pourById[f.pourId]:null; return [p, !p?(_typeColor?fndTypeCol(f.type):'#64748b'):(p.category==='ratslab'?RATSLAB_COL:(cm==='status'?FND_STAT[p.status][1]:(FND_SEQCOL[p.seq]||'#94a3b8')))]; };
     const introP = _introT ? Math.min(1,(performance.now()-_introT)/1150) : 1;
     const introOf=(f)=>{ if(!_introT) return 1; const fx=f.cx/(planW||1); return Math.max(0,Math.min(1,(introP - fx*0.45)/0.5)); };
     footings.forEach(f=>{ if(!f.isBeam||!f.beam||f.del) return; const b=f.beam;
       const ia=introOf(f); if(ia<=0) return;
       const minx=Math.min(b.x1,b.x2),maxx=Math.max(b.x1,b.x2),miny=Math.min(b.y1,b.y2),maxy=Math.max(b.y1,b.y2);
       if(minx>vx1||miny>vy1||maxx<vx0||maxy<vy0) return;
-      const [p,col]=colOf(f); if(hideC && p && p.status==='complete') return;
+      const [p,col]=colOf(f); if(hideC && p && p.status==='complete') return; if(hideRat && p && p.category==='ratslab') return;
       const dim=filter!=='ALL'&&f.seq!==filter; const isSel=p&&p.id===sel;
       let a=Math.max(footAlpha,0.55); if(isSel)a=0.95; if(dim)a*=0.12;
       const bw=Math.max(5,f.w*0.78);
@@ -1228,7 +1238,7 @@ function createFoundationMap(opts){
       const ia=introOf(f); if(ia<=0) return;
       const gw=f.w*(0.6+0.4*ia), gh=f.h*(0.6+0.4*ia); const x=f.cx-gw/2, y=f.cy-gh/2;
       if(x>vx1||y>vy1||x+gw<vx0||y+gh<vy0) return;
-      const [p,col]=colOf(f); if(hideC && p && p.status==='complete') return;
+      const [p,col]=colOf(f); if(hideC && p && p.status==='complete') return; if(hideRat && p && p.category==='ratslab') return;
       const dim=filter!=='ALL'&&f.seq!==filter;
       const isSelPour=p&&p.id===sel; let a=footAlpha; if(isSelPour)a=Math.max(a,0.97); if(dim)a*=0.12;
       ctx.globalAlpha=a*ia; ctx.fillStyle=hex2rgba(col,0.62); ctx.fillRect(x,y,gw,gh);
@@ -1258,14 +1268,19 @@ function createFoundationMap(opts){
       ctx.fillStyle=st.markColor; _markDraft.pts.forEach(p=>{ ctx.beginPath(); ctx.arc(p[0],p[1],3/sc,0,7); ctx.fill(); }); }
     ctx.globalAlpha=1;
     ctx.setTransform(dpr,0,0,dpr,0,0);
+    // Labels: always on the selected pour; on ALL pours when the "Names" toggle is on. #N via cupPourNo.
+    const _pnos = st.showNames ? ((typeof cupPourNo==='function') ? cupPourNo() : {}) : null;
     pours.forEach(p=>{
-      if(p.id!==sel) return;   // label only the selected pour — keeps the map clean (no name-bar across every pour)
+      if(p.id!==sel && !st.showNames) return;   // clean by default — only the selected pour is labeled
+      if(hideC && p.status==='complete') return;
+      if(hideRat && p.category==='ratslab') return;
       const b=pourBox(p.id); if(!b) return; const dim=filter!=='ALL'&&p.seq!==filter; if(dim)return;
       const sx=(b.x+b.w/2)*sc+tx, sy=b.y*sc+ty;
       if(sx>cssW+40||sy>cssH||sx<-160||sy<-30) return;
-      const label=p.name+'  ·  '+fmt(pourCY(p.id))+' CY';
+      const _no=_pnos?_pnos[p.id]:null;
+      const label=(p.category==='ratslab'?'▨ ':'')+(_no?('#'+_no+'  '):'')+p.name+'  ·  '+fmt(pourCY(p.id))+' CY';
       ctx.font='700 11px JetBrains Mono, monospace'; const tw=ctx.measureText(label).width;
-      const lcol=cm==='status'?FND_STAT[p.status][1]:p.color;
+      const lcol=p.category==='ratslab'?RATSLAB_COL:(cm==='status'?FND_STAT[p.status][1]:p.color);
       ctx.fillStyle=hex2rgba(lcol,0.96); rrect(ctx,sx-tw/2-8,sy-24,tw+16,20,5); ctx.fill();
       ctx.fillStyle='#08090f'; ctx.textBaseline='middle'; ctx.textAlign='center'; ctx.fillText(label,sx,sy-13.5); ctx.textAlign='left';
     });
@@ -1396,7 +1411,7 @@ function createFoundationMap(opts){
     _saveTimer=setTimeout(()=>{ try{ _membershipCb(getMembership()); }catch(e){ console.error('foundation membership save', e); } }, 500); }
 
   // ───────── shared pour set (map ↔ dashboard ↔ pour day) ─────────
-  function setPours(obj){ _poursExt=obj||{}; if(footings){ rebuildPours(); applyMembership(); refresh(); } }
+  function setPours(obj){ _poursExt=obj||{}; if(footings){ rebuildPours(); applyMembership(); refresh(); syncChrome(); } }
   function clearPourMembership(id){ if(!footings) return; let ch=false;
     footings.forEach(f=>{ if(f.pourId===id){ f.pourId=null; f.seq=null; ch=true; } });
     if(ch){ refresh(); fireMembershipChange(); } }
@@ -1586,8 +1601,13 @@ function createFoundationMap(opts){
   function btnStyle(on){ return `border:none;cursor:pointer;border-radius:7px;padding:6px 13px;font-size:11px;font-weight:700;font-family:Inter,sans-serif;transition:all .15s;${on?'background:rgba(82,230,224,0.16);color:#7df0ec;box-shadow:inset 0 0 0 1px rgba(82,230,224,0.4)':'background:transparent;color:rgba(200,212,230,0.55)'}`; }
   function selectPourId(id){ st.selId=id||null; selFootingNo=null; selFootings=new Set(); syncChrome(); renderPanel(); scheduleDraw(); }
   function setFilter(f){ st.filter=f; syncChrome(); scheduleDraw(); }
-  function setHideComplete(v){ st.hideComplete=!!v; try{ localStorage.setItem('cup_fnd_hidedone', v?'1':'0'); }catch(e){} syncChrome(); scheduleDraw(); }
+  function setHideComplete(v){ st.hideComplete=!!v; try{ localStorage.setItem('cup_fnd_hidedone', v?'1':'0'); }catch(e){} syncChrome(); renderPanel(); scheduleDraw(); }
   function toggleHideComplete(){ setHideComplete(!st.hideComplete); }
+  function setShowNames(v){ st.showNames=!!v; try{ localStorage.setItem('cup_fnd_shownames', v?'1':'0'); }catch(e){} syncChrome(); scheduleDraw(); }
+  function toggleShowNames(){ setShowNames(!st.showNames); }
+  function setHideRatslab(v){ st.hideRatslab=!!v; try{ localStorage.setItem('cup_fnd_hideratslab', v?'1':'0'); }catch(e){} syncChrome(); renderPanel(); scheduleDraw(); }
+  function toggleHideRatslab(){ setHideRatslab(!st.hideRatslab); }
+  function hasRatslab(){ return !!(pours && pours.some(p=>p.category==='ratslab')); }
   function hideCompleteStyle(on){ return `display:inline-flex;align-items:center;gap:5px;border:1px solid ${on?'rgba(82,230,224,0.5)':'rgba(150,170,205,0.2)'};background:${on?'rgba(82,230,224,0.14)':'rgba(255,255,255,0.03)'};color:${on?'#7df0ec':'rgba(200,212,230,0.7)'};border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter`; }
   function setColorMode(m){ st.colorMode=m; syncChrome(); scheduleDraw(); }
   function setMode(m){ st.mode=m; syncChrome(); renderPanel(); }
@@ -1632,6 +1652,8 @@ function createFoundationMap(opts){
     elColorStatus.setAttribute('style', btnStyle(st.colorMode==='status'));
     elColorSeq.setAttribute('style', btnStyle(st.colorMode==='sequence'));
     const hc=root.querySelector('[data-fm="hideComplete"]'); if(hc){ const on=st.hideComplete; hc.setAttribute('style', hideCompleteStyle(on)); const ic=hc.querySelector('[data-ic]'); if(ic) ic.textContent=on?'visibility_off':'visibility'; const lb=hc.querySelector('[data-lbl]'); if(lb) lb.textContent=on?'Complete hidden':'Hide complete'; }
+    const sn=root.querySelector('[data-fm="showNames"]'); if(sn){ const on=st.showNames; sn.setAttribute('style', hideCompleteStyle(on)); const ic=sn.querySelector('[data-ic]'); if(ic) ic.textContent=on?'label':'label_off'; const lb=sn.querySelector('[data-lbl]'); if(lb) lb.textContent=on?'Names on':'Names'; }
+    const rs=root.querySelector('[data-fm="hideRatslab"]'); if(rs){ const on=st.hideRatslab; const has=hasRatslab(); rs.setAttribute('style', hideCompleteStyle(on)+(has?'':';display:none')); const ic=rs.querySelector('[data-ic]'); if(ic) ic.textContent=on?'grid_off':'grid_on'; const lb=rs.querySelector('[data-lbl]'); if(lb) lb.textContent=on?'Rat slabs hidden':'Rat slabs'; }
     if(toolsRowEl) toolsRowEl.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('style', btnStyle(st.tool===b.getAttribute('data-tool'))));
     renderSwatches();
     if(footings && headlineEl) headlineEl.textContent = footings.length+' footings · '+pours.length+' pours · real plan';
@@ -1728,6 +1750,10 @@ function createFoundationMap(opts){
         + `<button data-act="assign-toggle" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid ${active?'rgba(82,230,224,0.5)':'rgba(82,230,224,0.4)'};background:${active?'rgba(82,230,224,0.18)':'rgba(82,230,224,0.1)'};color:#7df0ec;border-radius:10px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:Inter"><span class="material-symbols-outlined" style="font-size:16px">${active?'check':'edit'}</span>${active?'Done — finish editing area':'Edit area — add / remove footings'}</button>`
         + `<div style="font-size:10px;color:rgba(170,188,218,0.45);margin-top:8px;line-height:1.45">${active?'Editing “'+esc(selP.name)+'” — drag a box over footings to add them, or tap a footing to toggle it in/out. The pour outline fills to match.':'The pour’s area is the footings assigned to it. Tap above, then drag over footings on the map to set its footprint.'}</div>`
         + `<div style="display:flex;gap:6px;margin-top:9px"><button data-rename="${selP.id}" style="flex:1;border:1px solid rgba(150,170,205,0.18);background:rgba(255,255,255,0.03);color:#cdd6e6;border-radius:8px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Rename</button><button data-delpour="${selP.id}" style="flex:1;border:1px solid rgba(248,113,113,0.35);background:rgba(248,113,113,0.08);color:#fca5a5;border-radius:8px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Delete</button></div>`
+        + `<div style="margin-top:10px"><div style="font-size:9px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:rgba(170,188,218,0.42);margin-bottom:5px">Category</div><div style="display:flex;gap:2px;padding:2px;border-radius:9px;background:rgba(0,0,0,0.35);border:1px solid rgba(150,170,205,0.10)">`
+          + `<button data-set-cat="foundation" style="flex:1;border:none;cursor:pointer;border-radius:7px;padding:6px 8px;font-size:11px;font-weight:700;font-family:Inter;transition:all .15s;${selP.category!=='ratslab'?'background:rgba(82,230,224,0.16);color:#7df0ec;box-shadow:inset 0 0 0 1px rgba(82,230,224,0.4)':'background:transparent;color:rgba(200,212,230,0.55)'}">Foundation</button>`
+          + `<button data-set-cat="ratslab" style="flex:1;border:none;cursor:pointer;border-radius:7px;padding:6px 8px;font-size:11px;font-weight:700;font-family:Inter;transition:all .15s;${selP.category==='ratslab'?'background:rgba(244,114,182,0.16);color:#f9a8d4;box-shadow:inset 0 0 0 1px rgba(244,114,182,0.4)':'background:transparent;color:rgba(200,212,230,0.55)'}">Rat slab</button>`
+          + `</div></div>`
         + `<div style="font-size:9.5px;color:rgba(170,188,218,0.38);margin-top:6px">Pick a swatch in the Markup row to recolor this pour.</div>`
         + `<div style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.42);margin:16px 0 8px">Takeoff by type</div><div style="display:flex;flex-direction:column;gap:5px">`
         + rows.map(r=>`<div style="display:flex;align-items:center;gap:9px"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#cdd6e6;min-width:62px">${esc(r.type)}</span><span style="font-size:10px;color:rgba(170,188,218,0.5);min-width:26px">×${r.count}</span><div style="flex:1;height:6px;border-radius:6px;background:rgba(255,255,255,0.05);overflow:hidden"><div style="height:100%;width:${Math.round(r.cy/maxcy*100)}%;border-radius:6px;background:${selP.color};opacity:0.8"></div></div><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#cdd6e6;min-width:48px;text-align:right">${r.cy.toFixed(1)}</span></div>`).join('')
@@ -1736,10 +1762,14 @@ function createFoundationMap(opts){
       let totCy=0,unassigned=0; footings.forEach(f=>{ if(f.del)return; totCy+=f.cyv; if(!f.pourId)unassigned++; });
       html += `<div style="padding:16px;border-bottom:1px solid rgba(150,170,205,0.08)"><div style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.42);margin-bottom:10px">Project Takeoff</div><div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:84px;padding:11px 12px;border-radius:11px;background:rgba(0,0,0,0.3);border:1px solid rgba(150,170,205,0.10)"><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:23px;color:#fff;letter-spacing:-0.02em;line-height:1">${fmt(totCy)}</div><div style="font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(170,188,218,0.45);margin-top:3px">Total CY</div></div><div style="flex:1;min-width:84px;padding:11px 12px;border-radius:11px;background:rgba(0,0,0,0.3);border:1px solid rgba(150,170,205,0.10)"><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:23px;color:#fff;letter-spacing:-0.02em;line-height:1">${footings.length}</div><div style="font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(170,188,218,0.45);margin-top:3px">Footings</div></div></div><div style="font-size:11px;color:rgba(170,188,218,0.5);margin-top:12px;line-height:1.5">${pours.length} pours · <span style="color:#fbbf24">${unassigned}</span> footings unassigned. Tap a pour to inspect; hit <b style="color:#cdd6e6">Assign</b> to refine its footings.</div></div>`;
     }
-    html += `<div style="padding:12px 12px 18px"><div style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.42);margin:4px 4px 9px">Pours</div><div style="display:flex;flex-direction:column;gap:6px">`;
-    html += pours.map(p=>{
+    const _listPours = pours.filter(p=>!(st.hideComplete && p.status==='complete') && !(st.hideRatslab && p.category==='ratslab'));
+    const _hiddenN = pours.length - _listPours.length;
+    html += `<div style="padding:12px 12px 18px"><div style="display:flex;align-items:center;justify-content:space-between;margin:4px 4px 9px"><span style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.42)">Pours</span>${_hiddenN?`<span style="font-size:9px;color:rgba(170,188,218,0.4)">${_hiddenN} hidden</span>`:''}</div><div style="display:flex;flex-direction:column;gap:6px">`;
+    html += _listPours.map(p=>{
       const cy=pourCY(p.id), cnt=members(p.id).length, isSel=p.id===S.selId; const [sl,scol]=stat[p.status];
-      return `<button data-pour="${p.id}" style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid ${isSel?hex2rgba(p.color,0.5):'rgba(150,170,205,0.08)'};background:${isSel?hex2rgba(p.color,0.08):'rgba(255,255,255,0.018)'};border-radius:11px;padding:9px 11px;cursor:pointer;font-family:Inter"><span style="width:11px;height:11px;border-radius:3px;flex:0 0 auto;background:${p.color};box-shadow:0 0 8px ${hex2rgba(p.color,0.5)}"></span><div style="flex:1;min-width:0;text-align:left"><div style="font-size:12.5px;font-weight:600;color:#eef2f8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div><div style="font-size:10px;color:rgba(170,188,218,0.46);font-family:'JetBrains Mono',monospace;margin-top:1px">${p.seq==='0.5'?'Seq 0.5':'Seq '+p.seq} · ${cnt} ftg</div></div><div style="text-align:right"><div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#fff">${fmt(cy)}</div><div style="font-size:9px;color:${scol};font-weight:700;text-transform:uppercase;letter-spacing:0.04em">${sl}</div></div></button>`;
+      const isRat=p.category==='ratslab'; const dotc=isRat?'#f472b6':p.color;
+      const ratTag=isRat?`<span style="font-size:8px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:#f9a8d4;background:rgba(244,114,182,0.14);border:1px solid rgba(244,114,182,0.4);border-radius:5px;padding:1px 5px;margin-left:6px">Rat slab</span>`:'';
+      return `<button data-pour="${p.id}" style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid ${isSel?hex2rgba(dotc,0.5):'rgba(150,170,205,0.08)'};background:${isSel?hex2rgba(dotc,0.08):'rgba(255,255,255,0.018)'};border-radius:11px;padding:9px 11px;cursor:pointer;font-family:Inter"><span style="width:11px;height:11px;border-radius:3px;flex:0 0 auto;background:${dotc};box-shadow:0 0 8px ${hex2rgba(dotc,0.5)}"></span><div style="flex:1;min-width:0;text-align:left"><div style="font-size:12.5px;font-weight:600;color:#eef2f8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}${ratTag}</div><div style="font-size:10px;color:rgba(170,188,218,0.46);font-family:'JetBrains Mono',monospace;margin-top:1px">${isRat?'Rat slab':(p.seq==='0.5'?'Seq 0.5':'Seq '+p.seq)} · ${cnt} ftg</div></div><div style="text-align:right"><div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#fff">${fmt(cy)}</div><div style="font-size:9px;color:${scol};font-weight:700;text-transform:uppercase;letter-spacing:0.04em">${sl}</div></div></button>`;
     }).join('');
     html += `</div></div>`;
     panelHost.innerHTML=html;
@@ -1776,7 +1806,10 @@ function createFoundationMap(opts){
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.45)">Sequence</span><div data-fm="chips" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
           <button data-fm="hideComplete" title="Hide completed pours so the map isn't congested"><span class="material-symbols-outlined" data-ic style="font-size:15px;line-height:1">visibility</span><span data-lbl>Hide complete</span></button>
+          <button data-fm="showNames" title="Show each pour's name and number on the map"><span class="material-symbols-outlined" data-ic style="font-size:15px;line-height:1">label</span><span data-lbl>Names</span></button>
+          <button data-fm="hideRatslab" title="Hide rat slab pours so the map isn't congested"><span class="material-symbols-outlined" data-ic style="font-size:15px;line-height:1">grid_on</span><span data-lbl>Rat slabs</span></button>
           <div style="width:1px;height:18px;background:rgba(150,170,205,0.14)"></div>
+          <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#f472b6"></span><span style="font-size:10px;color:rgba(200,212,230,0.6)">Rat&nbsp;slab</span></div>
           <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#34d399"></span><span style="font-size:10px;color:rgba(200,212,230,0.6)">Complete</span></div>
           <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#fbbf24"></span><span style="font-size:10px;color:rgba(200,212,230,0.6)">In&nbsp;progress</span></div>
           <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#38bdf8"></span><span style="font-size:10px;color:rgba(200,212,230,0.6)">Scheduled</span></div>
@@ -1788,7 +1821,7 @@ function createFoundationMap(opts){
           <canvas data-fm="canvas" style="display:block;width:100%;height:100%"></canvas>
           <div data-fm="tip" style="position:absolute;left:0;top:0;display:none;pointer-events:none;z-index:6;background:rgba(8,11,18,0.96);border:1px solid rgba(150,170,205,0.18);border-radius:9px;padding:8px 11px;box-shadow:0 14px 36px rgba(0,0,0,0.55);min-width:140px"></div>
           <div data-fm="hintbar" style="position:absolute;left:14px;bottom:14px;z-index:6;display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:9px;background:rgba(8,11,18,0.78);border:1px solid rgba(150,170,205,0.12);max-width:440px"><span style="width:7px;height:7px;border-radius:50%;background:#52E6E0"></span><span data-fm="hint" style="font-size:11px;color:rgba(210,222,240,0.72);line-height:1.4"></span></div>
-          <div style="position:absolute;right:16px;top:14px;z-index:6;text-align:center;opacity:0.5;pointer-events:none"><div style="font-size:15px;line-height:1;color:rgba(170,188,218,0.8)">▲</div><div style="font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;color:rgba(170,188,218,0.7)">N</div></div>
+          <div data-fm="compass" style="position:absolute;right:16px;top:14px;z-index:6;text-align:center;opacity:0.5;pointer-events:none"><div style="font-size:15px;line-height:1;color:rgba(170,188,218,0.8)">▲</div><div style="font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;color:rgba(170,188,218,0.7)">N</div></div>
         </div>
         <div data-fm="panel" style="flex:0 0 332px;width:332px;background:rgba(9,11,18,0.92);border-left:1px solid rgba(150,170,205,0.10);overflow-y:auto;display:none"></div>
       </div>`;
@@ -1800,6 +1833,8 @@ function createFoundationMap(opts){
     toolbarEl=q('toolbar'); subbarEl=q('subbar'); hintBarEl=q('hintbar'); toolsRowEl=q('toolsrow'); swatchesEl=q('swatches');
     [elModeExplore,elModeAssign,elColorStatus,elColorSeq].forEach(b=>b.setAttribute('style',btnStyle(false)));
     { const _hc=root.querySelector('[data-fm="hideComplete"]'); if(_hc) _hc.setAttribute('style', hideCompleteStyle(st.hideComplete)); }
+    { const _sn=root.querySelector('[data-fm="showNames"]'); if(_sn) _sn.setAttribute('style', hideCompleteStyle(st.showNames)); }
+    { const _rs=root.querySelector('[data-fm="hideRatslab"]'); if(_rs) _rs.setAttribute('style', hideCompleteStyle(st.hideRatslab)+';display:none'); }
     elModeExplore.onclick=()=>setTool('select');
     elModeAssign.onclick=()=>setTool('assign');
     q('modeFooting').onclick=()=>setTool('move');
@@ -1813,6 +1848,8 @@ function createFoundationMap(opts){
     searchEl.addEventListener('input', e=>doSearch(e.target.value));
     elChips.addEventListener('click', e=>{ const b=e.target.closest('[data-filter]'); if(b) setFilter(b.getAttribute('data-filter')); });
     q('hideComplete').onclick=()=>toggleHideComplete();
+    q('showNames').onclick=()=>toggleShowNames();
+    q('hideRatslab').onclick=()=>toggleHideRatslab();
     toolsRowEl.addEventListener('click', e=>{ const b=e.target.closest('[data-tool]'); if(b){ const t=b.getAttribute('data-tool'); setTool(st.tool===t?'explore':t); } });
     swatchesEl.addEventListener('click', e=>{ const b=e.target.closest('[data-sw]'); if(b) setMarkColor(b.getAttribute('data-sw')); });
     q('addfootBtn').onclick=()=>{ if(st.tool==='addfoot') setTool('explore'); else armAddFooting(_lastAddType); };   // picker lives in the right panel
@@ -1825,6 +1862,7 @@ function createFoundationMap(opts){
       const pb=e.target.closest('[data-pour]'); if(pb){ selectPourId(pb.getAttribute('data-pour')); return; }
       const rn=e.target.closest('[data-rename]'); if(rn){ if(typeof promptPourName==='function') promptPourName(rn.getAttribute('data-rename')); return; }
       const dl=e.target.closest('[data-delpour]'); if(dl){ if(typeof deleteFoundationPour==='function') deleteFoundationPour(dl.getAttribute('data-delpour')); return; }
+      const sc3=e.target.closest('[data-set-cat]'); if(sc3){ if(typeof setFoundationPourCategory==='function') setFoundationPourCategory(st.selId, sc3.getAttribute('data-set-cat')); return; }
       const ap=e.target.closest('[data-assign-pour]'); if(ap){ assignSelectedToPour(ap.getAttribute('data-assign-pour')||null); return; }
       const cs=e.target.closest('[data-clear-sel]'); if(cs){ selFootings=new Set(); selFootingNo=null; renderPanel(); scheduleDraw(); return; }
       const st2=e.target.closest('[data-select-type]'); if(st2){ selectType(st2.getAttribute('data-select-type')); return; }
@@ -1855,6 +1893,7 @@ function createFoundationMap(opts){
     if(toolsRowEl) toolsRowEl.style.display = full?'flex':'none';
     if(subbarEl) subbarEl.style.display = full?'flex':'none';
     if(hintBarEl) hintBarEl.style.display = full?'flex':'none';
+    const compass=root&&root.querySelector('[data-fm="compass"]'); if(compass) compass.style.display = full?'block':'none';   // in the compact preview the Hide-complete toggle takes this top-right corner
     _fitMargin = full?46:18;
     _typeColor = !full;   // minimal preview = color footings by type (lively); full tab = grey unassigned (shows assign progress)
   }
@@ -1874,6 +1913,9 @@ function createFoundationMap(opts){
   return {
     mount, relocate, kick, resize, destroy(){ if(_ro)_ro.disconnect(); if(root&&root.parentNode)root.parentNode.removeChild(root); },
     setColorMode, setFilter, setMode, selectPour:selectPourId, search:doSearch,
+    toggleHideComplete, setHideComplete, isHideComplete(){ return !!st.hideComplete; },
+    toggleShowNames, setShowNames, isShowNames(){ return !!st.showNames; },
+    toggleHideRatslab, setHideRatslab, isHideRatslab(){ return !!st.hideRatslab; }, hasRatslab,
     setMembership, getMembership, onMembershipChange(cb){ _membershipCb=cb; },
     setPours, clearPourMembership, getTakeoff, onTakeoffChange,
     setMarkups, getMarkups:getMarkupsObj, onMarkupChange,
@@ -3447,6 +3489,8 @@ function switchTab(tab) {
     const fm = getFoundationMap();
     fm.relocate(document.getElementById('embedPlanWrap'), { chrome: 'minimal' });   // top of Sequences — clean preview, general idea
     fm.kick();
+    seqSyncHideCompleteBtn();
+    seqSyncHideRatslabBtn();
   }
   if (tab === 'footing') {
     const fm = getFoundationMap();
@@ -9434,6 +9478,9 @@ function zoneToFoundationPour(id, z) {
     id,
     name: z.name || '',               // pour name (set in CUP or embed-tracker)
     checklist: Array.isArray(z.checklist) ? z.checklist : null,
+    prePourOps: (z.prePourOps && typeof z.prePourOps === 'object') ? z.prePourOps : {},   // Logistics chip state
+    fieldDrawings: (z.fieldDrawings && typeof z.fieldDrawings === 'object') ? z.fieldDrawings : {}, // Field Drawings chip state
+    category: z.category === 'ratslab' ? 'ratslab' : 'foundation',   // pour category: 'foundation' | 'ratslab'
     placed: (Array.isArray(z.points) && z.points.length >= 3) || (+z.w > 0 && +z.h > 0),
     sequence: z.pour,                 // '1'..'4' | 'South Hall' (STRING)
     area: z.area,                     // 'A'-'D'
@@ -9806,6 +9853,38 @@ function renderSeqRail() {
     + `<div style="flex:1"></div>`
     + `<div style="font-size:9.5px;color:rgba(170,188,218,0.35);line-height:1.45">Tap <b style="color:#7df0ec">Full&nbsp;map</b> to assign footings & add markups.</div>`;
 }
+// Dashboard preview map runs in 'minimal' chrome (no toolbar), so it has no built-in
+// Hide-complete control. This floating button (top-right of #seqMapWrap) drives the
+// same map-component state (persisted to localStorage, shared with the full map tab).
+function seqSyncHideCompleteBtn() {
+  const btn = document.getElementById('seqHideCompleteBtn'); if (!btn) return;
+  let on = false; try { on = getFoundationMap().isHideComplete(); } catch (e) {}
+  btn.style.background = on ? 'rgba(82,230,224,0.16)' : 'rgba(8,11,18,0.85)';
+  btn.style.border = '1px solid ' + (on ? 'rgba(82,230,224,0.6)' : 'rgba(150,170,205,0.28)');
+  btn.style.color = on ? '#7df0ec' : 'rgba(200,212,230,0.75)';
+  const ic = document.getElementById('seqHideCompleteIc'); if (ic) ic.textContent = on ? 'visibility_off' : 'visibility';
+  const lb = document.getElementById('seqHideCompleteLbl'); if (lb) lb.textContent = on ? 'Complete hidden' : 'Hide complete';
+}
+function seqToggleHideComplete() {
+  try { getFoundationMap().toggleHideComplete(); } catch (e) {}
+  seqSyncHideCompleteBtn();
+}
+// Rat slab show/hide — floating twin of Hide complete; only shown when rat slab pours exist.
+function seqSyncHideRatslabBtn() {
+  const btn = document.getElementById('seqHideRatslabBtn'); if (!btn) return;
+  let on = false, has = false;
+  try { const fm = getFoundationMap(); on = fm.isHideRatslab(); has = fm.hasRatslab(); } catch (e) {}
+  btn.style.display = has ? 'flex' : 'none';
+  btn.style.background = on ? 'rgba(244,114,182,0.16)' : 'rgba(8,11,18,0.85)';
+  btn.style.border = '1px solid ' + (on ? 'rgba(244,114,182,0.6)' : 'rgba(150,170,205,0.28)');
+  btn.style.color = on ? '#f9a8d4' : 'rgba(200,212,230,0.75)';
+  const ic = document.getElementById('seqHideRatslabIc'); if (ic) ic.textContent = on ? 'grid_off' : 'grid_on';
+  const lb = document.getElementById('seqHideRatslabLbl'); if (lb) lb.textContent = on ? 'Rat slabs hidden' : 'Rat slabs';
+}
+function seqToggleHideRatslab() {
+  try { getFoundationMap().toggleHideRatslab(); } catch (e) {}
+  seqSyncHideRatslabBtn();
+}
 function rebuildFoundationPours() {
   const ids = new Set([...Object.keys(_etZones), ...Object.keys(_cupZones)]);
   const merged = {};
@@ -9819,7 +9898,7 @@ function rebuildFoundationPours() {
   });
   foundationPours = merged;
   const sview = document.getElementById('sequenceView');
-  if (sview && !sview.classList.contains('hidden')) { try { seqRecolorAreas(); } catch (e) {} renderSequenceGroups(); renderSeqRail(); }
+  if (sview && !sview.classList.contains('hidden')) { try { seqRecolorAreas(); } catch (e) {} renderSequenceGroups(); renderSeqRail(); seqSyncHideCompleteBtn(); seqSyncHideRatslabBtn(); }
   const pdView = document.getElementById('pourdayView');
   if (pdView && !pdView.classList.contains('hidden') && !mapEditMode && !isPourDayBusy()) renderPourDay();
   try { getFoundationMap().setPours(foundationPours); } catch (e) { console.error('setPours', e); }
@@ -10538,6 +10617,11 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   // Title block — themed: accent-colored mono phase "eyebrow" + clean bold name (wraps, never truncates)
   const unplacedTag = !placed ? `<span class="text-[8px] font-bold px-1.5 py-0.5 rounded shrink-0 uppercase tracking-wider" style="background:rgba(245,158,11,0.12);color:#fbbf24;border:1px solid rgba(245,158,11,0.3)" title="Draw its box in the embed-tracker app to place it">Unplaced</span>` : '';
   const eyebrowExtra = label ? ` <span class="text-white/30 italic normal-case tracking-normal font-normal">· ${escapeHtmlSeq(label)}</span>` : '';
+  // Category chip — Foundation (default) / Rat slab. Tap to switch on an already-created pour.
+  const isRat = !!(pour && pour.category === 'ratslab');
+  const catChip = isManagerView
+    ? (isRat ? `<span class="text-[8px] font-bold px-1.5 py-0.5 rounded shrink-0 uppercase tracking-wider" style="background:rgba(244,114,182,0.14);color:#f9a8d4;border:1px solid rgba(244,114,182,0.4)">Rat slab</span>` : '')
+    : `<button onclick="event.stopPropagation();setFoundationPourCategory('${escapedKey}','${isRat?'foundation':'ratslab'}')" class="text-[8px] font-bold px-1.5 py-0.5 rounded shrink-0 uppercase tracking-wider transition-all hover:brightness-125" style="${isRat?'background:rgba(244,114,182,0.14);color:#f9a8d4;border:1px solid rgba(244,114,182,0.4)':'background:rgba(255,255,255,0.04);color:rgba(200,212,230,0.45);border:1px solid rgba(255,255,255,0.1)'}" title="${isRat?'Rat slab pour — tap to make it Foundation':'Foundation pour — tap to mark as Rat slab'}">${isRat?'Rat slab':'Foundation'}</button>`;
   html += `<div class="mb-2.5">`;
   if (pourName) {
     html += `<div class="text-[9px] mono font-bold uppercase tracking-widest mb-1 truncate" style="color:${c}">${escapeHtmlSeq(phaseLabel)}${eyebrowExtra}</div>`;
@@ -10548,12 +10632,14 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
       html += `<button onclick="promptPourName('${escapedKey}')" class="font-bold text-[15px] text-white/95 leading-snug tracking-tight text-left break-words hover:text-cyan-300 inline-flex items-center gap-1.5 transition-colors" title="Edit name"><span class="break-words">${escapeHtmlSeq(pourName)}</span><span class="material-symbols-outlined shrink-0 opacity-40" style="font-size:13px">edit</span></button>`;
     }
     html += unplacedTag;
+    html += catChip;
     html += `</div>`;
   } else {
     html += `<div class="flex items-baseline gap-1.5 flex-wrap">`;
     html += `<span class="mono font-bold text-[15px] text-white/95 tracking-tight">${escapeHtmlSeq(phaseLabel)}</span>`;
     if (!isManagerView) html += `<button onclick="promptPourName('${escapedKey}')" class="text-[10px] italic text-white/30 hover:text-cyan-300 transition-colors" title="Name this pour">+ name</button>`;
     html += unplacedTag;
+    html += catChip;
     if (label) html += `<span class="text-[10px] text-white/40 italic break-words">${escapeHtmlSeq(label)}</span>`;
     html += `</div>`;
   }
@@ -10746,6 +10832,18 @@ function updateFoundationPourField(key, field, value) {
   seqRecolorAreas();
 }
 
+// Pour category: 'foundation' (default) | 'ratslab'. CUP-private field on cup-foundation/pours.
+function setFoundationPourCategory(key, cat) {
+  if (isManagerView) return;
+  cat = cat === 'ratslab' ? 'ratslab' : 'foundation';
+  const pour = Object.assign({}, foundationPours[key] || { id:key }, { category: cat });
+  foundationPours = Object.assign({}, foundationPours, { [key]: pour });   // optimistic
+  fbSet('cup-foundation/pours/' + key + '/category', cat);
+  fbSet('cup-foundation/pours/' + key + '/updatedAt', new Date().toISOString());
+  try { const fm = getFoundationMap(); fm.setPours(foundationPours); fm.selectPour(key); } catch (e) {}
+  renderSequenceGroups();
+}
+
 function cycleFoundationStatus(key) {
   if (isManagerView) return;
   const cur = (foundationPours[key] && foundationPours[key].status) || 'PENDING';
@@ -10874,7 +10972,15 @@ function showAddFoundationPourModal() {
           <div><label class="${lbl}">Area</label>${sel('afpArea',areaOpts)}</div>
           <div><label class="${lbl}">Phase</label>${sel('afpPhase',phaseOpts)}</div>
         </div>
-        <div><label class="${lbl}">Volume (CY)</label><input id="afpCy" type="number" step="1" placeholder="150" class="fld mono"></div>
+        <div class="grid grid-cols-2 gap-2">
+          <div><label class="${lbl}">Pour type</label>
+            <select id="afpCategory" class="fld">
+              <option value="foundation" style="background:#1a1a1a">Foundation</option>
+              <option value="ratslab" style="background:#1a1a1a">Rat slab</option>
+            </select>
+          </div>
+          <div><label class="${lbl}">Volume (CY)</label><input id="afpCy" type="number" step="1" placeholder="150" class="fld mono"></div>
+        </div>
         <div class="pt-3 border-t border-white/10">
           <div class="${sectionLbl}"><span class="material-symbols-outlined" style="font-size:13px">science</span>Concrete mix</div>
           <div class="space-y-3">
@@ -10919,6 +11025,7 @@ function submitAddFoundationPour() {
     mix: { psi: val('afpPsi'), aggregate: val('afpAgg'), slump: val('afpSlump'), lc3: !!document.getElementById('afpLc3')?.checked, code: val('afpMix') },
     mixCodes: val('afpMix') ? [val('afpMix')] : [],
     status: 'PENDING',
+    category: (document.getElementById('afpCategory')?.value === 'ratslab' ? 'ratslab' : 'foundation'),
     layer: 'WCG Pours',
     createdAt: new Date().toISOString(),
   };
