@@ -1671,7 +1671,7 @@ function createFoundationMap(opts){
     else if(st.tool==='polyline') t='Polyline → click points, double-click or Enter to finish, Esc to cancel.';
     else if(st.tool==='text') t='Text → click where you want a label.';
     else if(st.tool==='markselect') t='Edit markup → click a region to select it, drag its corner handles to resize the filled area, drag the body to move it, Delete to remove.';
-    else if(st.tool==='markdone') t='Mark done → tap a footing to toggle it complete (solid green). Drag to pan · pinch to zoom · Esc to exit.';
+    else if(st.tool==='markdone') t='Mark done → tap a footing to mark it complete; tap a green one to undo. Drag to pan · pinch to zoom · Esc to exit.';
     else if(st.tool==='footedit') t='Move → drag a footing to reposition it · R rotates · click to edit. Middle-mouse to pan.';
     else if(st.mode==='assign') t=(selP?('Assign → drag over footings to add them to “'+selP.name+'”.'):'Pick a pour (right panel), then drag over footings to add them to it.');
     else t='Select → click a footing to edit it, drag a box to select many (V). Middle-mouse drag to pan · scroll to zoom.';
@@ -1740,13 +1740,13 @@ function createFoundationMap(opts){
     if(!footings){ panelHost.innerHTML=''; return; }
     if(st.tool==='addfoot'){ renderAddPanel(); return; }
     const S=st, stat=FND_STAT;
+    const _mgr=(window.location.search||'').indexOf('view=manager')>=0;
     const selF=(selFootingNo!=null && byNo)?byNo[selFootingNo]:null;
     const selP=S.selId?pourById[S.selId]:null;
     let html='';
     if(selFootings.size>1){
       let gcy=0; const gtypes={}; let gn=0, gdone=0;
       selFootings.forEach(no=>{ const f=byNo[no]; if(!f||f.del)return; gn++; gcy+=f.cyv; gtypes[f.type]=(gtypes[f.type]||0)+1; if(isDone(f)) gdone++; });
-      const _mgr=(window.location.search||'').indexOf('view=manager')>=0;
       const trows=Object.keys(gtypes).sort().map(t=>`<span style="font-family:JetBrains Mono,monospace;font-size:10px;color:#cdd6e6;background:rgba(255,255,255,0.05);border-radius:5px;padding:2px 6px">${esc(t)}×${gtypes[t]}</span>`).join(' ');
       const pourBtns = pours.map(p=>`<button data-assign-pour="${p.id}" style="display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:1px solid rgba(150,170,205,0.1);background:rgba(255,255,255,0.02);border-radius:9px;padding:7px 10px;cursor:pointer;font-family:Inter;margin-bottom:4px"><span style="width:10px;height:10px;border-radius:3px;flex:0 0 auto;background:${p.color}"></span><span style="flex:1;font-size:12px;color:#eef2f8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</span></button>`).join('');
       html += `<div style="padding:16px;border-bottom:1px solid rgba(150,170,205,0.08)">`
@@ -1779,6 +1779,12 @@ function createFoundationMap(opts){
       const wLbl = isBm ? 'Width (ft)' : 'Width (ft)', lLbl = isBm ? 'Length / span (ft)' : 'Length (ft)';
       html += `<div style="padding:14px 16px 16px;border-bottom:1px solid rgba(150,170,205,0.08)">`
         + `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><span style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.42)">Footing ${esc(selF.tag)}${selF.added?' · added':''}</span><span style="font-size:12px;font-weight:700;color:#52E6E0;font-family:JetBrains Mono,monospace">${selF.cyv.toFixed(2)} CY</span></div>`
+        + (()=>{ const dn=isDone(selF);
+            return `<div style="display:flex;align-items:center;gap:8px;margin:8px 0 2px;padding:7px 10px;border-radius:9px;background:${dn?'rgba(52,211,153,0.09)':'rgba(150,170,205,0.05)'};border:1px solid ${dn?'rgba(52,211,153,0.3)':'rgba(150,170,205,0.16)'}">`
+              + `<span class="material-symbols-outlined" style="font-size:16px;color:${dn?'#34d399':'rgba(200,212,230,0.45)'}">${dn?'check_circle':'radio_button_unchecked'}</span>`
+              + `<span style="flex:1;font-size:11px;font-weight:700;color:${dn?'#6ee7b7':'rgba(200,212,230,0.7)'}">${dn?'Complete':'Not complete'}</span>`
+              + (_mgr?'':`<button data-foot-setdone="${dn?'0':'1'}" data-foot-no="${selF.no}" title="${dn?'Marked complete by mistake? Set it back to incomplete':'Mark this footing complete (solid green)'}" style="border:1px solid ${dn?'rgba(150,170,205,0.28)':'rgba(52,211,153,0.5)'};background:${dn?'rgba(255,255,255,0.03)':'rgba(52,211,153,0.16)'};color:${dn?'rgba(210,222,240,0.8)':'#6ee7b7'};border-radius:7px;padding:5px 11px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:Inter">${dn?'Mark incomplete':'Mark complete'}</button>`)
+              + `</div>`; })()
         + `<label style="${lb}">Type</label><input data-foot-field="type" value="${esc(selF.type)}" style="${inp}">`
         + `<div style="display:flex;gap:8px"><div style="flex:1"><label style="${lb}">${wLbl}</label><input data-foot-field="wFt" type="number" step="0.5" value="${selF.wFt}" style="${inp}"></div><div style="flex:1"><label style="${lb}">${lLbl}</label><input data-foot-field="lFt" type="number" step="0.5" value="${lenVal}" style="${inp}"></div></div>`
         + `<div style="display:flex;gap:8px"><div style="flex:1"><label style="${lb}">Thickness (in)</label><input data-foot-field="thk" type="number" step="1" value="${selF.thk}" style="${inp}"></div><div style="flex:1"><label style="${lb}">Pour</label><div style="${inp};color:rgba(200,212,230,0.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(pnm)}</div></div></div>`
@@ -1936,6 +1942,7 @@ function createFoundationMap(opts){
       const rsel=e.target.closest('[data-rotate-sel]'); if(rsel){ rotateSelection(); return; }
       const mds=e.target.closest('[data-mark-done-sel]'); if(mds){ markSelectionDone(true); return; }
       const cds=e.target.closest('[data-clear-done-sel]'); if(cds){ markSelectionDone(false); return; }
+      const sdn=e.target.closest('[data-foot-setdone]'); if(sdn){ setFootingDoneByNo(+sdn.getAttribute('data-foot-no'), sdn.getAttribute('data-foot-setdone')==='1'); return; }
       const ab=e.target.closest('[data-act]'); if(ab && ab.getAttribute('data-act')==='assign-toggle'){ setTool(st.mode==='assign'?'explore':'assign'); }
     });
     panelHost.addEventListener('change', e=>{
@@ -1965,6 +1972,13 @@ function createFoundationMap(opts){
   function setFootingStatus(obj){ _footStatus=obj||{}; syncChrome(); scheduleDraw(); }
   function onFootingToggle(cb){ _footToggleCb=cb; }
   function onBulkDone(cb){ _bulkDoneCb=cb; }
+  // Set one footing's complete state from the side panel (mark complete OR undo a wrong mark).
+  function setFootingDoneByNo(no, done){
+    const f=byNo[no]; if(!f||f.del) return;
+    _footStatus['fnd'+no]=done?'DONE':'';
+    startPulse(f,done); popCheck(f,done); syncChrome(); scheduleDraw(); renderPanel();
+    if(_footToggleCb){ try{ _footToggleCb(no, done); }catch(e){ console.error('footing set done', e); } }
+  }
   // Bulk mark the current multi-selection complete (or clear). Persists via one batched
   // callback (single Firebase update + feed entry), with staggered pulse rings for feedback.
   function markSelectionDone(done){
@@ -2046,7 +2060,7 @@ function createFoundationMap(opts){
     selectType, selectAllFootings, clearSelection, zoomToSelection, setSelectionDim,
     rotateSelection, armAddFooting, addFooting, getMixForType:mixFor,
     buildPourDayMap, members(pid){ return (members(pid)||[]).map(f=>f.no); },
-    setFootingStatus, onFootingToggle, onBulkDone, markSelectionDone, snapshot, getStatusSummary,
+    setFootingStatus, onFootingToggle, onBulkDone, markSelectionDone, setFootingDoneByNo, snapshot, getStatusSummary,
     setTool, setMarkColor, finishPolyline,
     deleteSelectedMarkup(){ if(selMarkupId) deleteMarkup(selMarkupId); }, clearMarkups,
     getState(){ return { mode:st.mode, tool:st.tool, selId:st.selId, markColor:st.markColor, selMarkupId, markupCount:markups.length }; }
