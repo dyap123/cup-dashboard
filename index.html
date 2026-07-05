@@ -812,6 +812,7 @@ function createFoundationMap(opts){
   let _poursExt=null;                                          // external pour set (from foundationPours)
   let markups=[], _markupCb=null, _markupTimer=0, _markDraft=null, _markBand=null, _markDrag=null, selMarkupId=null;
   let _takeoffCb=null;
+  let _footStatus={}, _footToggleCb=null, pulses=[];   // per-footing DONE (shared footings/fnd{no} store) + tap pulse rings
   let _baseFoot=null, _footEdits=null, _footEditCb=null, _footEditTimer=0, selFootingNo=null, _locked=true, _footDrag=null;
   let _typeDefs=null, _typeDefCb=null, _typeDefTimer=0;     // type-level property library (cup-foundation/footingTypes)
   let _lastAddType='F8', _markResize=null, _addFilter='';    // add-footing armed type · region-markup corner resize · type-picker filter
@@ -1020,8 +1021,9 @@ function createFoundationMap(opts){
   function w2s(x,y){ return [x*scale+tx, y*scale+ty]; }
   function s2w(x,y){ return [(x-tx)/scale, (y-ty)/scale]; }
   function evPos(e){ const r=canvas.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
-  function hitFoot(wx,wy){
-    const pad=4/scale;
+  const isDone=(f)=>_footStatus['fnd'+f.no]==='DONE';
+  function hitFoot(wx,wy,padPx){
+    const pad=(padPx||4)/scale;
     const fComplete=f=>st.hideComplete && f.pourId && pourById[f.pourId] && pourById[f.pourId].status==='complete';   // hidden → not pickable
     for(let i=footings.length-1;i>=0;i--){ const f=footings[i]; if(f.isBeam||f.del||fComplete(f)) continue;
       if(wx>=f.cx-f.w/2-pad&&wx<=f.cx+f.w/2+pad&&wy>=f.cy-f.h/2-pad&&wy<=f.cy+f.h/2+pad) return f; }
@@ -1055,6 +1057,8 @@ function createFoundationMap(opts){
     const [mx,my]=evPos(e); pointers.set(e.pointerId,{x:mx,y:my});
     if(pointers.size===2){ drag=null; band=null; _markBand=null; _markDrag=null; _selBand=null; _pinch=pinchState(); return; }
     if(e.button===1 || _spaceDown){ drag={mx,my,tx,ty,downx:mx,downy:my,pan:true}; _moved=false; canvas.style.cursor='grabbing'; return; }   // PAN = middle wheel button OR hold Space
+    // ── MARK DONE tool: tap toggles a footing complete; drag pans (glove-friendly) ──
+    if(st.tool==='markdone'){ drag={mx,my,tx,ty,downx:mx,downy:my,pan:true}; _moved=false; return; }
     const [wx,wy]=s2w(mx,my);
     // ── markup tools ──
     if(st.tool==='region'){ _markBand={x0:wx,y0:wy,x1:wx,y1:wy}; _moved=false; return; }
@@ -1108,6 +1112,15 @@ function createFoundationMap(opts){
   };
   const onUp=(e)=>{
     pointers.delete(e.pointerId); if(pointers.size<2)_pinch=null;
+    // ── mark done: tap (no drag) toggles the footing under the finger ──
+    if(st.tool==='markdone' && drag){ const wasMoved=_moved; drag=null; if(canvas) canvas.style.cursor='pointer';
+      if(!wasMoved){ const [mx,my]=evPos(e); const [wx,wy]=s2w(mx,my); const f=hitFoot(wx,wy,10);
+        if(f && !f.del){ const nowDone=!isDone(f);
+          _footStatus['fnd'+f.no]=nowDone?'DONE':'';   // optimistic — outer store + Firebase echo confirm
+          startPulse(f,nowDone); popCheck(f,nowDone); syncChrome(); scheduleDraw();
+          if(_footToggleCb){ try{ _footToggleCb(f.no, nowDone); }catch(err){ console.error('footing toggle', err); } }
+        } }
+      return; }
     // ── markup: region commit ──
     if(_markBand){ const b=_markBand; _markBand=null;
       if(_moved && Math.abs(b.x1-b.x0)>6/scale && Math.abs(b.y1-b.y0)>6/scale){
@@ -1169,6 +1182,24 @@ function createFoundationMap(opts){
     drag=null;
   };
   function doFlash(no){ flash={no,t:performance.now()}; scheduleDraw(); setTimeout(()=>{flash=null;scheduleDraw();},1400); }
+  function startPulse(f,on){ pulses.push({cx:f.cx, cy:f.cy, r0:Math.max(f.w,f.h)/2, t0:performance.now(), on}); scheduleDraw(); }
+  // Checkmark pop over a tapped footing — Motion spring (canvas can't animate DOM per footing).
+  function popCheck(f,on){
+    if(!mapArea) return;
+    const [sx,sy]=w2s(f.cx,f.cy);
+    const el=document.createElement('div');
+    el.style.cssText='position:absolute;left:'+sx+'px;top:'+sy+'px;translate:-50% -50%;z-index:7;pointer-events:none;color:'+(on?'#34d399':'#94a3b8')+';text-shadow:0 2px 10px rgba(0,0,0,0.6)';
+    el.innerHTML='<span class="material-symbols-outlined" style="font-size:26px;line-height:1">'+(on?'check_circle':'radio_button_unchecked')+'</span>';
+    mapArea.appendChild(el);
+    const M=window.Motion;
+    if(M && M.animate){
+      try{
+        M.animate(el,{scale:[0.2,1],opacity:[0,1]},{duration:0.4,type:'spring',bounce:0.5});
+        setTimeout(()=>{ try{ M.animate(el,{opacity:0,scale:1.15},{duration:0.3}); }catch(e){} },550);
+      }catch(e){}
+    }
+    setTimeout(()=>{ if(el.parentNode) el.remove(); },950);
+  }
   function showTip(f,mx,my){
     if(!tip) return; const p=f.pourId?pourById[f.pourId]:null;
     tip.innerHTML='<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:13px;color:#fff;margin-bottom:3px">'+esc(f.type)+' <span style="color:rgba(170,188,218,0.5);font-weight:500;font-family:JetBrains Mono">'+f.tag+'</span></div>'
@@ -1223,13 +1254,14 @@ function createFoundationMap(opts){
       const ia=introOf(f); if(ia<=0) return;
       const minx=Math.min(b.x1,b.x2),maxx=Math.max(b.x1,b.x2),miny=Math.min(b.y1,b.y2),maxy=Math.max(b.y1,b.y2);
       if(minx>vx1||miny>vy1||maxx<vx0||maxy<vy0) return;
-      const [p,col]=colOf(f); if(hideC && p && p.status==='complete') return; if(hideRat && p && p.category==='ratslab') return;
+      const [p,col0]=colOf(f); if(hideC && p && p.status==='complete') return; if(hideRat && p && p.category==='ratslab') return;
+      const done=isDone(f); const col=done?'#34d399':col0;   // per-footing complete → solid green
       const dim=filter!=='ALL'&&f.seq!==filter; const isSel=p&&p.id===sel;
-      let a=Math.max(footAlpha,0.55); if(isSel)a=0.95; if(dim)a*=0.12;
+      let a=Math.max(footAlpha,0.55); if(isSel)a=0.95; if(done)a=Math.max(a,0.95); if(dim)a*=0.12;
       const bw=Math.max(5,f.w*0.78);
-      ctx.globalAlpha=a*ia; ctx.fillStyle=hex2rgba(col,0.5);
+      ctx.globalAlpha=a*ia; ctx.fillStyle=hex2rgba(col,done?0.92:0.5);
       if(b.horizontal) ctx.fillRect(minx,f.cy-bw/2,maxx-minx,bw); else ctx.fillRect(f.cx-bw/2,miny,bw,maxy-miny);
-      ctx.globalAlpha=(dim?0.18:0.85)*ia; ctx.lineWidth=(isSel?1.3:0.7)/sc; ctx.strokeStyle=col;
+      ctx.globalAlpha=(dim?0.18:0.85)*ia; ctx.lineWidth=(isSel?1.3:0.7)/sc; ctx.strokeStyle=done?'#10b981':col;
       if(b.horizontal) ctx.strokeRect(minx,f.cy-bw/2,maxx-minx,bw); else ctx.strokeRect(f.cx-bw/2,miny,bw,maxy-miny);
       if(selFootings.has(f.no)){ ctx.globalAlpha=1; ctx.lineWidth=2.4/sc; ctx.strokeStyle='#52E6E0';
         if(b.horizontal) ctx.strokeRect(minx-2/sc,f.cy-bw/2-2/sc,maxx-minx+4/sc,bw+4/sc); else ctx.strokeRect(f.cx-bw/2-2/sc,miny-2/sc,bw+4/sc,maxy-miny+4/sc); }
@@ -1238,11 +1270,12 @@ function createFoundationMap(opts){
       const ia=introOf(f); if(ia<=0) return;
       const gw=f.w*(0.6+0.4*ia), gh=f.h*(0.6+0.4*ia); const x=f.cx-gw/2, y=f.cy-gh/2;
       if(x>vx1||y>vy1||x+gw<vx0||y+gh<vy0) return;
-      const [p,col]=colOf(f); if(hideC && p && p.status==='complete') return; if(hideRat && p && p.category==='ratslab') return;
+      const [p,col0]=colOf(f); if(hideC && p && p.status==='complete') return; if(hideRat && p && p.category==='ratslab') return;
+      const done=isDone(f); const col=done?'#34d399':col0;   // per-footing complete → solid green
       const dim=filter!=='ALL'&&f.seq!==filter;
-      const isSelPour=p&&p.id===sel; let a=footAlpha; if(isSelPour)a=Math.max(a,0.97); if(dim)a*=0.12;
-      ctx.globalAlpha=a*ia; ctx.fillStyle=hex2rgba(col,0.62); ctx.fillRect(x,y,gw,gh);
-      ctx.globalAlpha=(dim?0.18:1)*ia; ctx.lineWidth=(isSelPour?1.6:0.9)/sc; ctx.strokeStyle=col; ctx.strokeRect(x,y,gw,gh);
+      const isSelPour=p&&p.id===sel; let a=footAlpha; if(isSelPour)a=Math.max(a,0.97); if(done)a=Math.max(a,0.95); if(dim)a*=0.12;
+      ctx.globalAlpha=a*ia; ctx.fillStyle=hex2rgba(col,done?0.92:0.62); ctx.fillRect(x,y,gw,gh);
+      ctx.globalAlpha=(dim?0.18:1)*ia; ctx.lineWidth=(isSelPour?1.6:0.9)/sc; ctx.strokeStyle=done?'#10b981':col; ctx.strokeRect(x,y,gw,gh);
       if(selFootings.has(f.no)){ ctx.globalAlpha=1; ctx.lineWidth=2.4/sc; ctx.strokeStyle='#52E6E0'; ctx.strokeRect(f.cx-f.w/2-2/sc,f.cy-f.h/2-2/sc,f.w+4/sc,f.h+4/sc); }
     });
     ctx.globalAlpha=1;
@@ -1288,7 +1321,8 @@ function createFoundationMap(opts){
       ctx.font='600 9px JetBrains Mono, monospace'; ctx.textBaseline='middle'; ctx.textAlign='center';
       footings.forEach(f=>{ if(f.del)return; const dim=filter!=='ALL'&&f.seq!==filter; if(dim)return;
         const sx=f.cx*sc+tx, sy=f.cy*sc+ty; if(sx<-20||sy<-10||sx>cssW+20||sy>cssH+10)return;
-        ctx.fillStyle='rgba(245,250,255,0.92)'; ctx.fillText(f.type,sx,sy); });
+        if(isDone(f)){ ctx.font='800 11px Inter, sans-serif'; ctx.fillStyle='#04291a'; ctx.fillText('✓ '+f.type,sx,sy); ctx.font='600 9px JetBrains Mono, monospace'; }
+        else { ctx.fillStyle='rgba(245,250,255,0.92)'; ctx.fillText(f.type,sx,sy); } });
       ctx.textAlign='left';
     }
     if(gridCols){
@@ -1320,6 +1354,14 @@ function createFoundationMap(opts){
     if(_selBand){ const x0=_selBand.x0*sc+tx, y0=_selBand.y0*sc+ty, x1=_selBand.x1*sc+tx, y1=_selBand.y1*sc+ty;
       ctx.fillStyle='rgba(82,230,224,0.10)'; ctx.fillRect(x0,y0,x1-x0,y1-y0);
       ctx.strokeStyle='#52E6E0'; ctx.lineWidth=1.5; ctx.setLineDash([6,4]); ctx.strokeRect(x0,y0,x1-x0,y1-y0); ctx.setLineDash([]); }
+    // ── mark-done pulse rings (expanding ring, self-perpetuating like flash) ──
+    if(pulses.length){ const now=performance.now();
+      pulses=pulses.filter(pl=>{ const k=(now-pl.t0)/650; if(k>=1) return false;
+        const e2=1-Math.pow(1-k,3); const sx=pl.cx*sc+tx, sy=pl.cy*sc+ty; const r=Math.max(pl.r0*sc,8)*(0.7+2.2*e2)+4;
+        ctx.strokeStyle=pl.on?('rgba(52,211,153,'+(0.85*(1-k)).toFixed(3)+')'):('rgba(148,163,184,'+(0.7*(1-k)).toFixed(3)+')');
+        ctx.lineWidth=3; ctx.beginPath(); ctx.arc(sx,sy,r,0,7); ctx.stroke(); return true; });
+      if(pulses.length) scheduleDraw();
+    }
   }
   function buildUnderlay(){
     const W=planW, H=planH; const c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d');
@@ -1453,10 +1495,11 @@ function createFoundationMap(opts){
     if(t==='select'||t==='explore'){ st.mode='explore'; st.tool='none'; _locked=true; }
     else if(t==='assign'){ st.mode='assign'; st.tool='none'; _locked=true; }
     else if(t==='move'||t==='footedit'){ st.mode='explore'; st.tool='footedit'; _locked=false; }   // Move = footings draggable
+    else if(t==='markdone'){ st.mode='explore'; st.tool='markdone'; _locked=true; }                // Mark done = tap toggles complete
     else { st.tool=t; _locked=true; }     // region | polyline | text | markselect | addfoot
     _markDraft=null; _markBand=null; _selBand=null; _markResize=null; if(st.tool!=='markselect') selMarkupId=null;
-    if(t==='region'||t==='polyline'||t==='text'||t==='markselect'||t==='addfoot'){ selFootings=new Set(); selFootingNo=null; }
-    if(canvas) canvas.style.cursor = (st.tool==='region'||st.tool==='polyline'||st.tool==='text'||st.tool==='addfoot')?'crosshair':(st.tool==='footedit'?'move':'default');
+    if(t==='region'||t==='polyline'||t==='text'||t==='markselect'||t==='addfoot'||t==='markdone'){ selFootings=new Set(); selFootingNo=null; }
+    if(canvas) canvas.style.cursor = (st.tool==='region'||st.tool==='polyline'||st.tool==='text'||st.tool==='addfoot')?'crosshair':(st.tool==='footedit'?'move':(st.tool==='markdone'?'pointer':'default'));
     syncChrome(); renderPanel(); scheduleDraw();
   }
   function setMarkColor(c){ st.markColor=c;
@@ -1628,6 +1671,7 @@ function createFoundationMap(opts){
     else if(st.tool==='polyline') t='Polyline → click points, double-click or Enter to finish, Esc to cancel.';
     else if(st.tool==='text') t='Text → click where you want a label.';
     else if(st.tool==='markselect') t='Edit markup → click a region to select it, drag its corner handles to resize the filled area, drag the body to move it, Delete to remove.';
+    else if(st.tool==='markdone') t='Mark done → tap a footing to toggle it complete (solid green). Drag to pan · pinch to zoom · Esc to exit.';
     else if(st.tool==='footedit') t='Move → drag a footing to reposition it · R rotates · click to edit. Middle-mouse to pan.';
     else if(st.mode==='assign') t=(selP?('Assign → drag over footings to add them to “'+selP.name+'”.'):'Pick a pour (right panel), then drag over footings to add them to it.');
     else t='Select → click a footing to edit it, drag a box to select many (V). Middle-mouse drag to pan · scroll to zoom.';
@@ -1652,11 +1696,17 @@ function createFoundationMap(opts){
     elColorStatus.setAttribute('style', btnStyle(st.colorMode==='status'));
     elColorSeq.setAttribute('style', btnStyle(st.colorMode==='sequence'));
     const hc=root.querySelector('[data-fm="hideComplete"]'); if(hc){ const on=st.hideComplete; hc.setAttribute('style', hideCompleteStyle(on)); const ic=hc.querySelector('[data-ic]'); if(ic) ic.textContent=on?'visibility_off':'visibility'; const lb=hc.querySelector('[data-lbl]'); if(lb) lb.textContent=on?'Complete hidden':'Hide complete'; }
+    const md=root.querySelector('[data-fm="markDone"]'); if(md){ const on=st.tool==='markdone';
+      const mgr=(window.location.search||'').indexOf('view=manager')>=0;
+      md.setAttribute('style', hideCompleteStyle(on).replace(/82,230,224/g,'52,211,153').replace(/#7df0ec/g,'#6ee7b7')+(mgr?';display:none':''));
+      const ic=md.querySelector('[data-ic]'); if(ic) ic.textContent=on?'task_alt':'check_circle';
+      const lb=md.querySelector('[data-lbl]'); if(lb) lb.textContent=on?'Marking done… (tap footings)':'Mark done'; }
     const sn=root.querySelector('[data-fm="showNames"]'); if(sn){ const on=st.showNames; sn.setAttribute('style', hideCompleteStyle(on)); const ic=sn.querySelector('[data-ic]'); if(ic) ic.textContent=on?'label':'label_off'; const lb=sn.querySelector('[data-lbl]'); if(lb) lb.textContent=on?'Names on':'Names'; }
     const rs=root.querySelector('[data-fm="hideRatslab"]'); if(rs){ const on=st.hideRatslab; const has=hasRatslab(); rs.setAttribute('style', hideCompleteStyle(on)+(has?'':';display:none')); const ic=rs.querySelector('[data-ic]'); if(ic) ic.textContent=on?'grid_off':'grid_on'; const lb=rs.querySelector('[data-lbl]'); if(lb) lb.textContent=on?'Rat slabs hidden':'Rat slabs'; }
     if(toolsRowEl) toolsRowEl.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('style', btnStyle(st.tool===b.getAttribute('data-tool'))));
     renderSwatches();
-    if(footings && headlineEl) headlineEl.textContent = footings.length+' footings · '+pours.length+' pours · real plan';
+    if(footings && headlineEl){ const _live=footings.filter(f=>!f.del); const _dn=_live.filter(isDone).length;
+      headlineEl.textContent = _live.length+' footings · '+pours.length+' pours'+(_dn?(' · '+_dn+' done ('+Math.round(_dn/_live.length*100)+'%)'):' · real plan'); }
     renderChips();
     updateModeHint();
   }
@@ -1805,6 +1855,8 @@ function createFoundationMap(opts){
       <div data-fm="subbar" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;flex:0 0 auto;padding:6px 12px;background:rgba(8,10,16,0.85);border-bottom:1px solid rgba(150,170,205,0.08)">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.45)">Sequence</span><div data-fm="chips" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <button data-fm="markDone" title="Mark footings complete — tap a footing on the map to toggle it done (solid green)"><span class="material-symbols-outlined" data-ic style="font-size:15px;line-height:1">task_alt</span><span data-lbl>Mark done</span></button>
+          <button data-fm="exportStatus" title="Export the footing map status — printable report / save as PDF"><span class="material-symbols-outlined" style="font-size:15px;line-height:1">picture_as_pdf</span><span data-lbl>Export status</span></button>
           <button data-fm="hideComplete" title="Hide completed pours so the map isn't congested"><span class="material-symbols-outlined" data-ic style="font-size:15px;line-height:1">visibility</span><span data-lbl>Hide complete</span></button>
           <button data-fm="showNames" title="Show each pour's name and number on the map"><span class="material-symbols-outlined" data-ic style="font-size:15px;line-height:1">label</span><span data-lbl>Names</span></button>
           <button data-fm="hideRatslab" title="Hide rat slab pours so the map isn't congested"><span class="material-symbols-outlined" data-ic style="font-size:15px;line-height:1">grid_on</span><span data-lbl>Rat slabs</span></button>
@@ -1833,6 +1885,8 @@ function createFoundationMap(opts){
     toolbarEl=q('toolbar'); subbarEl=q('subbar'); hintBarEl=q('hintbar'); toolsRowEl=q('toolsrow'); swatchesEl=q('swatches');
     [elModeExplore,elModeAssign,elColorStatus,elColorSeq].forEach(b=>b.setAttribute('style',btnStyle(false)));
     { const _hc=root.querySelector('[data-fm="hideComplete"]'); if(_hc) _hc.setAttribute('style', hideCompleteStyle(st.hideComplete)); }
+    { const _md=root.querySelector('[data-fm="markDone"]'); if(_md){ _md.setAttribute('style', hideCompleteStyle(false)); if((window.location.search||'').indexOf('view=manager')>=0) _md.style.display='none'; } }
+    { const _ex=root.querySelector('[data-fm="exportStatus"]'); if(_ex) _ex.setAttribute('style', hideCompleteStyle(false)); }
     { const _sn=root.querySelector('[data-fm="showNames"]'); if(_sn) _sn.setAttribute('style', hideCompleteStyle(st.showNames)); }
     { const _rs=root.querySelector('[data-fm="hideRatslab"]'); if(_rs) _rs.setAttribute('style', hideCompleteStyle(st.hideRatslab)+';display:none'); }
     elModeExplore.onclick=()=>setTool('select');
@@ -1847,6 +1901,8 @@ function createFoundationMap(opts){
     q('zoomFit').onclick=()=>{ _fitted=true; fit(); };
     searchEl.addEventListener('input', e=>doSearch(e.target.value));
     elChips.addEventListener('click', e=>{ const b=e.target.closest('[data-filter]'); if(b) setFilter(b.getAttribute('data-filter')); });
+    q('markDone').onclick=()=>{ const on=st.tool!=='markdone'; setTool(on?'markdone':'select'); if(on) fxModeEntry(q('markDone')); };
+    q('exportStatus').onclick=()=>{ if(typeof window.exportFootingMapStatus==='function') window.exportFootingMapStatus(); };
     q('hideComplete').onclick=()=>toggleHideComplete();
     q('showNames').onclick=()=>toggleShowNames();
     q('hideRatslab').onclick=()=>toggleHideRatslab();
@@ -1897,6 +1953,53 @@ function createFoundationMap(opts){
     _fitMargin = full?46:18;
     _typeColor = !full;   // minimal preview = color footings by type (lively); full tab = grey unassigned (shows assign progress)
   }
+  // ───────── per-footing complete status (shared footings/fnd{no} store) ─────────
+  function setFootingStatus(obj){ _footStatus=obj||{}; syncChrome(); scheduleDraw(); }
+  function onFootingToggle(cb){ _footToggleCb=cb; }
+  // anime.js flourish when Mark-done mode is armed (guarded — works without the lib)
+  function fxModeEntry(btn){ if(!window.anime||!btn) return;
+    try{ window.anime({targets:btn, scale:[1,1.07,1], duration:420, easing:'easeOutBack'});
+      if(subbarEl) window.anime({targets:subbarEl.querySelectorAll('[data-lbl]'), translateY:[-3,0], opacity:[0.5,1], delay:window.anime.stagger(35), duration:300, easing:'easeOutQuad'});
+    }catch(e){} }
+  // High-res offscreen render of the whole plan for the status report (no html2canvas —
+  // temporarily swaps draw()'s ctx/viewport, renders, restores).
+  function snapshot(opts){
+    opts=opts||{}; if(!footings||!planW||!ctx) return null;
+    const W=opts.width||2600, H=Math.round(W*planH/planW);
+    const off=document.createElement('canvas'); off.width=W; off.height=H;
+    const save={ctx,tx,ty,scale,cssW,cssH, hideC:st.hideComplete, hideRat:st.hideRatslab, filter:st.filter, selId:st.selId, showNames:st.showNames,
+      selF:selFootings, selNo:selFootingNo, flash, pulses, selBand:_selBand, band, markBand:_markBand, introT:_introT};
+    try{
+      ctx=off.getContext('2d');
+      cssW=W/dpr; cssH=H/dpr;                                   // draw() multiplies by dpr — compensate
+      const m=40/dpr, s=Math.min((cssW-m*2)/planW,(cssH-m*2)/planH);
+      scale=s; tx=(cssW-planW*s)/2; ty=(cssH-planH*s)/2;
+      st.hideComplete=false; st.hideRatslab=false; st.filter='ALL'; st.selId=null; st.showNames=opts.names!==false;
+      selFootings=new Set(); selFootingNo=null; flash=null; pulses=[]; _selBand=null; band=null; _markBand=null; _introT=0;
+      draw();                                                    // draw() clears first, so composite onto dark after
+      const fin=document.createElement('canvas'); fin.width=W; fin.height=H;
+      const fc=fin.getContext('2d'); fc.fillStyle='#0d1119'; fc.fillRect(0,0,W,H); fc.drawImage(off,0,0);
+      return fin.toDataURL('image/png');
+    }catch(e){ console.error('foundation snapshot', e); return null; }
+    finally{
+      ctx=save.ctx; tx=save.tx; ty=save.ty; scale=save.scale; cssW=save.cssW; cssH=save.cssH;
+      st.hideComplete=save.hideC; st.hideRatslab=save.hideRat; st.filter=save.filter; st.selId=save.selId; st.showNames=save.showNames;
+      selFootings=save.selF; selFootingNo=save.selNo; flash=save.flash; pulses=save.pulses; _selBand=save.selBand; band=save.band; _markBand=save.markBand; _introT=save.introT;
+      scheduleDraw();
+    }
+  }
+  // Per-pour complete/remaining rollup for the status report.
+  function getStatusSummary(){
+    const out={pours:[], unassigned:{name:'Unassigned',total:0,done:0,cy:0,cyDone:0}, totals:{total:0,done:0,cy:0,cyDone:0}};
+    if(!footings) return out;
+    const rows={};
+    (pours||[]).forEach(p=>{ rows[p.id]={id:p.id,name:p.name,seq:p.seq,status:p.status,category:p.category,total:0,done:0,cy:0,cyDone:0}; });
+    footings.forEach(f=>{ if(f.del) return; const d=isDone(f); const r=(f.pourId&&rows[f.pourId])?rows[f.pourId]:out.unassigned;
+      r.total++; r.cy+=f.cyv||0; out.totals.total++; out.totals.cy+=f.cyv||0;
+      if(d){ r.done++; r.cyDone+=f.cyv||0; out.totals.done++; out.totals.cyDone+=f.cyv||0; } });
+    out.pours=(pours||[]).map(p=>rows[p.id]).sort((a,b)=>(parseFloat(a.seq)-parseFloat(b.seq))||String(a.name).localeCompare(String(b.name)));
+    return out;
+  }
   function mount(container, o){ ensureBuilt(); relocate(container, o); }
   function relocate(container, o){
     ensureBuilt(); o=o||{};
@@ -1924,6 +2027,7 @@ function createFoundationMap(opts){
     selectType, selectAllFootings, clearSelection, zoomToSelection, setSelectionDim,
     rotateSelection, armAddFooting, addFooting, getMixForType:mixFor,
     buildPourDayMap, members(pid){ return (members(pid)||[]).map(f=>f.no); },
+    setFootingStatus, onFootingToggle, snapshot, getStatusSummary,
     setTool, setMarkColor, finishPolyline,
     deleteSelectedMarkup(){ if(selMarkupId) deleteMarkup(selMarkupId); }, clearMarkups,
     getState(){ return { mode:st.mode, tool:st.tool, selId:st.selId, markColor:st.markColor, selMarkupId, markupCount:markups.length }; }
@@ -1955,7 +2059,8 @@ function attachFirebaseListeners() {
     renderLive();
   });
   fbListen('footings', (val) => {
-    if (val) { pourDay.footingStatus = val; renderMapSection(); renderLive(); }
+    if (val) { pourDay.footingStatus = val; renderMapSection(); renderLive();
+      try { getFoundationMap().setFootingStatus(val); } catch(e){} }
   });
   fbListen('checklist', (val) => {
     if (!val) return;
@@ -3496,6 +3601,8 @@ function switchTab(tab) {
     const fm = getFoundationMap();
     fm.relocate(document.getElementById('footingMapWrap'), { panel: true, chrome: 'full' });   // immersive: full chrome + takeoff panel
     fm.kick();
+    wireFoundationFootingStatus();                       // Mark-done wiring + seed (idempotent, offline-safe)
+    if (typeof loadFxLibs === 'function') loadFxLibs();  // warm anime.js + Motion before the first tap
   }
 }
 
@@ -4566,6 +4673,32 @@ function toggleFooting(id) {
   if (newStatus) fbPush('feed', { ts:new Date().toISOString(), type:'footing', msg:`${id} → ${newStatus === 'DONE' ? '100%' : newStatus+'%'}`, pourId: getActivePour()?.id || '' });
   if (newStatus) appendPourLog('footing', id+' → '+(newStatus==='DONE'?'100%':newStatus+'%'));
   renderMapSection();
+}
+// Binary mark-complete used by the Foundation map (tap → DONE, tap again → clear).
+// Shares the same footings/{id} store as the Pour-Day map (id = 'fnd'+footing no),
+// so a footing marked here reads 100% everywhere.
+function setFootingDone(id, done) {
+  if (isManagerView) return; // read-only for managers
+  const status = done ? 'DONE' : '';
+  pourDay.footingStatus[id] = status;
+  localStorage.setItem('cup_ftg_'+id, status);
+  fbSet(`footings/${id.replace(/[.$\[\]#]/g, '_')}`, status);
+  if (done) fbPush('feed', { ts:new Date().toISOString(), type:'footing', msg:`Footing ${id.replace('fnd','#')} marked complete`, pourId:'' });
+  try { getFoundationMap().setFootingStatus(pourDay.footingStatus); } catch(e){}
+  renderMapSection();
+}
+// Wire the Foundation map's Mark-done taps + seed its status (idempotent; also works offline).
+// localStorage first, then in-memory Firebase state wins.
+function wireFoundationFootingStatus() {
+  const fm = getFoundationMap();
+  fm.onFootingToggle((no, done) => { if (isManagerView) return; setFootingDone('fnd'+no, done); });
+  const seed = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.indexOf('cup_ftg_fnd') === 0) { const v = localStorage.getItem(k); if (v) seed[k.slice(8)] = v; }
+  }
+  Object.assign(seed, pourDay.footingStatus);
+  fm.setFootingStatus(seed);
 }
 
 // ── EMBED CHECK STATUS ─────────────────────────────────────────────────────
@@ -6109,6 +6242,112 @@ function exportPourReport() {
   w.document.write(html.replace('</body>', shareBar + '</body>'));
   w.document.close();
 }
+
+// ── FX LIBS (anime.js + Motion) — lazy-loaded when the footing map opens ────
+let _fxLibsPromise = null;
+function loadFxLibs() {
+  if (window.anime && window.Motion) return Promise.resolve();
+  if (_fxLibsPromise) return _fxLibsPromise;
+  _fxLibsPromise = new Promise((resolve) => {
+    let n = 0; const done = () => { if (++n >= 2) resolve(); };
+    const a = document.createElement('script');
+    a.src = 'https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js';
+    a.onload = done; a.onerror = done; document.head.appendChild(a);
+    const m = document.createElement('script');
+    m.src = 'https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js';
+    m.onload = done; m.onerror = done; document.head.appendChild(m);
+  });
+  return _fxLibsPromise;
+}
+
+// ── FOOTING MAP STATUS EXPORT — printable report (map snapshot + per-pour table) ──
+function exportFootingMapStatus() {
+  const fm = getFoundationMap();
+  const img = fm.snapshot ? fm.snapshot() : null;
+  const sum = fm.getStatusSummary ? fm.getStatusSummary() : null;
+  if (!img || !sum || !sum.totals.total) { alert('Footing map not ready yet — open the Footing Map tab and let it load first.'); return; }
+  const today = new Date().toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'});
+  const pct = sum.totals.total ? Math.round(sum.totals.done / sum.totals.total * 100) : 0;
+  const stName = s => ({complete:'Complete', progress:'In progress', scheduled:'Scheduled', unplaced:'Unassigned'})[s] || s || '—';
+  const bar = (d,t) => { const p = t ? Math.round(d/t*100) : 0;
+    return `<div style="display:flex;align-items:center;gap:6pt"><div style="flex:1;height:7pt;background:#e2e8f0;border-radius:4pt;overflow:hidden"><div class="pbar" style="width:${p}%;height:100%;background:${p===100?'#16a34a':'#1C2E54'}"></div></div><span style="font-size:8pt;color:#333;min-width:24pt;text-align:right">${p}%</span></div>`; };
+  const row = (r, bold) => `<tr class="rrow"${bold?' style="font-weight:700;background:#f0f4f8"':''}>
+    <td>${bold?'<strong>TOTAL</strong>':`<strong>${r.name}</strong>`}</td>
+    <td>${r.seq!=null&&r.seq!==''?('Seq '+r.seq):'—'}</td>
+    <td class="${r.status==='complete'?'ok':(r.status==='progress'?'warn':'')}">${bold?'':stName(r.status)+(r.category==='ratslab'?' · rat slab':'')}</td>
+    <td>${r.done} / ${r.total}</td>
+    <td style="min-width:100pt">${bar(r.done, r.total)}</td>
+    <td>${r.cyDone.toFixed(1)} / ${r.cy.toFixed(1)} CY</td></tr>`;
+  const rows = sum.pours.map(p => row(p)).join('')
+    + (sum.unassigned.total ? row(Object.assign({seq:null,status:'unplaced'}, sum.unassigned)) : '')
+    + row(Object.assign({seq:null,status:''}, sum.totals, {name:'TOTAL'}), true);
+
+  let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Footing Map Status — ${today}</title>
+  <style>
+    body{font-family:Arial,sans-serif;font-size:10pt;color:#1a1a1a;margin:0;padding:0.5in 0.6in}
+    h1{font-size:16pt;color:#1C2E54;margin:0 0 4pt}
+    h2{font-size:11pt;color:#333;margin:16pt 0 6pt;border-bottom:1.5pt solid #1C2E54;padding-bottom:3pt}
+    .meta{font-size:8pt;color:#666;margin-bottom:12pt}
+    .kpi-row{display:flex;gap:20pt;margin:8pt 0 14pt}
+    .kpi{background:#f0f4f8;padding:8pt 14pt;border-radius:4pt;text-align:center;flex:1}
+    .kpi-val{font-size:18pt;font-weight:700;color:#1C2E54}
+    .kpi-label{font-size:7pt;text-transform:uppercase;color:#666;letter-spacing:0.5pt}
+    table{width:100%;border-collapse:collapse;margin:6pt 0}
+    th{background:#1C2E54;color:#fff;font-size:7.5pt;font-weight:700;padding:4pt 6pt;text-align:left;text-transform:uppercase}
+    td{padding:4pt 6pt;font-size:9pt;border-bottom:0.5pt solid #e2e8f0}
+    tr:nth-child(even){background:#f8fafc}
+    .ok{color:#166534} .warn{color:#92400e} .bad{color:#991b1b}
+    .map-img{width:100%;border-radius:4pt;background:#0d1119;page-break-inside:avoid;display:block}
+    @page{size:letter landscape;margin:0.35in}
+    @media print{body{padding:0.1in 0.2in}.rrow{opacity:1!important;transform:none!important}}
+  </style></head><body style="padding-top:50pt">
+  <h1>WEBCOR CONCRETE — Footing Map Status</h1>
+  <div class="meta">LACC Foundation · Generated: ${today} · ${sum.totals.done} of ${sum.totals.total} footings complete</div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-val">${sum.totals.total}</div><div class="kpi-label">Total footings</div></div>
+    <div class="kpi"><div class="kpi-val ok">${sum.totals.done}</div><div class="kpi-label">Complete</div></div>
+    <div class="kpi"><div class="kpi-val ${sum.totals.total-sum.totals.done>0?'warn':'ok'}">${sum.totals.total-sum.totals.done}</div><div class="kpi-label">Remaining</div></div>
+    <div class="kpi"><div class="kpi-val">${pct}%</div><div class="kpi-label">% Complete</div></div>
+    <div class="kpi"><div class="kpi-val">${sum.totals.cyDone.toFixed(0)} / ${sum.totals.cy.toFixed(0)}</div><div class="kpi-label">CY placed / total</div></div>
+  </div>
+  <h2>Footing Map</h2>
+  <img class="map-img" src="${img}">
+  <div style="font-size:7.5pt;color:#666;margin-top:3pt">Solid green = footing marked complete in the field · pour outlines colored by pour status.</div>
+  <h2>Status by Pour</h2>
+  <table><tr><th>Pour</th><th>Sequence</th><th>Pour status</th><th>Footings done</th><th>Progress</th><th>CY done / total</th></tr>${rows}</table>
+  <div style="margin-top:20pt;font-size:7pt;color:#999;border-top:0.5pt solid #ccc;padding-top:4pt">
+    Footing Map Status · Generated ${today} · Webcor Concrete / OpenYap
+  </div>
+  </body></html>`;
+
+  const shareBar = `<div style="position:fixed;top:0;left:0;right:0;z-index:999;background:#1C2E54;padding:8pt 16pt;display:flex;align-items:center;justify-content:space-between;gap:8pt;font-family:Arial,sans-serif;flex-wrap:wrap" id="shareBar">
+    <span style="color:#fff;font-size:10pt;font-weight:700">Footing Map Status</span>
+    <div style="display:flex;gap:6pt;flex-wrap:wrap">
+      <button onclick="window.print()" style="background:#4ADE80;color:#000;border:none;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Print / Save as PDF</button>
+      <button onclick="navigator.clipboard.writeText(document.body.innerText).then(()=>this.textContent='Copied!').catch(()=>{})" style="background:#fff2;color:#fff;border:1px solid #fff3;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Copy Text</button>
+      ${typeof navigator.share === 'function' ? '<button onclick="navigator.share({title:\'Footing Map Status\',text:document.body.innerText}).catch(()=>{})" style="background:#fff2;color:#fff;border:1px solid #fff3;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Share</button>' : ''}
+      <button onclick="window.close();window.location.href='https://dyap123.github.io/cup-dashboard/'" style="background:#fff2;color:#fff;border:1px solid #fff3;padding:6pt 14pt;border-radius:6pt;font-size:9pt;font-weight:700;cursor:pointer">Back</button>
+      <button onclick="document.getElementById('shareBar').remove()" style="background:transparent;color:#fff6;border:none;padding:6pt 8pt;font-size:12pt;cursor:pointer">&times;</button>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"><\/scr`+`ipt>
+  <script>
+  // staggered row entrance (screen only — print CSS forces rows visible)
+  window.addEventListener('load', function(){
+    if (!window.anime) return;
+    try {
+      anime({ targets: '.rrow', opacity: [0,1], translateY: [8,0], delay: anime.stagger(45), duration: 380, easing: 'easeOutQuad' });
+      anime({ targets: '.kpi', opacity: [0,1], scale: [0.94,1], delay: anime.stagger(60), duration: 340, easing: 'easeOutQuad' });
+    } catch(e){}
+  });
+  <\/scr`+`ipt>
+  <style>@media print{#shareBar{display:none!important}body{padding-top:0.1in!important}}</style>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html.replace('</body>', shareBar + '</body>'));
+  w.document.close();
+}
+window.exportFootingMapStatus = exportFootingMapStatus;
 
 function renderLiveFeed() {
   const el = document.getElementById('liveFeedContent');
@@ -9979,6 +10218,7 @@ function renderFootingTypesModal(){
 }
 
 function attachFoundationListeners() {
+  wireFoundationFootingStatus();   // Mark-done taps + status seed (works with or without Firebase)
   if (!db) return;
   const fm = getFoundationMap();
   fm.onTakeoffChange(() => renderSeqRail());   // keep the dashboard rail live as footings get assigned
