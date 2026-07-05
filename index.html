@@ -785,7 +785,7 @@ const FND_POUR_STATUS = { PENDING:'scheduled', ORDERED:'progress', COMPLETE:'com
 const FND_SWATCHES = ['#38bdf8','#2dd4bf','#22d3ee','#a78bfa','#fbbf24','#34d399','#f87171','#f472b6','#fb923c','#e2e8f0'];
 const FND_STATUS_BY_AREA = { '0':'complete','0.5-1':'complete','0.5-2':'complete','1':'complete','3-3':'progress','3-4':'progress','2-9':'progress','1-5':'scheduled','1-6':'scheduled','2-7':'scheduled','3-8':'scheduled' };
 // Footing-type families → color (used for the lively "general idea" preview when nothing is assigned yet)
-const FND_TYPECOL = { F:'#34d399', PC:'#a78bfa', MPC:'#fbbf24', GB:'#5b6b86' };
+const FND_TYPECOL = { F:'#ec4899', PC:'#a78bfa', MPC:'#fbbf24', GB:'#5b6b86' };   // F (spread footings) = magenta-pink — complements the violet pile caps, distinct from rat-slab pink + completed green
 function fndTypeCol(t){ t=String(t).toUpperCase(); if(t.indexOf('MPC')===0)return FND_TYPECOL.MPC; if(t.indexOf('PC')===0)return FND_TYPECOL.PC; if(t.charAt(0)==='F')return FND_TYPECOL.F; if(t.indexOf('GB')===0)return FND_TYPECOL.GB; return '#64748b'; }
 // Engineered footing dimensions from the LACC "Footing Types" schedule (CSV import).
 // wFt = Width (ft), lFt = Length (ft), thk = Depth (in = depth-ft × 12). Blank = not specified
@@ -10081,7 +10081,7 @@ function renderSeqRail() {
   let t = { totalCY:0, footingCount:0, pourCount:0 };
   try { t = getFoundationMap().getTakeoff() || t; } catch (e) {}
   const pourCount = Object.values(foundationPours || {}).filter(p => !p.archived).length || t.pourCount;
-  const legend = [['#34d399','Spread ftg'],['#a78bfa','Pile cap'],['#fbbf24','Mat cap'],['#5b6b86','Grade beam']]
+  const legend = [['#ec4899','Spread ftg'],['#a78bfa','Pile cap'],['#fbbf24','Mat cap'],['#5b6b86','Grade beam']]
     .map(([c,l]) => `<div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:${c}"></span><span style="font-size:10px;color:rgba(200,212,230,0.6)">${l}</span></div>`).join('');
   rail.innerHTML =
     `<div style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.45)">Takeoff</div>`
