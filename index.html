@@ -783,6 +783,9 @@ const FND_SEQCOL = { '0':'#38bdf8','0.5':'#2dd4bf','1':'#22d3ee','2':'#a78bfa','
 const FND_STAT = { complete:['Complete','#34d399'], progress:['In progress','#fbbf24'], scheduled:['Scheduled','#38bdf8'], unplaced:['Unassigned','#64748b'] };
 const FND_POUR_STATUS = { PENDING:'scheduled', ORDERED:'progress', COMPLETE:'complete' };  // dashboard enum → engine status
 const FND_SWATCHES = ['#38bdf8','#2dd4bf','#22d3ee','#a78bfa','#fbbf24','#34d399','#f87171','#f472b6','#fb923c','#e2e8f0'];
+// Pour-color picker palette — deliberately EXCLUDES the footing-TYPE hues (F #ec4899, PC #a78bfa,
+// MPC #fbbf24, GB #5b6b86) and rat-slab pink #f472b6, so a pour color can't be mistaken for a property color.
+const FND_POUR_SWATCHES = ['#38bdf8','#22d3ee','#2dd4bf','#34d399','#a3e635','#fb923c','#f87171','#60a5fa','#94a3b8','#e2e8f0'];
 const FND_STATUS_BY_AREA = { '0':'complete','0.5-1':'complete','0.5-2':'complete','1':'complete','3-3':'progress','3-4':'progress','2-9':'progress','1-5':'scheduled','1-6':'scheduled','2-7':'scheduled','3-8':'scheduled' };
 // Footing-type families → color (used for the lively "general idea" preview when nothing is assigned yet)
 const FND_TYPECOL = { F:'#ec4899', PC:'#a78bfa', MPC:'#fbbf24', GB:'#5b6b86' };   // F (spread footings) = magenta-pink — complements the violet pile caps, distinct from rat-slab pink + completed green
@@ -797,7 +800,7 @@ function getFoundationMap(){ if(!_fndMap) _fndMap = createFoundationMap({ colorM
 
 function createFoundationMap(opts){
   opts = opts || {};
-  const st = { mode:'explore', colorMode:opts.colorMode||'status', filter:'ALL', hideComplete:(localStorage.getItem('cup_fnd_hidedone')==='1'), showNames:(localStorage.getItem('cup_fnd_shownames')==='1'), hideRatslab:(localStorage.getItem('cup_fnd_hideratslab')==='1'), selId:null, zoomPct:100, tool:'none', markColor:'#fbbf24' };
+  const st = { mode:'explore', colorMode:opts.colorMode||'status', filter:'ALL', hideComplete:(localStorage.getItem('cup_fnd_hidedone')==='1'), showNames:(localStorage.getItem('cup_fnd_shownames')==='1'), showDates:(localStorage.getItem('cup_fnd_showdates')==='1'), hideRatslab:(localStorage.getItem('cup_fnd_hideratslab')==='1'), selId:null, zoomPct:100, tool:'none', markColor:'#fbbf24' };
   const RATSLAB_COL = '#f472b6';   // distinct category color for rat slab pours (pink — not a sequence/status hue)
   // geometry / render state
   let footings=null, pours=null, pourById=null, byNo=null, gridCols=null, gridRows=null;
@@ -825,7 +828,7 @@ function createFoundationMap(opts){
   let toolbarEl=null, subbarEl=null, hintBarEl=null, toolsRowEl=null, swatchesEl=null;
 
   // ───────── pure helpers ─────────
-  const hex2rgba=(h,a)=>{ const n=parseInt(h.slice(1),16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; };
+  const hex2rgba=(h,a)=>{ h=String(h||''); if(h.charAt(0)==='#'){ const n=parseInt(h.slice(1),16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; } const m=/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(h); if(m) return `rgba(${m[1]},${m[2]},${m[3]},${a})`; return `rgba(148,163,184,${a})`; };   // accepts #hex or rgb()/rgba() (custom pour colors are stored as rgb())
   const fmt=(n)=>Math.round(n).toLocaleString();
   const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const seqOf=(area)=>{ if(!area) return null; if(area.indexOf('0.5')===0) return '0.5'; return area.split('-')[0]; };
@@ -966,8 +969,10 @@ function createFoundationMap(opts){
     pours=Object.keys(ext).filter(id=>!ext[id].archived).map(id=>{
       const e=ext[id];
       const seq=(e.sequence!=null&&e.sequence!=='')?String(e.sequence):(e.area?seqOf(e.area):'');
-      let color; try{ color=seqColor(e.sequence,e.color); }catch(_){ color=FND_SEQCOL[seq]||'#94a3b8'; }
-      return { id, name:e.name||('Pour '+id), seq, color, status:(FND_POUR_STATUS[e.status]||'scheduled'), category:(e.category==='ratslab'?'ratslab':'foundation') };
+      // Map palette is self-contained: a custom per-pour color ('R,G,B') wins, else the map's own FND_SEQCOL default.
+      const _rgbRe=/^\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*$/;
+      const color=(e.color&&_rgbRe.test(String(e.color)))?('rgb('+e.color+')'):(FND_SEQCOL[seq]||'#94a3b8');
+      return { id, name:e.name||('Pour '+id), seq, color, pour_date:e.pour_date||'', status:(FND_POUR_STATUS[e.status]||'scheduled'), category:(e.category==='ratslab'?'ratslab':'foundation') };
     });
     pourById={}; pours.forEach(p=>pourById[p.id]=p);
     // re-resolve membership against current pours (drop orphans whose pour vanished)
@@ -1235,19 +1240,8 @@ function createFoundationMap(opts){
     const filter=st.filter, cm=st.colorMode, sel=st.selId, hideC=st.hideComplete, hideRat=st.hideRatslab;
     const showTags=sc>base*2.0;
     const footAlpha=Math.max(0.4,Math.min(0.95,(sc/base-0.4)/1.2));
-    pours.forEach(p=>{
-      if(hideC && p.status==='complete') return;                 // "Hide complete" — declutter finished pours
-      if(hideRat && p.category==='ratslab') return;              // "Hide rat slabs"
-      const b=pourBox(p.id); if(!b) return;
-      if(b.x>vx1||b.y>vy1||b.x+b.w<vx0||b.y+b.h<vy0) return;
-      const hu=pourHull(p.id); if(!hu||hu.length<3) return;
-      const dim=filter!=='ALL'&&p.seq!==filter; const col=p.category==='ratslab'?RATSLAB_COL:(cm==='status'?FND_STAT[p.status][1]:p.color); const isSel=p.id===sel;
-      ctx.globalAlpha=dim?0.1:1;
-      ctx.beginPath(); hu.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1])); ctx.closePath();
-      ctx.fillStyle=hex2rgba(col,isSel?0.15:0.05); ctx.fill();
-      ctx.lineWidth=(isSel?3:1.8)/sc; ctx.strokeStyle=col; ctx.setLineDash(p.status==='complete'?[]:[9/sc,7/sc]); ctx.stroke(); ctx.setLineDash([]);
-    });
-    const colOf=(f)=>{ const p=f.pourId?pourById[f.pourId]:null; return [p, !p?(_typeColor?fndTypeCol(f.type):'#64748b'):(p.category==='ratslab'?RATSLAB_COL:(cm==='status'?FND_STAT[p.status][1]:(FND_SEQCOL[p.seq]||'#94a3b8')))]; };
+    // (No pour hull/area outline — sequence color lives on the footing cells themselves.)
+    const colOf=(f)=>{ const p=f.pourId?pourById[f.pourId]:null; return [p, !p?(_typeColor?fndTypeCol(f.type):'#64748b'):(p.category==='ratslab'?RATSLAB_COL:(cm==='status'?FND_STAT[p.status][1]:(p.color||FND_SEQCOL[p.seq]||'#94a3b8')))]; };
     const introP = _introT ? Math.min(1,(performance.now()-_introT)/1150) : 1;
     const introOf=(f)=>{ if(!_introT) return 1; const fx=f.cx/(planW||1); return Math.max(0,Math.min(1,(introP - fx*0.45)/0.5)); };
     footings.forEach(f=>{ if(!f.isBeam||!f.beam||f.del) return; const b=f.beam;
@@ -1304,14 +1298,15 @@ function createFoundationMap(opts){
     // Labels: always on the selected pour; on ALL pours when the "Names" toggle is on. #N via cupPourNo.
     const _pnos = st.showNames ? ((typeof cupPourNo==='function') ? cupPourNo() : {}) : null;
     pours.forEach(p=>{
-      if(p.id!==sel && !st.showNames) return;   // clean by default — only the selected pour is labeled
+      if(p.id!==sel && !st.showNames && !st.showDates) return;   // clean by default — only the selected pour is labeled
       if(hideC && p.status==='complete') return;
       if(hideRat && p.category==='ratslab') return;
       const b=pourBox(p.id); if(!b) return; const dim=filter!=='ALL'&&p.seq!==filter; if(dim)return;
       const sx=(b.x+b.w/2)*sc+tx, sy=b.y*sc+ty;
       if(sx>cssW+40||sy>cssH||sx<-160||sy<-30) return;
       const _no=_pnos?_pnos[p.id]:null;
-      const label=(p.category==='ratslab'?'▨ ':'')+(_no?('#'+_no+'  '):'')+p.name+'  ·  '+fmt(pourCY(p.id))+' CY';
+      const mid = st.showDates ? (p.pour_date ? mdFromIso(p.pour_date) : 'No date') : p.name;   // Dates toggle → show the pour date instead of its name
+      const label=(p.category==='ratslab'?'▨ ':'')+(_no?('#'+_no+'  '):'')+mid+'  ·  '+fmt(pourCY(p.id))+' CY';
       ctx.font='700 11px JetBrains Mono, monospace'; const tw=ctx.measureText(label).width;
       const lcol=p.category==='ratslab'?RATSLAB_COL:(cm==='status'?FND_STAT[p.status][1]:p.color);
       ctx.fillStyle=hex2rgba(lcol,0.96); rrect(ctx,sx-tw/2-8,sy-24,tw+16,20,5); ctx.fill();
@@ -1648,6 +1643,8 @@ function createFoundationMap(opts){
   function toggleHideComplete(){ setHideComplete(!st.hideComplete); }
   function setShowNames(v){ st.showNames=!!v; try{ localStorage.setItem('cup_fnd_shownames', v?'1':'0'); }catch(e){} syncChrome(); scheduleDraw(); }
   function toggleShowNames(){ setShowNames(!st.showNames); }
+  function setShowDates(v){ st.showDates=!!v; try{ localStorage.setItem('cup_fnd_showdates', v?'1':'0'); }catch(e){} syncChrome(); scheduleDraw(); }
+  function toggleShowDates(){ setShowDates(!st.showDates); }
   function setHideRatslab(v){ st.hideRatslab=!!v; try{ localStorage.setItem('cup_fnd_hideratslab', v?'1':'0'); }catch(e){} syncChrome(); renderPanel(); scheduleDraw(); }
   function toggleHideRatslab(){ setHideRatslab(!st.hideRatslab); }
   function hasRatslab(){ return !!(pours && pours.some(p=>p.category==='ratslab')); }
@@ -1702,6 +1699,7 @@ function createFoundationMap(opts){
       const ic=md.querySelector('[data-ic]'); if(ic) ic.textContent=on?'task_alt':'check_circle';
       const lb=md.querySelector('[data-lbl]'); if(lb) lb.textContent=on?'Marking done… (tap footings)':'Mark done'; }
     const sn=root.querySelector('[data-fm="showNames"]'); if(sn){ const on=st.showNames; sn.setAttribute('style', hideCompleteStyle(on)); const ic=sn.querySelector('[data-ic]'); if(ic) ic.textContent=on?'label':'label_off'; const lb=sn.querySelector('[data-lbl]'); if(lb) lb.textContent=on?'Names on':'Names'; }
+    const sd=root.querySelector('[data-fm="showDates"]'); if(sd){ const on=st.showDates; sd.setAttribute('style', hideCompleteStyle(on)); const ic=sd.querySelector('[data-ic]'); if(ic) ic.textContent=on?'event':'event_busy'; const lb=sd.querySelector('[data-lbl]'); if(lb) lb.textContent=on?'Dates on':'Dates'; }
     const rs=root.querySelector('[data-fm="hideRatslab"]'); if(rs){ const on=st.hideRatslab; const has=hasRatslab(); rs.setAttribute('style', hideCompleteStyle(on)+(has?'':';display:none')); const ic=rs.querySelector('[data-ic]'); if(ic) ic.textContent=on?'grid_off':'grid_on'; const lb=rs.querySelector('[data-lbl]'); if(lb) lb.textContent=on?'Rat slabs hidden':'Rat slabs'; }
     if(toolsRowEl) toolsRowEl.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('style', btnStyle(st.tool===b.getAttribute('data-tool'))));
     renderSwatches();
@@ -1805,18 +1803,23 @@ function createFoundationMap(opts){
       const grp={}; mem.forEach(f=>{ const k=f.type; if(!grp[k])grp[k]={type:k,count:0,cy:0}; grp[k].count++; grp[k].cy+=f.cyv; });
       const rows=Object.values(grp).sort((a,b)=>b.cy-a.cy); const maxcy=Math.max(1,...rows.map(r=>r.cy));
       const [sl,scol]=stat[selP.status]; const active=S.mode==='assign';
+      // normalize hex or rgb() to an 'R,G,B' string so we can ring the pour's current swatch
+      const _normCol=s=>{ s=String(s||'').trim(); let m=/^#?([0-9a-fA-F]{6})$/.exec(s); if(m){ const n=parseInt(m[1],16); return ((n>>16)&255)+','+((n>>8)&255)+','+(n&255); } m=/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i.exec(s); if(m) return m[1]+','+m[2]+','+m[3]; return s; };
+      const _curColCsv=_normCol(selP.color);
       html += `<div style="padding:16px 16px 14px;border-bottom:1px solid rgba(150,170,205,0.08)">`
         + `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px"><span style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.42)">Selected Pour</span><span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;color:${scol};background:${hex2rgba(scol,0.14)};border:1px solid ${hex2rgba(scol,0.35)}">${sl}</span></div>`
         + `<div style="display:flex;align-items:center;gap:9px;margin-bottom:14px"><span style="width:14px;height:14px;border-radius:4px;background:${selP.color};box-shadow:0 0 10px ${hex2rgba(selP.color,0.6)}"></span><div><div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16px;color:#fff;line-height:1.1">${esc(selP.name)}</div><div style="font-size:11px;color:rgba(170,188,218,0.5);font-family:'JetBrains Mono',monospace;margin-top:2px">${selP.seq==='0.5'?'Sequence 0.5':'Sequence '+selP.seq}</div></div></div>`
         + `<div style="display:flex;gap:10px;margin-bottom:13px"><div style="flex:1;padding:10px 12px;border-radius:11px;background:rgba(0,0,0,0.3);border:1px solid rgba(150,170,205,0.10)"><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:24px;color:#fff;letter-spacing:-0.02em;line-height:1">${fmt(cy)}</div><div style="font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(170,188,218,0.45);margin-top:3px">Cubic yards</div></div><div style="flex:1;padding:10px 12px;border-radius:11px;background:rgba(0,0,0,0.3);border:1px solid rgba(150,170,205,0.10)"><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:24px;color:#fff;letter-spacing:-0.02em;line-height:1">${mem.length}</div><div style="font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(170,188,218,0.45);margin-top:3px">Footings</div></div></div>`
         + `<button data-act="assign-toggle" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid ${active?'rgba(82,230,224,0.5)':'rgba(82,230,224,0.4)'};background:${active?'rgba(82,230,224,0.18)':'rgba(82,230,224,0.1)'};color:#7df0ec;border-radius:10px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:Inter"><span class="material-symbols-outlined" style="font-size:16px">${active?'check':'edit'}</span>${active?'Done — finish editing area':'Edit area — add / remove footings'}</button>`
-        + `<div style="font-size:10px;color:rgba(170,188,218,0.45);margin-top:8px;line-height:1.45">${active?'Editing “'+esc(selP.name)+'” — drag a box over footings to add them, or tap a footing to toggle it in/out. The pour outline fills to match.':'The pour’s area is the footings assigned to it. Tap above, then drag over footings on the map to set its footprint.'}</div>`
+        + `<div style="font-size:10px;color:rgba(170,188,218,0.45);margin-top:8px;line-height:1.45">${active?'Editing “'+esc(selP.name)+'” — drag a box over footings to add them, or tap a footing to toggle it in/out. The footings recolor to match.':'The pour’s area is the footings assigned to it. Tap above, then drag over footings on the map to set its footprint.'}</div>`
         + `<div style="display:flex;gap:6px;margin-top:9px"><button data-rename="${selP.id}" style="flex:1;border:1px solid rgba(150,170,205,0.18);background:rgba(255,255,255,0.03);color:#cdd6e6;border-radius:8px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Rename</button><button data-delpour="${selP.id}" style="flex:1;border:1px solid rgba(248,113,113,0.35);background:rgba(248,113,113,0.08);color:#fca5a5;border-radius:8px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Inter">Delete</button></div>`
         + `<div style="margin-top:10px"><div style="font-size:9px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:rgba(170,188,218,0.42);margin-bottom:5px">Category</div><div style="display:flex;gap:2px;padding:2px;border-radius:9px;background:rgba(0,0,0,0.35);border:1px solid rgba(150,170,205,0.10)">`
           + `<button data-set-cat="foundation" style="flex:1;border:none;cursor:pointer;border-radius:7px;padding:6px 8px;font-size:11px;font-weight:700;font-family:Inter;transition:all .15s;${selP.category!=='ratslab'?'background:rgba(82,230,224,0.16);color:#7df0ec;box-shadow:inset 0 0 0 1px rgba(82,230,224,0.4)':'background:transparent;color:rgba(200,212,230,0.55)'}">Foundation</button>`
           + `<button data-set-cat="ratslab" style="flex:1;border:none;cursor:pointer;border-radius:7px;padding:6px 8px;font-size:11px;font-weight:700;font-family:Inter;transition:all .15s;${selP.category==='ratslab'?'background:rgba(244,114,182,0.16);color:#f9a8d4;box-shadow:inset 0 0 0 1px rgba(244,114,182,0.4)':'background:transparent;color:rgba(200,212,230,0.55)'}">Rat slab</button>`
           + `</div></div>`
-        + `<div style="font-size:9.5px;color:rgba(170,188,218,0.38);margin-top:6px">Pick a swatch in the Markup row to recolor this pour.</div>`
+        + `<div style="font-size:9px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:rgba(170,188,218,0.42);margin:12px 0 6px">Pour color</div>`
+        + `<div style="display:flex;flex-wrap:wrap;gap:5px">` + FND_POUR_SWATCHES.map(c=>{ const on=_normCol(c)===_curColCsv; return `<button data-pour-color="${c}" title="${c}" style="width:20px;height:20px;border-radius:5px;cursor:pointer;padding:0;background:${c};border:2px solid ${on?'#fff':'transparent'};box-shadow:0 0 0 1px rgba(0,0,0,0.4)"></button>`; }).join('') + `</div>`
+        + `<div style="font-size:9.5px;color:rgba(170,188,218,0.38);margin-top:6px">Recolors just this pour. Property colors (Pilecap / footing) are left out on purpose.</div>`
         + `<div style="font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(170,188,218,0.42);margin:16px 0 8px">Takeoff by type</div><div style="display:flex;flex-direction:column;gap:5px">`
         + rows.map(r=>`<div style="display:flex;align-items:center;gap:9px"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#cdd6e6;min-width:62px">${esc(r.type)}</span><span style="font-size:10px;color:rgba(170,188,218,0.5);min-width:26px">×${r.count}</span><div style="flex:1;height:6px;border-radius:6px;background:rgba(255,255,255,0.05);overflow:hidden"><div style="height:100%;width:${Math.round(r.cy/maxcy*100)}%;border-radius:6px;background:${selP.color};opacity:0.8"></div></div><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#cdd6e6;min-width:48px;text-align:right">${r.cy.toFixed(1)}</span></div>`).join('')
         + `</div></div>`;
@@ -1871,6 +1874,7 @@ function createFoundationMap(opts){
           <button data-fm="exportStatus" title="Export the footing map status — printable report / save as PDF"><span class="material-symbols-outlined" style="font-size:15px;line-height:1">picture_as_pdf</span><span data-lbl>Export status</span></button>
           <button data-fm="hideComplete" title="Hide completed pours so the map isn't congested"><span class="material-symbols-outlined" data-ic style="font-size:15px;line-height:1">visibility</span><span data-lbl>Hide complete</span></button>
           <button data-fm="showNames" title="Show each pour's name and number on the map"><span class="material-symbols-outlined" data-ic style="font-size:15px;line-height:1">label</span><span data-lbl>Names</span></button>
+          <button data-fm="showDates" title="Show each pour's date on the map (instead of its name)"><span class="material-symbols-outlined" data-ic style="font-size:15px;line-height:1">event</span><span data-lbl>Dates</span></button>
           <button data-fm="hideRatslab" title="Hide rat slab pours so the map isn't congested"><span class="material-symbols-outlined" data-ic style="font-size:15px;line-height:1">grid_on</span><span data-lbl>Rat slabs</span></button>
           <div style="width:1px;height:18px;background:rgba(150,170,205,0.14)"></div>
           <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#f472b6"></span><span style="font-size:10px;color:rgba(200,212,230,0.6)">Rat&nbsp;slab</span></div>
@@ -1900,6 +1904,7 @@ function createFoundationMap(opts){
     { const _md=root.querySelector('[data-fm="markDone"]'); if(_md){ _md.setAttribute('style', hideCompleteStyle(false)); if((window.location.search||'').indexOf('view=manager')>=0) _md.style.display='none'; } }
     { const _ex=root.querySelector('[data-fm="exportStatus"]'); if(_ex) _ex.setAttribute('style', hideCompleteStyle(false)); }
     { const _sn=root.querySelector('[data-fm="showNames"]'); if(_sn) _sn.setAttribute('style', hideCompleteStyle(st.showNames)); }
+    { const _sd=root.querySelector('[data-fm="showDates"]'); if(_sd) _sd.setAttribute('style', hideCompleteStyle(st.showDates)); }
     { const _rs=root.querySelector('[data-fm="hideRatslab"]'); if(_rs) _rs.setAttribute('style', hideCompleteStyle(st.hideRatslab)+';display:none'); }
     elModeExplore.onclick=()=>setTool('select');
     elModeAssign.onclick=()=>setTool('assign');
@@ -1917,6 +1922,7 @@ function createFoundationMap(opts){
     q('exportStatus').onclick=()=>{ if(typeof window.exportFootingMapStatus==='function') window.exportFootingMapStatus(); };
     q('hideComplete').onclick=()=>toggleHideComplete();
     q('showNames').onclick=()=>toggleShowNames();
+    q('showDates').onclick=()=>toggleShowDates();
     q('hideRatslab').onclick=()=>toggleHideRatslab();
     toolsRowEl.addEventListener('click', e=>{ const b=e.target.closest('[data-tool]'); if(b){ const t=b.getAttribute('data-tool'); setTool(st.tool===t?'explore':t); } });
     swatchesEl.addEventListener('click', e=>{ const b=e.target.closest('[data-sw]'); if(b) setMarkColor(b.getAttribute('data-sw')); });
@@ -1931,6 +1937,7 @@ function createFoundationMap(opts){
       const rn=e.target.closest('[data-rename]'); if(rn){ if(typeof promptPourName==='function') promptPourName(rn.getAttribute('data-rename')); return; }
       const dl=e.target.closest('[data-delpour]'); if(dl){ if(typeof deleteFoundationPour==='function') deleteFoundationPour(dl.getAttribute('data-delpour')); return; }
       const sc3=e.target.closest('[data-set-cat]'); if(sc3){ if(typeof setFoundationPourCategory==='function') setFoundationPourCategory(st.selId, sc3.getAttribute('data-set-cat')); return; }
+      const pc=e.target.closest('[data-pour-color]'); if(pc){ const hx=pc.getAttribute('data-pour-color'); if(st.selId && typeof setFoundationPourColor==='function'){ setFoundationPourColor(st.selId, hexToRgbCsv(hx)); try{ const fm=getFoundationMap(); fm.setPours(foundationPours); fm.selectPour(st.selId); }catch(_){} } return; }
       const ap=e.target.closest('[data-assign-pour]'); if(ap){ assignSelectedToPour(ap.getAttribute('data-assign-pour')||null); return; }
       const cs=e.target.closest('[data-clear-sel]'); if(cs){ selFootings=new Set(); selFootingNo=null; renderPanel(); scheduleDraw(); return; }
       const st2=e.target.closest('[data-select-type]'); if(st2){ selectType(st2.getAttribute('data-select-type')); return; }
@@ -2000,14 +2007,14 @@ function createFoundationMap(opts){
     opts=opts||{}; if(!footings||!planW||!ctx) return null;
     const W=opts.width||2600, H=Math.round(W*planH/planW);
     const off=document.createElement('canvas'); off.width=W; off.height=H;
-    const save={ctx,tx,ty,scale,cssW,cssH, hideC:st.hideComplete, hideRat:st.hideRatslab, filter:st.filter, selId:st.selId, showNames:st.showNames,
+    const save={ctx,tx,ty,scale,cssW,cssH, hideC:st.hideComplete, hideRat:st.hideRatslab, filter:st.filter, selId:st.selId, showNames:st.showNames, showDates:st.showDates,
       selF:selFootings, selNo:selFootingNo, flash, pulses, selBand:_selBand, band, markBand:_markBand, introT:_introT};
     try{
       ctx=off.getContext('2d');
       cssW=W/dpr; cssH=H/dpr;                                   // draw() multiplies by dpr — compensate
       const m=40/dpr, s=Math.min((cssW-m*2)/planW,(cssH-m*2)/planH);
       scale=s; tx=(cssW-planW*s)/2; ty=(cssH-planH*s)/2;
-      st.hideComplete=false; st.hideRatslab=false; st.filter='ALL'; st.selId=null; st.showNames=opts.names!==false;
+      st.hideComplete=false; st.hideRatslab=false; st.filter='ALL'; st.selId=null; st.showNames=opts.names!==false; st.showDates=false;
       selFootings=new Set(); selFootingNo=null; flash=null; pulses=[]; _selBand=null; band=null; _markBand=null; _introT=0;
       draw();                                                    // draw() clears first, so composite onto dark after
       const fin=document.createElement('canvas'); fin.width=W; fin.height=H;
@@ -2016,7 +2023,7 @@ function createFoundationMap(opts){
     }catch(e){ console.error('foundation snapshot', e); return null; }
     finally{
       ctx=save.ctx; tx=save.tx; ty=save.ty; scale=save.scale; cssW=save.cssW; cssH=save.cssH;
-      st.hideComplete=save.hideC; st.hideRatslab=save.hideRat; st.filter=save.filter; st.selId=save.selId; st.showNames=save.showNames;
+      st.hideComplete=save.hideC; st.hideRatslab=save.hideRat; st.filter=save.filter; st.selId=save.selId; st.showNames=save.showNames; st.showDates=save.showDates;
       selFootings=save.selF; selFootingNo=save.selNo; flash=save.flash; pulses=save.pulses; _selBand=save.selBand; band=save.band; _markBand=save.markBand; _introT=save.introT;
       scheduleDraw();
     }
@@ -2051,6 +2058,7 @@ function createFoundationMap(opts){
     setColorMode, setFilter, setMode, selectPour:selectPourId, search:doSearch,
     toggleHideComplete, setHideComplete, isHideComplete(){ return !!st.hideComplete; },
     toggleShowNames, setShowNames, isShowNames(){ return !!st.showNames; },
+    toggleShowDates, setShowDates, isShowDates(){ return !!st.showDates; },
     toggleHideRatslab, setHideRatslab, isHideRatslab(){ return !!st.hideRatslab; }, hasRatslab,
     setMembership, getMembership, onMembershipChange(cb){ _membershipCb=cb; },
     setPours, clearPourMembership, getTakeoff, onTakeoffChange,
