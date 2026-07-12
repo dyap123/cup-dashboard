@@ -175,6 +175,54 @@
     .bj-bust { animation:bjBust 0.4s ease both; }
     @keyframes bjWinGlow { 0%,100% { box-shadow:0 3px 12px rgba(0,0,0,0.5); } 50% { box-shadow:0 0 24px rgba(34,197,94,0.5), 0 0 48px rgba(34,197,94,0.2); } }
     .bj-win { animation:bjWinGlow 0.6s ease 2; }
+    /* ── ARCADE (multi-game panel: blackjack / tetris / flappy / 3-card / board) ── */
+    #arcTabs { flex:0 0 auto; display:flex; align-items:center; gap:3px; padding:6px; background:rgba(0,0,0,0.45); border-bottom:1px solid rgba(255,255,255,0.06); }
+    .arc-tab { flex:0 0 auto; display:flex; align-items:center; justify-content:center; width:28px; height:27px; border-radius:7px; border:1px solid transparent; background:rgba(255,255,255,0.03); color:rgba(255,255,255,0.3); cursor:pointer; transition:background 0.18s, color 0.18s, border-color 0.18s; }
+    .arc-tab .material-symbols-outlined { font-size:16px; }
+    .arc-tab:hover { background:rgba(255,255,255,0.09); color:rgba(255,255,255,0.65); }
+    .arc-tab.arc-tab-on { background:rgba(34,197,94,0.16); border-color:rgba(34,197,94,0.35); color:#22c55e; }
+    #arcUserBadge { max-width:74px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:9px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; padding:3px 6px; border-radius:6px; background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.35); cursor:pointer; border:1px solid rgba(255,255,255,0.07); }
+    #arcUserBadge.arc-signed { background:rgba(74,142,255,0.14); border-color:rgba(74,142,255,0.35); color:#4A8EFF; }
+    .arc-view { min-height:0; }
+    .arc-view.hidden { display:none !important; }
+    .arc-stage { position:relative; flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center; padding:8px; }
+    #arcTetrisCanvas, #arcFlappyCanvas { display:block; background:#05070c; border-radius:10px; touch-action:none; box-shadow:inset 0 0 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05); }
+    .arc-hud { flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:7px 10px; background:rgba(0,0,0,0.3); border-bottom:1px solid rgba(255,255,255,0.05); }
+    .arc-hud-k { font-size:8px; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; color:rgba(255,255,255,0.28); display:block; line-height:1.3; }
+    .arc-hud-v { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; color:#e8e6f0; line-height:1.1; }
+    .arc-overlay { position:absolute; inset:8px; z-index:5; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:9px; border-radius:10px; background:rgba(3,4,10,0.86); text-align:center; padding:14px; }
+    /* this <style> block loads after tailwind, so display:flex above would beat .hidden */
+    .arc-overlay.hidden { display:none !important; }
+    .arc-over-title { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:19px; color:#e8e6f0; letter-spacing:0.02em; }
+    .arc-over-sub { font-size:11px; color:rgba(255,255,255,0.4); line-height:1.5; }
+    .arc-pad { flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:7px; padding:8px 10px 11px; background:rgba(0,0,0,0.3); border-top:1px solid rgba(255,255,255,0.05); }
+    .arc-pad-btn { width:44px; height:44px; display:flex; align-items:center; justify-content:center; border-radius:11px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.55); font-size:17px; cursor:pointer; user-select:none; -webkit-user-select:none; touch-action:manipulation; -webkit-tap-highlight-color:transparent; transition:transform 0.08s, background 0.15s; }
+    .arc-pad-btn:active { transform:scale(0.9); background:rgba(34,197,94,0.18); color:#22c55e; }
+    .arc-btn { padding:10px 12px; border-radius:9px; font-size:11px; font-weight:800; letter-spacing:0.07em; text-transform:uppercase; cursor:pointer; border:1px solid; transition:background 0.15s, transform 0.08s; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+    .arc-btn:active { transform:scale(0.97); }
+    .arc-btn:disabled { opacity:0.35; cursor:not-allowed; }
+    .arc-btn-g { background:rgba(34,197,94,0.15); color:#22c55e; border-color:rgba(34,197,94,0.28); }
+    .arc-btn-g:hover:not(:disabled) { background:rgba(34,197,94,0.26); }
+    .arc-btn-b { background:rgba(74,142,255,0.15); color:#4A8EFF; border-color:rgba(74,142,255,0.28); }
+    .arc-btn-b:hover:not(:disabled) { background:rgba(74,142,255,0.26); }
+    .arc-btn-y { background:rgba(255,191,0,0.14); color:#FFBF00; border-color:rgba(255,191,0,0.28); }
+    .arc-btn-y:hover:not(:disabled) { background:rgba(255,191,0,0.25); }
+    .arc-btn-r { background:rgba(239,68,68,0.14); color:#ef4444; border-color:rgba(239,68,68,0.28); }
+    .arc-btn-r:hover:not(:disabled) { background:rgba(239,68,68,0.25); }
+    .arc-btn-n { background:rgba(255,255,255,0.04); color:rgba(255,255,255,0.35); border-color:rgba(255,255,255,0.08); }
+    .arc-btn-n:hover:not(:disabled) { background:rgba(255,255,255,0.09); color:rgba(255,255,255,0.6); }
+    .arc-sub { flex:1 1 0; padding:6px 4px; border-radius:7px; font-size:9px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; cursor:pointer; border:1px solid; transition:background 0.15s; touch-action:manipulation; }
+    .arc-step { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.45); font-weight:800; font-size:12px; cursor:pointer; touch-action:manipulation; }
+    .arc-step:hover { background:rgba(255,255,255,0.11); }
+    .arc-input { width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:9px 11px; color:#e8e6f0; font-size:13px; outline:none; transition:border-color 0.15s; }
+    .arc-input:focus { border-color:rgba(34,197,94,0.45); background:rgba(255,255,255,0.06); }
+    .arc-input::placeholder { color:rgba(255,255,255,0.2); }
+    .arc-board-row { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:9px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); }
+    .arc-me { border-color:rgba(74,142,255,0.45); background:rgba(74,142,255,0.08); }
+    .arc-rank { flex:0 0 auto; width:20px; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; color:rgba(255,255,255,0.3); }
+    body.light-mode #arcTabs, body.light-mode .arc-hud, body.light-mode .arc-pad { background:rgba(0,0,0,0.04); border-color:rgba(0,0,0,0.08); }
+    body.light-mode .arc-hud-v, body.light-mode .arc-over-title, body.light-mode .arc-input { color:#1a1a2e; }
+    body.light-mode .arc-board-row { background:rgba(0,0,0,0.03); border-color:rgba(0,0,0,0.07); }
     /* Card entrance */
     @keyframes cardIn { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:translateY(0) } }
     .pour-card { animation:cardIn 0.35s cubic-bezier(.4,0,.2,1) both; }
@@ -518,24 +566,32 @@
   <div id="checklistContent"></div>
 </div>
 
-<!-- BLACKJACK SIDEBAR -->
+<!-- ARCADE SIDEBAR (blackjack / tetris / flappy / 3-card poker / leaderboard) -->
 <div id="bjToggle" onclick="toggleBlackjack()">
-  <span class="text-[8px] font-bold" style="writing-mode:vertical-lr;letter-spacing:2px;color:rgba(34,197,94,0.5)">BJ</span>
+  <span class="text-[8px] font-bold" style="writing-mode:vertical-lr;letter-spacing:2px;color:rgba(34,197,94,0.5)">PLAY</span>
 </div>
 <aside id="bjPanel">
-  <div class="flex-1 flex flex-col overflow-hidden" style="background:radial-gradient(ellipse at 50% 40%, #0d3320 0%, #091a12 60%, #06060e 100%)">
+  <!-- Shared tab strip: game switcher + bankroll + window controls -->
+  <div id="arcTabs">
+    <button class="arc-tab" data-tab="blackjack" onclick="arcShow('blackjack')" title="Blackjack"><span class="material-symbols-outlined">casino</span></button>
+    <button class="arc-tab" data-tab="tetris" onclick="arcShow('tetris')" title="Tetris"><span class="material-symbols-outlined">grid_view</span></button>
+    <button class="arc-tab" data-tab="flappy" onclick="arcShow('flappy')" title="Flappy"><span class="material-symbols-outlined">flight</span></button>
+    <button class="arc-tab" data-tab="poker" onclick="arcShow('poker')" title="3-Card Poker"><span class="material-symbols-outlined">style</span></button>
+    <button class="arc-tab" data-tab="board" onclick="arcShow('board')" title="Leaderboard"><span class="material-symbols-outlined">emoji_events</span></button>
+    <div class="flex items-center gap-2" style="margin-left:auto">
+      <span id="arcUserBadge" onclick="arcShow('board')" title="Account">Guest</span>
+      <span id="bjChips" class="mono font-bold text-sm text-green-400" title="Chips">1000</span>
+      <button onclick="bjToggleFullscreen()" id="bjFsBtn" class="text-white/15 hover:text-white/40 transition-colors" title="Fullscreen"><span class="material-symbols-outlined text-sm">fullscreen</span></button>
+      <button onclick="toggleBlackjack()" class="text-white/15 hover:text-white/40 transition-colors" title="Close"><span class="material-symbols-outlined text-sm">close</span></button>
+    </div>
+  </div>
+
+  <!-- ═══════════ BLACKJACK ═══════════ -->
+  <div id="arcViewBlackjack" data-view="blackjack" class="arc-view flex-1 flex flex-col overflow-hidden" style="background:radial-gradient(ellipse at 50% 40%, #0d3320 0%, #091a12 60%, #06060e 100%)">
     <!-- Header -->
     <div class="px-3 py-1.5 flex items-center justify-between" style="border-bottom:1px solid rgba(34,197,94,0.08);background:rgba(0,0,0,0.3)">
-      <div class="flex items-center gap-2">
-        <span class="text-[10px] font-bold tracking-widest" style="color:rgba(34,197,94,0.4)">BLACKJACK</span>
-        <span class="text-[9px] text-white/15 mono" id="bjRecord">0W - 0L - 0P</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="text-[9px] font-bold text-white/30 uppercase tracking-wider">Chips</span>
-        <span id="bjChips" class="mono font-bold text-sm text-green-400">1000</span>
-        <button onclick="bjToggleFullscreen()" id="bjFsBtn" class="text-white/15 hover:text-white/40 transition-colors ml-1" title="Fullscreen"><span class="material-symbols-outlined text-sm">fullscreen</span></button>
-        <button onclick="toggleBlackjack()" class="text-white/15 hover:text-white/40 transition-colors"><span class="material-symbols-outlined text-sm">close</span></button>
-      </div>
+      <span class="text-[10px] font-bold tracking-widest" style="color:rgba(34,197,94,0.4)">BLACKJACK</span>
+      <span class="text-[9px] text-white/15 mono" id="bjRecord">0W - 0L - 0P</span>
     </div>
     <!-- Alfred dealer — mini node brain -->
     <div class="flex flex-col items-center pt-3 pb-1">
@@ -577,6 +633,121 @@
       <button onclick="bjReset()" class="text-[9px] text-white/15 hover:text-red-400 transition-colors uppercase tracking-wider font-bold">Reset</button>
     </div>
   </div>
+
+  <!-- ═══════════ TETRIS ═══════════ -->
+  <section id="arcViewTetris" data-view="tetris" class="arc-view flex-1 flex flex-col overflow-hidden hidden" style="background:radial-gradient(ellipse at 50% 30%, #101a33 0%, #0a0e1c 60%, #06060e 100%)">
+    <div class="arc-hud">
+      <div><span class="arc-hud-k">Score</span><span class="arc-hud-v" id="tetScoreEl">0</span></div>
+      <div><span class="arc-hud-k">Lines</span><span class="arc-hud-v" id="tetLinesEl">0</span></div>
+      <div><span class="arc-hud-k">Lvl</span><span class="arc-hud-v" id="tetLevelEl">1</span></div>
+      <div style="text-align:right"><span class="arc-hud-k">Best</span><span class="arc-hud-v" id="tetBestEl" style="color:#FFBF00">0</span></div>
+      <canvas id="arcTetNext" width="112" height="64" style="width:56px;height:32px;margin-left:auto"></canvas>
+    </div>
+    <div class="arc-stage">
+      <canvas id="arcTetrisCanvas"></canvas>
+      <div class="arc-overlay" id="tetOverlay">
+        <div class="arc-over-title" id="tetOverTitle">TETRIS</div>
+        <div class="arc-over-sub" id="tetOverSub">Arrows to move &middot; Up to rotate<br>Space to hard drop</div>
+        <button class="arc-btn arc-btn-g" onclick="arcTetrisStart()" style="min-width:130px">Play</button>
+      </div>
+    </div>
+    <div class="arc-pad">
+      <div class="arc-pad-btn" onpointerdown="tetPad(event,'left')">&#9664;</div>
+      <div class="arc-pad-btn" onpointerdown="tetPad(event,'rot')">&#10227;</div>
+      <div class="arc-pad-btn" onpointerdown="tetPad(event,'down')">&#9660;</div>
+      <div class="arc-pad-btn" onpointerdown="tetPad(event,'drop')">&#10515;</div>
+      <div class="arc-pad-btn" onpointerdown="tetPad(event,'right')">&#9654;</div>
+    </div>
+  </section>
+
+  <!-- ═══════════ FLAPPY ═══════════ -->
+  <section id="arcViewFlappy" data-view="flappy" class="arc-view flex-1 flex flex-col overflow-hidden hidden" style="background:radial-gradient(ellipse at 50% 30%, #12283d 0%, #0a141f 60%, #06060e 100%)">
+    <div class="arc-hud">
+      <div><span class="arc-hud-k">Score</span><span class="arc-hud-v" id="flapScoreEl">0</span></div>
+      <div style="margin-left:auto;text-align:right"><span class="arc-hud-k">Best</span><span class="arc-hud-v" id="flapBestEl" style="color:#FFBF00">0</span></div>
+    </div>
+    <div class="arc-stage">
+      <canvas id="arcFlappyCanvas"></canvas>
+      <div class="arc-overlay" id="flapOverlay">
+        <div class="arc-over-title" id="flapOverTitle">FLAPPY</div>
+        <div class="arc-over-sub" id="flapOverSub">Tap the board or press Space to flap</div>
+        <button class="arc-btn arc-btn-g" onclick="arcFlappyStart()" style="min-width:130px">Play</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 3-CARD POKER ═══════════ -->
+  <section id="arcViewPoker" data-view="poker" class="arc-view flex-1 flex flex-col overflow-hidden hidden" style="background:radial-gradient(ellipse at 50% 40%, #2a1030 0%, #170b1c 60%, #06060e 100%)">
+    <div class="px-3 py-1.5 flex items-center justify-between" style="border-bottom:1px solid rgba(139,92,246,0.1);background:rgba(0,0,0,0.3)">
+      <span class="text-[10px] font-bold tracking-widest" style="color:rgba(139,92,246,0.5)">3-CARD POKER</span>
+      <span class="text-[9px] text-white/15 mono" id="tpRecord">0W - 0L</span>
+    </div>
+    <div class="flex flex-col items-center pt-2">
+      <span class="text-[9px] font-bold tracking-wider text-white/20">DEALER</span>
+      <div id="tpDealerCards" class="flex flex-wrap items-center justify-center min-h-[78px] px-3"></div>
+      <span id="tpDealerRank" class="mono text-[10px] font-bold text-white/40"></span>
+    </div>
+    <div id="tpResult" class="py-1 text-center hidden"><span id="tpResultText" class="mono font-bold text-base"></span></div>
+    <div class="mx-8 my-1" style="border-top:1px dashed rgba(139,92,246,0.12)"></div>
+    <div class="flex-1 flex flex-col items-center justify-center px-3">
+      <div id="tpPlayerCards" class="flex flex-wrap items-center justify-center min-h-[78px]"></div>
+      <span id="tpPlayerRank" class="mono text-[10px] font-bold text-white/40 mt-1"></span>
+      <span class="text-[9px] font-bold tracking-wider mt-1 text-white/20">YOU</span>
+    </div>
+    <div class="px-3 py-2" style="border-top:1px solid rgba(139,92,246,0.1);background:rgba(0,0,0,0.4)">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-[9px] font-bold text-white/30 uppercase tracking-wider">Ante</span>
+          <button class="arc-step" onclick="tpChangeAnte(-25)">-</button>
+          <span id="tpAnte" class="mono font-bold text-sm text-yellow-400" style="min-width:30px;text-align:center">50</span>
+          <button class="arc-step" onclick="tpChangeAnte(25)">+</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[9px] font-bold text-white/30 uppercase tracking-wider">Pair+</span>
+          <button class="arc-step" onclick="tpChangePP(-25)">-</button>
+          <span id="tpPP" class="mono font-bold text-sm text-purple-400" style="min-width:30px;text-align:center">0</span>
+          <button class="arc-step" onclick="tpChangePP(25)">+</button>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="tpDealBtn" onclick="tpDeal()" class="arc-btn arc-btn-g flex-1">Deal</button>
+        <button id="tpPlayBtn" onclick="tpPlay()" class="arc-btn arc-btn-b flex-1 hidden">Play</button>
+        <button id="tpFoldBtn" onclick="tpFold()" class="arc-btn arc-btn-r flex-1 hidden">Fold</button>
+        <button id="tpRebuyBtn" onclick="arcRebuy()" class="arc-btn arc-btn-y flex-1 hidden">Rebuy</button>
+      </div>
+    </div>
+    <div class="px-3 py-1 flex items-center justify-between" style="background:rgba(0,0,0,0.3)">
+      <span class="text-[8px] text-white/15 uppercase tracking-wider">Straight beats flush</span>
+      <button onclick="tpPayTable()" class="text-[9px] text-white/20 hover:text-purple-400 transition-colors uppercase tracking-wider font-bold">Payouts</button>
+    </div>
+  </section>
+
+  <!-- ═══════════ LEADERBOARD ═══════════ -->
+  <section id="arcViewBoard" data-view="board" class="arc-view flex-1 flex flex-col overflow-hidden hidden" style="background:radial-gradient(ellipse at 50% 20%, #1a1730 0%, #0d0c1a 60%, #06060e 100%)">
+    <!-- Signed out: auth form -->
+    <div id="arcAuthBox" class="px-3 py-3" style="border-bottom:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.3)">
+      <div class="text-[9px] font-bold tracking-widest mb-2" style="color:rgba(74,142,255,0.5)">SIGN IN TO SAVE YOUR SCORES</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <input id="arcAuthName" class="arc-input" type="text" placeholder="Name" autocomplete="off" maxlength="16">
+        <input id="arcAuthPin" class="arc-input" type="password" placeholder="Password" autocomplete="off" maxlength="24" onkeydown="if(event.key==='Enter')arcAuthSubmit()">
+        <button id="arcAuthBtn" class="arc-btn arc-btn-b" onclick="arcAuthSubmit()">Enter</button>
+      </div>
+      <div id="arcAuthMsg" class="text-[10px] mt-2" style="color:rgba(255,255,255,0.35);line-height:1.5">New name creates an account.</div>
+    </div>
+    <!-- Signed in -->
+    <div id="arcSignedBox" class="px-3 py-2 hidden items-center justify-between" style="border-bottom:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.3)">
+      <div><span class="arc-hud-k">Signed in as</span><span class="arc-hud-v" id="arcSignedName" style="color:#4A8EFF">&mdash;</span></div>
+      <button onclick="arcSignOut()" class="text-[9px] text-white/20 hover:text-red-400 transition-colors uppercase tracking-wider font-bold">Sign out</button>
+    </div>
+    <!-- Board sub-tabs -->
+    <div class="flex items-center gap-1 px-3 py-2" id="arcBoardTabs">
+      <button class="arc-sub arc-btn-b" data-board="overall" onclick="arcBoardTabSet('overall')">Overall</button>
+      <button class="arc-sub arc-btn-n" data-board="tetris" onclick="arcBoardTabSet('tetris')">Tetris</button>
+      <button class="arc-sub arc-btn-n" data-board="flappy" onclick="arcBoardTabSet('flappy')">Flappy</button>
+      <button class="arc-sub arc-btn-n" data-board="chips" onclick="arcBoardTabSet('chips')">Chips</button>
+    </div>
+    <div id="arcBoardList" class="flex-1 overflow-y-auto slim-scroll px-3 pb-3" style="display:flex;flex-direction:column;gap:6px"></div>
+  </section>
 </aside>
 
 <!-- ALFRED SIDEBAR -->
@@ -8281,7 +8452,7 @@ function toggleBlackjack() {
   document.getElementById('bjPanel').classList.toggle('open', bjOpen);
   document.getElementById('bjToggle').style.display = bjOpen ? 'none' : '';
   if (!bjFullscreen) {
-    const pad = (bjOpen && window.innerWidth > 640) ? '320px' : '0';
+    const pad = (bjOpen && window.innerWidth > 640) ? ARC_W + 'px' : '0';
     document.body.style.marginLeft = pad;
     document.querySelectorAll('header, #footer, .sticky').forEach(el => {
       el.style.transition = 'left 0.3s cubic-bezier(.4,0,.2,1)';
@@ -8289,7 +8460,14 @@ function toggleBlackjack() {
     });
   }
   if (bjOpen && !bjBrainNodes.length) initBjBrain();
-  if (bjOpen) bjBrainLoop(); else { cancelAnimationFrame(bjBrainAnim); bjBrainAnim = null; }
+  if (bjOpen) {
+    arcEnsureSeed();
+    arcRestoreSession();
+    arcShow(arcView);          // starts the right loop for the active game (incl. bjBrain)
+  } else {
+    arcStopLoops();
+    cancelAnimationFrame(bjBrainAnim); bjBrainAnim = null;
+  }
   bjUpdateUI();
 }
 
@@ -8303,10 +8481,12 @@ function bjToggleFullscreen() {
     document.body.style.marginLeft = '0';
     document.querySelectorAll('header, #footer, .sticky').forEach(el => { el.style.left = '0'; });
   } else {
-    const pad = (bjOpen && window.innerWidth > 640) ? '320px' : '0';
+    const pad = (bjOpen && window.innerWidth > 640) ? ARC_W + 'px' : '0';
     document.body.style.marginLeft = pad;
     document.querySelectorAll('header, #footer, .sticky').forEach(el => { el.style.left = pad; });
   }
+  // Panel width changed (340px <-> 100vw) — canvases must rescale
+  setTimeout(arcRefitCanvases, 380);   // after the 0.35s panel transition
 }
 
 function initBjBrain() {
@@ -8475,12 +8655,7 @@ function bjStand() {
   let delay = 900; // initial delay for hole card flip
   drawCards.forEach((c, i) => {
     setTimeout(() => {
-      const container = document.getElementById('bjDealerCards');
-      const wrap = document.createElement('div');
-      wrap.className = 'bj-card-wrap bj-slide';
-      const cls = bjIsRed(c) ? 'red' : 'black';
-      wrap.innerHTML = '<div class="bj-card ' + cls + '"><div class="bj-face">' + c.rank + '<span style="font-size:11px;margin-top:-2px">' + c.suit + '</span></div><div class="bj-back"></div></div>';
-      container.appendChild(wrap);
+      bjAppendCard('bjDealerCards', c, false);
       document.getElementById('bjDealerScore').textContent = bjHandVal(bjDealerHand.slice(0, 2 + i + 1));
     }, delay + i * 750);
   });
@@ -8559,6 +8734,7 @@ function bjSaveStats() {
   localStorage.setItem('cup_bj_wins', bjWins);
   localStorage.setItem('cup_bj_losses', bjLosses);
   localStorage.setItem('cup_bj_pushes', bjPushes);
+  arcSyncBankroll();   // single hook — covers blackjack, 3-card, rebuy and reset
 }
 
 function bjReset() {
@@ -8600,13 +8776,867 @@ function bjUpdateUI() {
 // Initialize deck
 bjDeck = bjMakeDeck();
 
-// Swipe to open/close blackjack on touch
-document.addEventListener('touchstart', e => { if (!bjOpen) window._bjSwipeX = e.touches[0].clientX; }, {passive:true});
-document.addEventListener('touchend', e => {
-  const dx = e.changedTouches[0].clientX - (window._bjSwipeX || 0);
-  if (!bjOpen && (window._bjSwipeX || 999) < 40 && dx > 60) toggleBlackjack();
-  if (bjOpen && dx < -60) toggleBlackjack();
+// Swipe to open/close the arcade on touch.
+// Guarded: touches inside a game surface must never close the panel (a left-drag on the
+// Tetris board would otherwise slam it shut mid-game).
+document.addEventListener('touchstart', e => {
+  if (e.target.closest && e.target.closest('#arcViewTetris, #arcViewFlappy, #arcTabs, #arcViewBoard')) { window._bjSwipeX = null; return; }
+  window._bjSwipeX = e.touches[0].clientX;
 }, {passive:true});
+document.addEventListener('touchend', e => {
+  const sx = window._bjSwipeX;
+  if (sx === null || sx === undefined) return;
+  window._bjSwipeX = null;
+  const dx = e.changedTouches[0].clientX - sx;
+  if (!bjOpen && sx < 40 && dx > 60) toggleBlackjack();
+  else if (bjOpen && dx < -60) toggleBlackjack();
+}, {passive:true});
+
+// ════════════════════════════════════════════════════════════════════════════
+// ARCADE — multi-game panel (blackjack / tetris / flappy / 3-card) + leaderboard
+// ════════════════════════════════════════════════════════════════════════════
+// NOTE: the leaderboard's account system is a SOFT LOCK, not security. This app's
+// Firebase is a public RTDB (no auth, no API key), so anyone can read the hashes and
+// overwrite scores. PINs are SHA-256'd so they are never stored in plaintext, but a
+// short PIN falls to brute force instantly. Only game data lives under `arcade/`.
+
+const ARC_W = 340;                                    // must match #bjPanel width in CSS
+let arcView = localStorage.getItem('cup_arc_view') || 'blackjack';
+let arcUser = null;                                   // {key, name} when signed in
+let arcUsers = {};                                    // leaderboard cache
+let arcBoardTab = 'overall';
+let _arcSeeded = false, _arcBoardListening = false, _arcBankTimer = null;
+
+// ── Identity / hashing ──────────────────────────────────────────────────────
+function arcUserKey(name) { return safeKeyPart(String(name || '').trim().toLowerCase()); }
+function arcCryptoOk() { return !!(window.crypto && window.crypto.subtle); }
+
+async function arcHash(name, pin) {
+  // Salted with the username so two users sharing a PIN don't share a hash.
+  const data = new TextEncoder().encode(arcUserKey(name) + '::' + String(pin));
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function arcBlankRec(name, hash) {
+  return {
+    name: String(name).trim(), hash: hash, created: Date.now(), updated: Date.now(),
+    chips: bjChips, bjWins: bjWins, bjLosses: bjLosses, bjPushes: bjPushes,
+    tpWins: tpWins, tpLosses: tpLosses, tetris: tetBest, flappy: flapBest
+  };
+}
+
+// Seed Danzel/8342 lazily on first panel open — not on page load, so an ordinary
+// dashboard visitor never writes to the DB just by loading the page.
+async function arcEnsureSeed() {
+  if (_arcSeeded || !db || !arcCryptoOk()) return;
+  _arcSeeded = true;
+  try {
+    if (await fbGet('arcade/users/danzel')) return;
+    const hash = await arcHash('Danzel', '8342');
+    fbSet('arcade/users/danzel', {
+      name: 'Danzel', hash: hash, created: Date.now(), updated: Date.now(),
+      chips: 1000, bjWins: 0, bjLosses: 0, bjPushes: 0, tpWins: 0, tpLosses: 0, tetris: 0, flappy: 0
+    });
+  } catch (e) { console.warn('arcade seed skipped:', e); }
+}
+
+function arcRestoreSession() {
+  if (arcUser) return;
+  try {
+    const raw = localStorage.getItem('cup_arc_user');
+    if (raw) { arcUser = JSON.parse(raw); arcAuthUI(); }
+  } catch (e) { localStorage.removeItem('cup_arc_user'); }
+}
+
+function arcAuthMsg(msg, color) {
+  const el = document.getElementById('arcAuthMsg');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = color || 'rgba(255,255,255,0.35)';
+}
+
+async function arcAuthSubmit() {
+  const nameEl = document.getElementById('arcAuthName');
+  const pinEl = document.getElementById('arcAuthPin');
+  const name = nameEl.value.trim();
+  const pin = pinEl.value;
+  if (!/^[A-Za-z0-9 _-]{2,16}$/.test(name)) return arcAuthMsg('Name: 2-16 letters, numbers, space, - or _', '#ef4444');
+  if (!arcUserKey(name)) return arcAuthMsg('That name has no usable characters.', '#ef4444');
+  if (pin.length < 3) return arcAuthMsg('Password must be at least 3 characters.', '#ef4444');
+  if (!arcCryptoOk()) return arcAuthMsg('Sign-in needs https or localhost (crypto unavailable here).', '#ef4444');
+  if (!db) return arcAuthMsg('No database connection.', '#ef4444');
+
+  const key = arcUserKey(name);
+  arcAuthMsg('Checking...');
+  let rec, hash;
+  try {
+    rec = await fbGet('arcade/users/' + key);
+    hash = await arcHash(name, pin);
+  } catch (e) { return arcAuthMsg('Sign-in failed: ' + e.message, '#ef4444'); }
+
+  if (!rec) {                                    // ── sign-up: seed from current guest progress
+    fbSet('arcade/users/' + key, arcBlankRec(name, hash));
+    arcUser = { key: key, name: name.trim() };
+    localStorage.setItem('cup_arc_user', JSON.stringify(arcUser));
+    arcAuthMsg('Account created. Your progress is now saved.', '#22c55e');
+  } else if (rec.hash === hash) {                // ── sign-in: remote wins
+    const guestChips = bjChips;
+    if (guestChips !== (rec.chips || 0) && (bjWins + bjLosses + tetBest + flapBest) > 0) {
+      const ok = confirm('Load ' + (rec.name || name) + "'s saved progress (" + (rec.chips || 0) +
+        ' chips)? Your guest progress (' + guestChips + ' chips) will be replaced.');
+      if (!ok) return arcAuthMsg('Sign-in cancelled.', '#fbbf24');
+    }
+    bjChips = rec.chips || 0; bjWins = rec.bjWins || 0; bjLosses = rec.bjLosses || 0; bjPushes = rec.bjPushes || 0;
+    tpWins = rec.tpWins || 0; tpLosses = rec.tpLosses || 0;
+    tetBest = rec.tetris || 0; flapBest = rec.flappy || 0;
+    localStorage.setItem('cup_arc_tetris', tetBest);
+    localStorage.setItem('cup_arc_flappy', flapBest);
+    arcUser = { key: key, name: rec.name || name.trim() };
+    localStorage.setItem('cup_arc_user', JSON.stringify(arcUser));
+    bjSaveStats(); bjUpdateUI(); tpUpdateUI(); arcBestUI();
+    arcAuthMsg('Welcome back, ' + arcUser.name + '.', '#22c55e');
+  } else {
+    return arcAuthMsg('Wrong password.', '#ef4444');
+  }
+  pinEl.value = '';
+  arcAuthUI();
+  arcRenderBoard();
+}
+
+function arcSignOut() {
+  arcUser = null;
+  localStorage.removeItem('cup_arc_user');
+  arcAuthUI();
+  arcRenderBoard();
+  arcAuthMsg('Signed out. Scores are no longer saved.');
+}
+
+function arcAuthUI() {
+  const badge = document.getElementById('arcUserBadge');
+  const authBox = document.getElementById('arcAuthBox');
+  const signedBox = document.getElementById('arcSignedBox');
+  if (!badge) return;
+  badge.textContent = arcUser ? arcUser.name : 'Guest';
+  badge.classList.toggle('arc-signed', !!arcUser);
+  if (authBox) authBox.classList.toggle('hidden', !!arcUser);
+  if (signedBox) {
+    signedBox.classList.toggle('hidden', !arcUser);
+    signedBox.style.display = arcUser ? 'flex' : '';
+    const n = document.getElementById('arcSignedName');
+    if (n) n.textContent = arcUser ? arcUser.name : '—';
+  }
+}
+
+// ── Score submission (low write volume — never per-frame) ────────────────────
+function arcSubmit(patch) {
+  if (!arcUser || !db) return;
+  fbUpdate('arcade/users/' + arcUser.key, Object.assign({ updated: Date.now() }, patch));
+}
+
+// Debounced so a mid-hand bjSaveStats() doesn't cause a second write.
+function arcSyncBankroll() {
+  if (!arcUser || !db) return;
+  clearTimeout(_arcBankTimer);
+  _arcBankTimer = setTimeout(() => {
+    arcSubmit({ chips: bjChips, bjWins: bjWins, bjLosses: bjLosses, bjPushes: bjPushes, tpWins: tpWins, tpLosses: tpLosses });
+  }, 800);
+}
+
+function arcChipsUI() {
+  const el = document.getElementById('bjChips');
+  if (!el) return;
+  el.textContent = bjChips;
+  el.style.color = bjChips < 0 ? '#ef4444' : bjChips === 0 ? '#fbbf24' : '#22c55e';
+}
+
+function arcRebuy() { bjChips += 1000; bjSaveStats(); bjUpdateUI(); tpUpdateUI(); }
+
+function arcBestUI() {
+  const t = document.getElementById('tetBestEl'), f = document.getElementById('flapBestEl');
+  if (t) t.textContent = tetBest;
+  if (f) f.textContent = flapBest;
+}
+
+// ── View switching + loop lifecycle ─────────────────────────────────────────
+// Every rAF loop in the arcade is cancelled here before a new one starts. Three loops
+// now share this panel (bjBrain, tetris, flappy) and leaking any of them burns CPU
+// forever, so this is unconditional rather than clever.
+function arcStopLoops() {
+  cancelAnimationFrame(tetAnim); tetAnim = null;
+  cancelAnimationFrame(flapAnim); flapAnim = null;
+}
+
+function bjBrainStart() {
+  cancelAnimationFrame(bjBrainAnim); bjBrainAnim = null;   // cancel first — never double-start
+  bjBrainLoop();
+}
+
+function arcShow(view) {
+  arcView = view;
+  document.querySelectorAll('.arc-view').forEach(el => el.classList.toggle('hidden', el.dataset.view !== view));
+  document.querySelectorAll('#arcTabs .arc-tab').forEach(b => b.classList.toggle('arc-tab-on', b.dataset.tab === view));
+  arcStopLoops();
+  if (view === 'blackjack') bjBrainStart();
+  else { cancelAnimationFrame(bjBrainAnim); bjBrainAnim = null; }
+  if (view === 'tetris') arcTetrisMount();
+  if (view === 'flappy') arcFlappyMount();
+  if (view === 'poker') tpUpdateUI();
+  if (view === 'board') arcBoardMount();
+  localStorage.setItem('cup_arc_view', view);
+}
+
+// Games render in fixed logical units and are scaled to fit, so fullscreen is the same
+// game bigger — the play field never widens, and high scores stay comparable.
+function arcFitCanvas(canvas, logicalW, logicalH) {
+  const stage = canvas.parentElement;
+  const r = stage.getBoundingClientRect();
+  const availW = r.width - 16, availH = r.height - 16;
+  if (availW <= 0 || availH <= 0) return 0;
+  const s = Math.min(availW / logicalW, availH / logicalH);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.style.width = Math.floor(logicalW * s) + 'px';
+  canvas.style.height = Math.floor(logicalH * s) + 'px';
+  canvas.width = Math.floor(logicalW * s * dpr);
+  canvas.height = Math.floor(logicalH * s * dpr);
+  canvas.getContext('2d').setTransform(s * dpr, 0, 0, s * dpr, 0, 0);  // draw in logical units
+  return s;
+}
+
+function arcRefitCanvases() {
+  if (!bjOpen) return;
+  if (arcView === 'tetris') { arcFitCanvas(document.getElementById('arcTetrisCanvas'), TET_W * TET_CELL, TET_H * TET_CELL); tetDraw(); }
+  if (arcView === 'flappy') { arcFitCanvas(document.getElementById('arcFlappyCanvas'), FLAP_W, FLAP_H); flapDraw(); }
+}
+
+let _arcResizeT = null;
+window.addEventListener('resize', () => { clearTimeout(_arcResizeT); _arcResizeT = setTimeout(arcRefitCanvases, 150); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { arcStopLoops(); cancelAnimationFrame(bjBrainAnim); bjBrainAnim = null; }
+  else if (bjOpen) arcShow(arcView);
+});
+
+// ── Keyboard ────────────────────────────────────────────────────────────────
+// Capture phase + stopImmediatePropagation is load-bearing: the foundation-map engine
+// registers a window keydown listener that preventDefault()s Space and the bare letters
+// v/m/b/l whenever its map is visible, which would otherwise eat Flappy's flap.
+window.addEventListener('keydown', arcKeyHandler, true);
+function arcKeyHandler(e) {
+  if (!bjOpen) return;
+  if (/INPUT|TEXTAREA|SELECT/.test((e.target && e.target.tagName) || '')) return;   // let the auth form type
+  if (e.key === 'Escape') { toggleBlackjack(); e.preventDefault(); e.stopImmediatePropagation(); return; }
+  let handled = false;
+  if (arcView === 'tetris') handled = tetKey(e);
+  else if (arcView === 'flappy') handled = flapKey(e);
+  if (handled) { e.preventDefault(); e.stopImmediatePropagation(); }
+}
+
+// ════════════════════════ TETRIS ════════════════════════
+const TET_W = 10, TET_H = 20, TET_CELL = 20;          // logical board: 200 x 400
+const TET_PIECES = [
+  { m: [[1, 1, 1, 1]],            c: '#22d3ee' },   // I
+  { m: [[1, 1], [1, 1]],          c: '#FFBF00' },   // O
+  { m: [[0, 1, 0], [1, 1, 1]],    c: '#8B5CF6' },   // T
+  { m: [[0, 1, 1], [1, 1, 0]],    c: '#41A447' },   // S
+  { m: [[1, 1, 0], [0, 1, 1]],    c: '#ff4d6a' },   // Z
+  { m: [[1, 0, 0], [1, 1, 1]],    c: '#4A8EFF' },   // J
+  { m: [[0, 0, 1], [1, 1, 1]],    c: '#D4842A' }    // L
+];
+let tetGrid = [], tetPiece = null, tetNext = null, tetBag = [];
+let tetScore = 0, tetLines = 0, tetLevel = 1, tetOver = true, tetPlaying = false;
+let tetAnim = null, tetAcc = 0, tetLast = 0;
+let tetBest = parseInt(localStorage.getItem('cup_arc_tetris')) || 0;
+
+function tetNewGrid() { return Array.from({ length: TET_H }, () => Array(TET_W).fill(null)); }
+function tetDrawBag() {
+  if (!tetBag.length) {                              // 7-bag randomizer
+    tetBag = [0, 1, 2, 3, 4, 5, 6];
+    for (let i = tetBag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [tetBag[i], tetBag[j]] = [tetBag[j], tetBag[i]]; }
+  }
+  const p = TET_PIECES[tetBag.pop()];
+  return { m: p.m.map(r => r.slice()), c: p.c, x: 0, y: 0 };
+}
+function tetRotateM(m) {
+  const rows = m.length, cols = m[0].length, r = [];
+  for (let c = 0; c < cols; c++) { r.push([]); for (let rr = rows - 1; rr >= 0; rr--) r[c].push(m[rr][c]); }
+  return r;
+}
+function tetCollide(m, x, y) {
+  for (let r = 0; r < m.length; r++) for (let c = 0; c < m[r].length; c++) {
+    if (!m[r][c]) continue;
+    const gx = x + c, gy = y + r;
+    if (gx < 0 || gx >= TET_W || gy >= TET_H) return true;
+    if (gy >= 0 && tetGrid[gy][gx]) return true;
+  }
+  return false;
+}
+function tetSpawn() {
+  tetPiece = tetNext || tetDrawBag();
+  tetNext = tetDrawBag();
+  tetPiece.x = Math.floor((TET_W - tetPiece.m[0].length) / 2);
+  tetPiece.y = 0;
+  tetDrawNext();
+  if (tetCollide(tetPiece.m, tetPiece.x, tetPiece.y)) arcTetrisOver();
+}
+function tetRotate() {
+  if (tetOver || !tetPiece) return;
+  const rm = tetRotateM(tetPiece.m);
+  for (const dx of [0, -1, 1, -2, 2]) {              // simple wall kick
+    if (!tetCollide(rm, tetPiece.x + dx, tetPiece.y)) { tetPiece.m = rm; tetPiece.x += dx; tetDraw(); return; }
+  }
+}
+function tetMove(dx) {
+  if (tetOver || !tetPiece) return;
+  if (!tetCollide(tetPiece.m, tetPiece.x + dx, tetPiece.y)) { tetPiece.x += dx; tetDraw(); }
+}
+function tetStep() {                                  // gravity tick
+  if (tetOver || !tetPiece) return;
+  if (!tetCollide(tetPiece.m, tetPiece.x, tetPiece.y + 1)) { tetPiece.y++; }
+  else tetLock();
+}
+function tetSoftDrop() {
+  if (tetOver || !tetPiece) return;
+  if (!tetCollide(tetPiece.m, tetPiece.x, tetPiece.y + 1)) { tetPiece.y++; tetScore += 1; tetAcc = 0; tetHudUI(); tetDraw(); }
+  else tetLock();
+}
+function tetHardDrop() {
+  if (tetOver || !tetPiece) return;
+  let d = 0;
+  while (!tetCollide(tetPiece.m, tetPiece.x, tetPiece.y + 1)) { tetPiece.y++; d++; }
+  tetScore += d * 2;
+  tetLock();
+}
+function tetLock() {
+  const m = tetPiece.m;
+  for (let r = 0; r < m.length; r++) for (let c = 0; c < m[r].length; c++) {
+    if (m[r][c]) {
+      const gy = tetPiece.y + r, gx = tetPiece.x + c;
+      if (gy < 0) { arcTetrisOver(); return; }
+      tetGrid[gy][gx] = tetPiece.c;
+    }
+  }
+  tetClear();
+  tetSpawn();
+  tetHudUI();
+  tetDraw();
+}
+function tetClear() {
+  let cleared = 0;
+  for (let r = TET_H - 1; r >= 0; r--) {
+    if (tetGrid[r].every(v => v)) { tetGrid.splice(r, 1); tetGrid.unshift(Array(TET_W).fill(null)); cleared++; r++; }
+  }
+  if (!cleared) return;
+  tetLines += cleared;
+  tetScore += [0, 100, 300, 500, 800][cleared] * tetLevel;
+  tetLevel = Math.floor(tetLines / 10) + 1;
+}
+function tetHudUI() {
+  document.getElementById('tetScoreEl').textContent = tetScore;
+  document.getElementById('tetLinesEl').textContent = tetLines;
+  document.getElementById('tetLevelEl').textContent = tetLevel;
+  document.getElementById('tetBestEl').textContent = tetBest;
+}
+function tetCellRect(ctx, x, y, color) {
+  const px = x * TET_CELL, py = y * TET_CELL;
+  ctx.fillStyle = color;
+  ctx.fillRect(px + 1, py + 1, TET_CELL - 2, TET_CELL - 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';           // top-left bevel
+  ctx.fillRect(px + 1, py + 1, TET_CELL - 2, 2);
+  ctx.fillRect(px + 1, py + 1, 2, TET_CELL - 2);
+}
+function tetDraw() {
+  const cv = document.getElementById('arcTetrisCanvas');
+  if (!cv || !cv.width) return;
+  const ctx = cv.getContext('2d');
+  const W = TET_W * TET_CELL, H = TET_H * TET_CELL;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#05070c'; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.035)'; ctx.lineWidth = 1;
+  for (let x = 1; x < TET_W; x++) { ctx.beginPath(); ctx.moveTo(x * TET_CELL, 0); ctx.lineTo(x * TET_CELL, H); ctx.stroke(); }
+  for (let y = 1; y < TET_H; y++) { ctx.beginPath(); ctx.moveTo(0, y * TET_CELL); ctx.lineTo(W, y * TET_CELL); ctx.stroke(); }
+  for (let r = 0; r < TET_H; r++) for (let c = 0; c < TET_W; c++) if (tetGrid[r] && tetGrid[r][c]) tetCellRect(ctx, c, r, tetGrid[r][c]);
+  if (tetPiece && !tetOver) {
+    let gy = tetPiece.y;                              // ghost
+    while (!tetCollide(tetPiece.m, tetPiece.x, gy + 1)) gy++;
+    ctx.globalAlpha = 0.16;
+    for (let r = 0; r < tetPiece.m.length; r++) for (let c = 0; c < tetPiece.m[r].length; c++) if (tetPiece.m[r][c]) tetCellRect(ctx, tetPiece.x + c, gy + r, tetPiece.c);
+    ctx.globalAlpha = 1;
+    for (let r = 0; r < tetPiece.m.length; r++) for (let c = 0; c < tetPiece.m[r].length; c++) if (tetPiece.m[r][c] && tetPiece.y + r >= 0) tetCellRect(ctx, tetPiece.x + c, tetPiece.y + r, tetPiece.c);
+  }
+}
+function tetDrawNext() {
+  const cv = document.getElementById('arcTetNext');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  if (!tetNext) return;
+  const m = tetNext.m, cell = 14;
+  const w = m[0].length * cell, h = m.length * cell;
+  const ox = (cv.width - w) / 2, oy = (cv.height - h) / 2;
+  ctx.fillStyle = tetNext.c;
+  for (let r = 0; r < m.length; r++) for (let c = 0; c < m[r].length; c++) if (m[r][c]) ctx.fillRect(ox + c * cell + 1, oy + r * cell + 1, cell - 2, cell - 2);
+}
+function tetKey(e) {
+  if (!tetPlaying) {
+    if (e.key === ' ' || e.key === 'Enter') { arcTetrisStart(); return true; }
+    return false;
+  }
+  switch (e.key) {
+    case 'ArrowLeft': tetMove(-1); return true;
+    case 'ArrowRight': tetMove(1); return true;
+    case 'ArrowUp': tetRotate(); return true;
+    case 'ArrowDown': tetSoftDrop(); return true;
+    case ' ': tetHardDrop(); return true;
+  }
+  return false;
+}
+function tetPad(e, action) {
+  if (e) e.preventDefault();
+  if (!tetPlaying) return;
+  if (action === 'left') tetMove(-1);
+  else if (action === 'right') tetMove(1);
+  else if (action === 'rot') tetRotate();
+  else if (action === 'down') tetSoftDrop();
+  else if (action === 'drop') tetHardDrop();
+}
+function tetLoop(ts) {
+  if (tetOver) { tetAnim = null; return; }
+  if (!tetLast) tetLast = ts;
+  // Delta-time gravity. Frame-counted gravity would run 2x fast on a 120Hz ProMotion iPad.
+  tetAcc += ts - tetLast;
+  tetLast = ts;
+  const iv = Math.max(80, 800 - (tetLevel - 1) * 70);
+  while (tetAcc >= iv) { tetAcc -= iv; tetStep(); if (tetOver) break; }
+  tetDraw();
+  tetAnim = requestAnimationFrame(tetLoop);
+}
+function arcTetrisMount() {
+  arcFitCanvas(document.getElementById('arcTetrisCanvas'), TET_W * TET_CELL, TET_H * TET_CELL);
+  if (!tetGrid.length) tetGrid = tetNewGrid();
+  tetHudUI();
+  tetDraw();
+  tetDrawNext();
+  if (tetPlaying && !tetOver) { tetLast = 0; tetAnim = requestAnimationFrame(tetLoop); }   // resume
+}
+function arcTetrisStart() {
+  arcStopLoops();
+  tetGrid = tetNewGrid();
+  tetBag = []; tetNext = null; tetPiece = null;
+  tetScore = 0; tetLines = 0; tetLevel = 1; tetAcc = 0; tetLast = 0;
+  tetOver = false; tetPlaying = true;
+  document.getElementById('tetOverlay').classList.add('hidden');
+  arcFitCanvas(document.getElementById('arcTetrisCanvas'), TET_W * TET_CELL, TET_H * TET_CELL);
+  tetSpawn();
+  tetHudUI();
+  tetDraw();
+  if (!tetOver) tetAnim = requestAnimationFrame(tetLoop);
+}
+function arcTetrisOver() {
+  tetOver = true; tetPlaying = false;
+  arcStopLoops();
+  const isPB = tetScore > tetBest;
+  if (isPB) {
+    tetBest = tetScore;
+    localStorage.setItem('cup_arc_tetris', tetBest);
+    arcSubmit({ tetris: tetBest });                   // one write per game, only on a PB
+  }
+  tetHudUI();
+  tetDraw();
+  const ov = document.getElementById('tetOverlay');
+  document.getElementById('tetOverTitle').textContent = isPB ? 'NEW BEST' : 'GAME OVER';
+  document.getElementById('tetOverTitle').style.color = isPB ? '#FFBF00' : '#e8e6f0';
+  document.getElementById('tetOverSub').innerHTML = tetScore.toLocaleString() + ' points &middot; ' + tetLines + ' lines' +
+    (arcUser ? '' : '<br><span style="color:rgba(255,191,0,0.6)">Sign in to save your score</span>');
+  ov.classList.remove('hidden');
+}
+
+// ════════════════════════ FLAPPY ════════════════════════
+const FLAP_W = 300, FLAP_H = 480, FLAP_GRAV = 0.35, FLAP_JUMP = -6.2;
+const FLAP_PIPE_W = 42, FLAP_GAP = 120, FLAP_SPACING = 190, FLAP_BX = 80, FLAP_BR = 9;
+let flapY = FLAP_H / 2, flapVy = 0, flapPipes = [], flapScore = 0;
+let flapOver = true, flapPlaying = false, flapAnim = null, flapLast = 0, flapSpeed = 2.0;
+let flapBest = parseInt(localStorage.getItem('cup_arc_flappy')) || 0;
+
+function flapReset() {
+  flapY = FLAP_H / 2; flapVy = 0; flapScore = 0; flapSpeed = 2.0; flapLast = 0;
+  flapPipes = [{ x: FLAP_W + 40, top: 140, scored: false }];
+}
+function flapSpawnIfNeeded() {
+  const last = flapPipes[flapPipes.length - 1];
+  if (!last || last.x < FLAP_W - FLAP_SPACING) {
+    const top = 40 + Math.random() * (FLAP_H - 80 - FLAP_GAP);
+    flapPipes.push({ x: FLAP_W + FLAP_PIPE_W, top: top, scored: false });
+  }
+}
+function flapFlap() {
+  if (!flapPlaying) { arcFlappyStart(); return; }
+  if (flapOver) return;
+  flapVy = FLAP_JUMP;
+}
+function flapKey(e) {
+  if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'Enter') { flapFlap(); return true; }
+  return false;
+}
+function flapHit() {
+  if (flapY - FLAP_BR < 0 || flapY + FLAP_BR > FLAP_H) return true;
+  for (const p of flapPipes) {
+    if (FLAP_BX + FLAP_BR < p.x || FLAP_BX - FLAP_BR > p.x + FLAP_PIPE_W) continue;
+    if (flapY - FLAP_BR < p.top || flapY + FLAP_BR > p.top + FLAP_GAP) return true;
+  }
+  return false;
+}
+function flapTick(dt) {
+  flapVy += FLAP_GRAV * dt;
+  flapY += flapVy * dt;
+  for (const p of flapPipes) p.x -= flapSpeed * dt;
+  flapPipes = flapPipes.filter(p => p.x + FLAP_PIPE_W > -10);
+  flapSpawnIfNeeded();
+  for (const p of flapPipes) {
+    if (!p.scored && p.x + FLAP_PIPE_W < FLAP_BX - FLAP_BR) {
+      p.scored = true;
+      flapScore++;
+      flapSpeed = Math.min(4.0, 2.0 + Math.floor(flapScore / 5) * 0.06 * 5);
+      document.getElementById('flapScoreEl').textContent = flapScore;
+    }
+  }
+  if (flapHit()) arcFlappyOver();
+}
+function flapDraw() {
+  const cv = document.getElementById('arcFlappyCanvas');
+  if (!cv || !cv.width) return;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, FLAP_H);
+  g.addColorStop(0, '#0d1f33'); g.addColorStop(1, '#050a12');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, FLAP_W, FLAP_H);
+  for (const p of flapPipes) {                       // pipes
+    ctx.fillStyle = '#2f7d4f';
+    ctx.fillRect(p.x, 0, FLAP_PIPE_W, p.top);
+    ctx.fillRect(p.x, p.top + FLAP_GAP, FLAP_PIPE_W, FLAP_H - p.top - FLAP_GAP);
+    ctx.fillStyle = '#41A447';
+    ctx.fillRect(p.x, p.top - 10, FLAP_PIPE_W, 10);
+    ctx.fillRect(p.x, p.top + FLAP_GAP, FLAP_PIPE_W, 10);
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fillRect(p.x + 4, 0, 4, p.top - 10);
+    ctx.fillRect(p.x + 4, p.top + FLAP_GAP + 10, 4, FLAP_H - p.top - FLAP_GAP - 10);
+  }
+  ctx.save();                                        // bird
+  ctx.translate(FLAP_BX, flapY);
+  ctx.rotate(Math.max(-0.5, Math.min(1.2, flapVy * 0.08)));
+  ctx.fillStyle = '#FFBF00';
+  ctx.beginPath(); ctx.arc(0, 0, FLAP_BR, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#D4842A';
+  ctx.beginPath(); ctx.moveTo(FLAP_BR - 1, -1); ctx.lineTo(FLAP_BR + 6, 1); ctx.lineTo(FLAP_BR - 1, 3); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#06060e';
+  ctx.beginPath(); ctx.arc(3, -3, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';          // score ghost
+  ctx.font = 'bold 54px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(String(flapScore), FLAP_W / 2, 74);
+}
+function flapLoop(ts) {
+  if (flapOver) { flapAnim = null; return; }
+  if (!flapLast) flapLast = ts;
+  const dt = Math.min(2, (ts - flapLast) / 16.67);   // normalized to 60fps; clamped for tab-switches
+  flapLast = ts;
+  flapTick(dt);
+  flapDraw();
+  if (!flapOver) flapAnim = requestAnimationFrame(flapLoop);
+  else flapAnim = null;
+}
+function arcFlappyMount() {
+  const cv = document.getElementById('arcFlappyCanvas');
+  arcFitCanvas(cv, FLAP_W, FLAP_H);
+  if (!cv._arcWired) {
+    cv._arcWired = true;
+    cv.addEventListener('pointerdown', e => { e.preventDefault(); flapFlap(); });
+  }
+  if (!flapPipes.length) flapReset();
+  document.getElementById('flapScoreEl').textContent = flapScore;
+  document.getElementById('flapBestEl').textContent = flapBest;
+  flapDraw();
+  if (flapPlaying && !flapOver) { flapLast = 0; flapAnim = requestAnimationFrame(flapLoop); }   // resume
+}
+function arcFlappyStart() {
+  arcStopLoops();
+  arcFitCanvas(document.getElementById('arcFlappyCanvas'), FLAP_W, FLAP_H);
+  flapReset();
+  flapOver = false; flapPlaying = true;
+  document.getElementById('flapOverlay').classList.add('hidden');
+  document.getElementById('flapScoreEl').textContent = '0';
+  flapVy = FLAP_JUMP;
+  flapAnim = requestAnimationFrame(flapLoop);
+}
+function arcFlappyOver() {
+  flapOver = true; flapPlaying = false;
+  arcStopLoops();
+  const isPB = flapScore > flapBest;
+  if (isPB) {
+    flapBest = flapScore;
+    localStorage.setItem('cup_arc_flappy', flapBest);
+    arcSubmit({ flappy: flapBest });                  // one write per death, only on a PB
+  }
+  document.getElementById('flapBestEl').textContent = flapBest;
+  flapDraw();
+  document.getElementById('flapOverTitle').textContent = isPB && flapScore > 0 ? 'NEW BEST' : 'GAME OVER';
+  document.getElementById('flapOverTitle').style.color = isPB && flapScore > 0 ? '#FFBF00' : '#e8e6f0';
+  document.getElementById('flapOverSub').innerHTML = flapScore + (flapScore === 1 ? ' pipe' : ' pipes') +
+    (arcUser ? '' : '<br><span style="color:rgba(255,191,0,0.6)">Sign in to save your score</span>');
+  document.getElementById('flapOverlay').classList.remove('hidden');
+}
+
+// ════════════════════════ 3-CARD POKER ════════════════════════
+// Reuses the blackjack card renderer (bjRenderCard / bjAppendCard / bjIsRed) and every
+// .bj-card CSS rule + flip/slide animation. Chips are the SAME bankroll as blackjack:
+// mutate bjChips and call bjSaveStats(), which syncs the leaderboard for free.
+const TP_RANKS = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
+const TP_NAMES = ['High Card', 'Pair', 'Flush', 'Straight', 'Trips', 'Straight Flush'];
+const TP_PAIRPLUS = [0, 1, 3, 6, 30, 40];             // by category; category 0 loses
+const TP_ANTEBONUS = [0, 0, 0, 1, 4, 5];              // straight 1:1, trips 4:1, SF 5:1
+let tpDeck = [], tpPlayerHand = [], tpDealerHand = [];
+let tpAnte = parseInt(localStorage.getItem('cup_tp_ante')) || 50;
+let tpPP = parseInt(localStorage.getItem('cup_tp_pp')) || 0;
+let tpPlayBet = 0, tpPhase = 'bet';                   // bet | decide | done
+let tpWins = parseInt(localStorage.getItem('cup_tp_wins')) || 0;
+let tpLosses = parseInt(localStorage.getItem('cup_tp_losses')) || 0;
+
+function tpMakeDeck() {                               // single 52-card deck (bjMakeDeck is a 6-deck shoe)
+  const suits = ['♠', '♥', '♦', '♣'];
+  const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+  const d = [];
+  for (const s of suits) for (const r of ranks) d.push({ rank: r, suit: s });
+  for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+  return d;
+}
+
+// Returns [category, ...tiebreakers] — compare lexicographically.
+// NOTE: in 3-card poker a STRAIGHT BEATS A FLUSH (they are rarer with 3 cards).
+function tpRank(hand) {
+  const v = hand.map(c => TP_RANKS[c.rank]).sort((a, b) => b - a);
+  const flush = hand.every(c => c.suit === hand[0].suit);
+  const trips = v[0] === v[2];
+  let straight = (v[0] - v[1] === 1 && v[1] - v[2] === 1);
+  let high = v[0];
+  if (!straight && v[0] === 14 && v[1] === 3 && v[2] === 2) { straight = true; high = 3; }   // A-2-3 wheel
+  if (straight && flush) return [5, high];
+  if (trips) return [4, v[0]];
+  if (straight) return [3, high];
+  if (flush) return [2, v[0], v[1], v[2]];
+  if (v[0] === v[1]) return [1, v[0], v[2]];
+  if (v[1] === v[2]) return [1, v[1], v[0]];
+  return [0, v[0], v[1], v[2]];
+}
+function tpCompare(a, b) {
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i] || 0, y = b[i] || 0;
+    if (x !== y) return x > y ? 1 : -1;
+  }
+  return 0;
+}
+function tpQualifies(rank) { return rank[0] > 0 || rank[1] >= 12; }   // pair+, or Queen-high
+
+function tpChangeAnte(d) {
+  if (tpPhase !== 'bet') return;
+  tpAnte = Math.max(25, tpAnte + d);
+  localStorage.setItem('cup_tp_ante', tpAnte);
+  tpUpdateUI();
+}
+function tpChangePP(d) {
+  if (tpPhase !== 'bet') return;
+  tpPP = Math.max(0, tpPP + d);
+  localStorage.setItem('cup_tp_pp', tpPP);
+  tpUpdateUI();
+}
+function tpShowResult(msg, color) {
+  const el = document.getElementById('tpResult'), t = document.getElementById('tpResultText');
+  if (!el) return;
+  t.textContent = msg; t.style.color = color;
+  el.classList.remove('hidden');
+}
+function tpDeal() {
+  if (tpPhase !== 'bet') return;
+  if (bjChips < tpAnte + tpPP) return;
+  tpDeck = tpMakeDeck();
+  tpPlayerHand = [tpDeck.pop(), tpDeck.pop(), tpDeck.pop()];
+  tpDealerHand = [tpDeck.pop(), tpDeck.pop(), tpDeck.pop()];
+  bjChips -= (tpAnte + tpPP);
+  tpPlayBet = 0;
+  tpPhase = 'decide';
+  document.getElementById('tpResult').classList.add('hidden');
+  bjSaveStats();
+  tpRenderHands(true);
+  tpUpdateUI();
+}
+function tpPlay() {
+  if (tpPhase !== 'decide') return;
+  if (bjChips < tpAnte) return;
+  tpPlayBet = tpAnte;
+  bjChips -= tpPlayBet;
+  tpResolve(false);
+}
+function tpFold() {
+  if (tpPhase !== 'decide') return;
+  tpResolve(true);                                    // ante + pair-plus already forfeited
+}
+function tpResolve(folded) {
+  tpPhase = 'done';
+  const pr = tpRank(tpPlayerHand), dr = tpRank(tpDealerHand);
+  tpRenderHands(false);
+  let credit = 0, msg, color;
+
+  if (folded) {
+    tpLosses++;
+    msg = 'FOLDED  -' + (tpAnte + tpPP);
+    color = '#ef4444';
+  } else {
+    const dq = tpQualifies(dr);
+    const cmp = tpCompare(pr, dr);
+    const ab = TP_ANTEBONUS[pr[0]];
+    if (ab > 0) credit += tpAnte * ab;                // ante bonus pays regardless of the dealer
+    if (!dq) {
+      credit += tpAnte * 2 + tpPlayBet;               // ante wins 1:1, play pushes
+      tpWins++;
+      msg = 'DEALER NO QUALIFY  +' + (tpAnte + tpAnte * ab);
+      color = '#22c55e';
+    } else if (cmp > 0) {
+      credit += tpAnte * 2 + tpPlayBet * 2;
+      tpWins++;
+      msg = 'YOU WIN  +' + (tpAnte + tpPlayBet + tpAnte * ab);
+      color = '#22c55e';
+    } else if (cmp === 0) {
+      credit += tpAnte + tpPlayBet;
+      msg = 'PUSH';
+      color = '#94a3b8';
+    } else {
+      tpLosses++;
+      msg = 'DEALER WINS  -' + (tpAnte + tpPlayBet);
+      color = '#ef4444';
+    }
+    const ppMult = TP_PAIRPLUS[pr[0]];                // pair plus is independent of the dealer
+    if (tpPP > 0 && ppMult > 0) {
+      credit += tpPP * (ppMult + 1);
+      msg += '  · PAIR+ ' + TP_NAMES[pr[0]];
+      if (color === '#ef4444') color = '#fbbf24';
+    }
+  }
+
+  bjChips += credit;
+  localStorage.setItem('cup_tp_wins', tpWins);
+  localStorage.setItem('cup_tp_losses', tpLosses);
+  bjSaveStats();
+  tpShowResult(msg, color);
+  tpPhase = 'bet';
+  tpUpdateUI();
+  if (!folded) {
+    const cards = document.querySelectorAll('#tpPlayerCards .bj-card');
+    if (credit > 0) cards.forEach(c => c.classList.add('bj-win'));
+    else cards.forEach(c => c.classList.add('bj-bust'));
+  }
+}
+function tpRenderHands(hideDealer) {
+  const dc = document.getElementById('tpDealerCards'), pc = document.getElementById('tpPlayerCards');
+  dc.innerHTML = tpDealerHand.map((c, i) => bjRenderCard(c, hideDealer, i * 220)).join('');
+  pc.innerHTML = tpPlayerHand.map((c, i) => bjRenderCard(c, false, i * 220)).join('');
+  const pr = tpPlayerHand.length ? tpRank(tpPlayerHand) : null;
+  const dr = tpDealerHand.length ? tpRank(tpDealerHand) : null;
+  document.getElementById('tpPlayerRank').textContent = pr ? TP_NAMES[pr[0]].toUpperCase() : '';
+  document.getElementById('tpDealerRank').textContent = (!hideDealer && dr) ? TP_NAMES[dr[0]].toUpperCase() + (tpQualifies(dr) ? '' : ' · NO QUALIFY') : '';
+  if (!hideDealer) {
+    document.querySelectorAll('#tpDealerCards .bj-card').forEach(c => c.classList.add('bj-flip'));
+  }
+}
+function tpUpdateUI() {
+  arcChipsUI();
+  const a = document.getElementById('tpAnte'), p = document.getElementById('tpPP'), rec = document.getElementById('tpRecord');
+  if (!a) return;
+  a.textContent = tpAnte;
+  p.textContent = tpPP;
+  rec.textContent = tpWins + 'W - ' + tpLosses + 'L';
+  const betting = tpPhase === 'bet';
+  const broke = bjChips < tpAnte + tpPP && betting;
+  document.getElementById('tpDealBtn').classList.toggle('hidden', !betting || broke);
+  document.getElementById('tpPlayBtn').classList.toggle('hidden', tpPhase !== 'decide');
+  document.getElementById('tpFoldBtn').classList.toggle('hidden', tpPhase !== 'decide');
+  document.getElementById('tpRebuyBtn').classList.toggle('hidden', !broke);
+  const playBtn = document.getElementById('tpPlayBtn');
+  playBtn.disabled = bjChips < tpAnte;
+  playBtn.textContent = 'Play ' + tpAnte;
+}
+function tpPayTable() {
+  alert('3-CARD POKER\n\n' +
+    'Hand ranking (a STRAIGHT BEATS A FLUSH with 3 cards):\n' +
+    '  Straight Flush > Trips > Straight > Flush > Pair > High Card\n\n' +
+    'Play: post a Play bet equal to your Ante, or fold and forfeit it.\n' +
+    'Dealer must have Queen-high or better to qualify.\n' +
+    '  Dealer no qualify: Ante pays 1:1, Play pushes.\n' +
+    '  Dealer qualifies + you win: Ante and Play each pay 1:1.\n\n' +
+    'Ante Bonus (paid even if the dealer beats you):\n' +
+    '  Straight 1:1  ·  Trips 4:1  ·  Straight Flush 5:1\n\n' +
+    'Pair Plus (optional side bet, ignores the dealer):\n' +
+    '  Pair 1:1 · Flush 3:1 · Straight 6:1 · Trips 30:1 · Straight Flush 40:1');
+}
+
+// ════════════════════════ LEADERBOARD ════════════════════════
+function arcBoardMount() {
+  arcAuthUI();
+  if (!_arcBoardListening && db) {
+    _arcBoardListening = true;                        // fbListen is .on('value') — attach once, stays live
+    fbListen('arcade/users', d => {
+      arcUsers = d || {};
+      if (arcView === 'board') arcRenderBoard();
+    });
+  }
+  arcRenderBoard();
+}
+function arcBoardTabSet(tab) {
+  arcBoardTab = tab;
+  document.querySelectorAll('#arcBoardTabs .arc-sub').forEach(b => {
+    const on = b.dataset.board === tab;
+    b.classList.toggle('arc-btn-b', on);
+    b.classList.toggle('arc-btn-n', !on);
+  });
+  arcRenderBoard();
+}
+function arcRenderBoard() {
+  const list = document.getElementById('arcBoardList');
+  if (!list) return;
+  const metric = arcBoardTab === 'tetris' ? 'tetris' : arcBoardTab === 'flappy' ? 'flappy' : 'chips';
+  const rows = Object.entries(arcUsers)
+    .map(([k, u]) => ({ key: k, name: u.name || k, chips: u.chips || 0, tetris: u.tetris || 0, flappy: u.flappy || 0, w: u.bjWins || 0, l: u.bjLosses || 0 }))
+    .sort((a, b) => b[metric] - a[metric]);
+
+  if (!rows.length) {
+    list.innerHTML = '<div class="text-[11px] text-white/25 text-center py-6">' +
+      (db ? 'No players yet. Sign in and play to get on the board.' : 'No database connection.') + '</div>';
+    return;
+  }
+  const medal = ['#FFBF00', '#c0c8d4', '#cd7f32'];
+  list.innerHTML = rows.map((r, i) => {
+    const me = arcUser && arcUser.key === r.key;
+    const rankColor = i < 3 ? medal[i] : 'rgba(255,255,255,0.3)';
+    let right;
+    if (arcBoardTab === 'overall') {
+      right = '<div style="text-align:right;line-height:1.35">' +
+        '<div class="mono text-xs font-bold" style="color:#22c55e">' + r.chips.toLocaleString() + '</div>' +
+        '<div class="text-[9px] text-white/25 mono">T ' + r.tetris.toLocaleString() + ' &middot; F ' + r.flappy + '</div></div>';
+    } else if (arcBoardTab === 'tetris') {
+      right = '<div class="mono text-sm font-bold" style="color:#8B5CF6">' + r.tetris.toLocaleString() + '</div>';
+    } else if (arcBoardTab === 'flappy') {
+      right = '<div class="mono text-sm font-bold" style="color:#4A8EFF">' + r.flappy + '</div>';
+    } else {
+      right = '<div class="mono text-sm font-bold" style="color:#22c55e">' + r.chips.toLocaleString() + '</div>';
+    }
+    return '<div class="arc-board-row' + (me ? ' arc-me' : '') + '">' +
+      '<span class="arc-rank" style="color:' + rankColor + '">' + (i + 1) + '</span>' +
+      '<div style="flex:1 1 auto;min-width:0">' +
+        '<div class="text-xs font-bold" style="color:' + (me ? '#4A8EFF' : '#e8e6f0') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + arcEsc(r.name) + '</div>' +
+        '<div class="text-[9px] text-white/25 mono">' + r.w + 'W - ' + r.l + 'L</div>' +
+      '</div>' + right + '</div>';
+  }).join('');
+}
+function arcEsc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 // Init Firebase synchronously, listeners attach after state is populated in init()
 initFirebase();
