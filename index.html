@@ -12075,14 +12075,38 @@ function toggleSequenceHidden(id) {
   setSequenceProp(id, 'hidden', on ? true : '');
   if (on && String(seqFilter) === String(id)) setSeqFilter('ALL');
 }
-function addSequence() {
-  if (isManagerView) return;
-  const key = (prompt('New sequence key — the value stored on each pour (e.g. 4, or "South Hall"):', '') || '').trim();
-  if (!key) return;
-  if (allSequenceIds(true).some(id => id.toLowerCase() === key.toLowerCase())) { alert('“' + key + '” already exists.'); return; }
+// next free numeric key — what a new sequence is most likely to be called
+function nextSequenceKey() {
+  const nums = allSequenceIds(true).map(id => +id).filter(n => Number.isFinite(n) && n > 0);
+  return String(nums.length ? Math.max(...nums) + 1 : 1);
+}
+// Seed a sequence in the registry so it shows in the filter row (and every sequence
+// dropdown) before it has a single pour. Returns the key, or '' if it was no good.
+function createSequence(key) {
+  if (isManagerView) return '';
+  key = String(key == null ? '' : key).trim();
+  if (!key) return '';
+  if (allSequenceIds(true).some(id => id.toLowerCase() === key.toLowerCase())) { alert('“' + key + '” already exists.'); return ''; }
   seqOverrides = Object.assign({}, seqOverrides, { [key]: { createdAt: new Date().toISOString() } });
   seqSaveOverrides();
   renderSequenceGroups(); renderSeqManagerBody();
+  return key;
+}
+function promptNewSequence() {
+  if (isManagerView) return '';
+  const key = prompt('New sequence — the value stored on each pour (e.g. 5, or "South Hall"):', nextSequenceKey());
+  if (key == null) return '';
+  return createSequence(key);
+}
+function addSequence() { promptNewSequence(); }
+// <option> list of every live sequence + an inline "+ New sequence…", for anywhere a
+// pour gets assigned. `current` is kept in the list even if it's hidden or archived-only.
+function seqSelectOptionsHtml(current, ids) {
+  const list = (ids || allSequenceIds(false)).map(String);
+  const cur = current == null ? '' : String(current);
+  if (cur && !list.some(id => id === cur)) list.unshift(cur);
+  return list.map(id => `<option value="${escapeHtmlSeq(id)}"${id === cur ? ' selected' : ''} style="background:#1a1a1a">${escapeHtmlSeq(seqLabelCup(id))}</option>`).join('')
+    + `<option value="__newseq" style="background:#1a1a1a">+ New sequence…</option>`;
 }
 // Move every pour in one sequence into another (merge / re-key without touching the schema).
 function moveSequencePours(from, to) {
@@ -12417,7 +12441,15 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   // Header
   // Meta row: seq·area badge + date/time/status (compact, stays one line)
   html += `<div class="flex items-center justify-between gap-2 mb-1.5">`;
-  html += `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style="background:${c}22;color:${c}">${escapeHtmlSeq(seqLabelCup(seq.id))}·${escapeHtmlSeq(area.id)}</span>`;
+  const seqBadgeTxt = `${escapeHtmlSeq(seqLabelCup(seq.id))}·${escapeHtmlSeq(area.id)}`;
+  if (isManagerView) {
+    html += `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style="background:${c}22;color:${c}">${seqBadgeTxt}</span>`;
+  } else {
+    // tap the badge to move this one pour into another sequence — or one made on the spot
+    html += `<span class="relative inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 cursor-pointer hover:brightness-125 transition-all" style="background:${c}22;color:${c}" title="Move this pour to another sequence">${seqBadgeTxt}<span class="material-symbols-outlined" style="font-size:11px;opacity:0.55">expand_more</span>
+      <select class="absolute inset-0 opacity-0 cursor-pointer" onchange="setPourSequence('${escapedKey}',this.value)">${seqSelectOptionsHtml(seq.id, null)}</select>
+    </span>`;
+  }
   html += `<div class="flex items-center gap-1.5 shrink-0">`;
   if (isManagerView) {
     html += `<span class="text-[10px] mono text-white/40">${[escapeHtmlSeq(dateMd), escapeHtmlSeq(fmtTime(timeStr))].filter(Boolean).join(' · ') || '—'}</span>`;
@@ -12612,6 +12644,7 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
   html += `<span class="text-[10px] mono text-white/40">${trucks} truck${trucks===1?'':'s'}</span>`;
   if (!isManagerView) {
     html += `<div class="flex items-center gap-1.5">`;
+    html += `<button onclick="showEditFoundationPourModal('${escapedKey}')" class="text-[9px] font-bold px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25 flex items-center gap-1" title="Edit this pour — name, date, sequence, area, phase, volume, mix, status"><span class="material-symbols-outlined" style="font-size:11px">edit</span>Edit</button>`;
     if (isArchived) {
       html += `<button onclick="unarchiveFoundationPour('${escapedKey}')" class="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25 hover:bg-amber-500/25" title="Move back to the active list">Unarchive</button>`;
     } else {
@@ -12631,6 +12664,7 @@ function renderFoundationPourCard(seq, area, phaseId, pour, key) {
 // zone's geometry/checklist (owned by embed-tracker) is never clobbered.
 function zoneFieldPath(field) {
   if (field === 'pour_date') return 'date';                 // embed-tracker stores 'date'
+  if (field === 'sequence') return 'pour';                  // embed-tracker stores the sequence as 'pour'
   if (field.startsWith('mix.')) return 'mix/' + field.split('.')[1];
   return field;
 }
@@ -12651,6 +12685,19 @@ function updateFoundationPourField(key, field, value) {
   fbSet('cup-foundation/pours/' + key + '/' + zoneFieldPath(field), value);
   fbSet('cup-foundation/pours/' + key + '/updatedAt', new Date().toISOString());
   seqRecolorAreas();
+}
+
+// Move a single pour into another sequence (or one created right there in the dropdown).
+function setPourSequence(key, val) {
+  if (isManagerView) return;
+  const cur = String((foundationPours[key] || {}).sequence == null ? '' : foundationPours[key].sequence);
+  let seq = String(val || '');
+  if (seq === '__newseq') seq = promptNewSequence();
+  if (!seq || seq === cur) { renderSequenceGroups(); return; }   // cancelled / no-op — redraw the badge
+  updateFoundationPourField(key, 'sequence', seq);
+  renderSequenceGroups();
+  if (typeof renderSeqRail === 'function') renderSeqRail();
+  try { const fm = getFoundationMap(); fm.setPours(foundationPours); } catch (e) {}
 }
 
 // Pour category: 'foundation' (default) | 'ratslab'. CUP-private field on cup-foundation/pours.
@@ -12754,18 +12801,31 @@ function afpCalRender() {
   h += `<div class="flex justify-between mt-2 pt-2 border-t border-white/10"><button type="button" onclick="afpCalSet('')" class="text-[10px] text-white/40 hover:text-white/70">Clear</button><button type="button" onclick="afpCalSet('${todayIso}')" class="text-[10px] text-cyan-300 hover:text-cyan-200 font-bold">Today</button></div>`;
   box.innerHTML = h;
 }
-// Creates a pour (name + date + seq/area/phase + CY + mix) as a geometry-less
-// embed-tracker zone. You give it a location later by drawing its box in the
-// embed-tracker app and selecting it.
-function showAddFoundationPourModal() {
+// One form, two modes: `key` omitted creates a pour as a geometry-less embed-tracker
+// zone (you give it a location later by drawing its box on the plan map or in the
+// embed-tracker app); `key` given edits that pour in place. Everything on a pour card
+// is editable here in one pass — the inline card controls (date, time, status, volume,
+// mix qty) stay as the quick path.
+function showFoundationPourModal(key) {
   if (isManagerView) return;
   document.getElementById('addFoundationPourModal')?.remove();
-  const seqOpts = ['1','2','3','4','South Hall','CUP'];
-  const areaOpts = ['A','B','C','D'];
-  const phaseOpts = ['1','2','3','4'];
-  const psiOpts = ['','3000','4000','5000','6000','8000'];
-  const aggOpts = ['','3/8"','1/2"','3/4"','1"','1-1/2"'];
-  const sel = (id,opts) => `<select id="${id}" class="fld">${opts.map(v=>`<option value="${v}" style="background:#1a1a1a">${v||'—'}</option>`).join('')}</select>`;
+  const p = key ? foundationPours[key] : null;
+  if (key && !p) return;
+  const edit = !!p, pmix = (p && p.mix) || {};
+  // Sequences come straight from the live registry — every one on a pour plus any seeded
+  // in Manage sequences — so a sequence added today is assignable immediately.
+  const seqOpts = allSequenceIds(false);
+  if (!seqOpts.length) seqOpts.push('1');
+  const curSeq = edit ? String(p.sequence == null ? '' : p.sequence) : seqOpts[0];
+  // keep whatever the pour already holds selectable, even if it's off the standard list
+  const withCur = (opts, cur) => (cur !== '' && cur != null && !opts.some(o => String(o) === String(cur))) ? [String(cur)].concat(opts) : opts;
+  const areaOpts  = withCur(['A','B','C','D'], edit ? p.area : '');
+  const phaseOpts = withCur(['1','2','3','4'], edit ? p.phase : '');
+  const psiOpts   = withCur(['','3000','4000','5000','6000','8000'], pmix.psi);
+  const aggOpts   = withCur(['','3/8"','1/2"','3/4"','1"','1-1/2"'], pmix.aggregate);
+  const curCode   = String(pmix.code || (Array.isArray(p && p.mixCodes) ? (p.mixCodes[0] || '') : '') || '');
+  const esc = v => escapeHtmlSeq(v == null ? '' : String(v));
+  const sel = (id,opts,cur) => `<select id="${id}" class="fld">${opts.map(v=>`<option value="${esc(v)}"${String(v) === String(cur == null ? '' : cur) ? ' selected' : ''} style="background:#1a1a1a">${esc(v) || '—'}</option>`).join('')}</select>`;
   const modal = document.createElement('div');
   modal.id = 'addFoundationPourModal';
   modal.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4';
@@ -12775,59 +12835,129 @@ function showAddFoundationPourModal() {
   modal.innerHTML = `
     <div class="rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto slim-scroll" style="background:rgba(9,11,18,0.99);border:1px solid rgba(255,255,255,0.12);box-shadow:0 30px 80px -20px rgba(0,0,0,0.85)">
       <div class="flex items-center justify-between px-5 py-4 border-b border-white/10" style="background:linear-gradient(180deg,rgba(34,211,238,0.06),transparent)">
-        <h3 class="text-sm font-bold text-white/90 flex items-center gap-2"><span class="material-symbols-outlined text-cyan-400" style="font-size:18px">add_circle</span>Add Pour</h3>
+        <h3 class="text-sm font-bold text-white/90 flex items-center gap-2"><span class="material-symbols-outlined text-cyan-400" style="font-size:18px">${edit ? 'edit_square' : 'add_circle'}</span>${edit ? 'Edit Pour' : 'Add Pour'}</h3>
         <button onclick="document.getElementById('addFoundationPourModal').remove()" class="w-7 h-7 rounded-lg grid place-items-center text-white/40 hover:text-white hover:bg-white/10">&times;</button>
       </div>
       <div class="p-5 space-y-4 text-xs">
-        <div><label class="${lbl}">Pour name</label><input id="afpName" type="text" placeholder="e.g. South footing pour 1" class="fld"></div>
+        <div><label class="${lbl}">Pour name</label><input id="afpName" type="text" value="${esc(p && p.name)}" placeholder="e.g. South footing pour 1" class="fld"></div>
         <div class="grid grid-cols-2 gap-2">
           <div><label class="${lbl}">Pour date</label>
             <button type="button" id="afpDateBtn" onclick="afpCalToggle()" class="fld text-left flex items-center gap-2"><span class="material-symbols-outlined" style="font-size:16px;color:#7dd3fc">calendar_month</span><span id="afpDateLabel" class="text-white/40">Select date</span></button>
             <input type="hidden" id="afpDate" value="">
             <div id="afpCalBox" class="hidden mt-1.5 p-2.5 rounded-xl" style="background:rgba(7,9,15,0.99);border:1px solid rgba(255,255,255,0.12);box-shadow:0 14px 34px -14px rgba(0,0,0,0.85)"></div>
           </div>
-          <div><label class="${lbl}">Start time</label><input id="afpTime" type="time" style="color-scheme:dark" class="fld"></div>
+          <div><label class="${lbl}">Start time</label><input id="afpTime" type="time" value="${esc(p && p.time)}" style="color-scheme:dark" class="fld"></div>
         </div>
         <div class="grid grid-cols-3 gap-2">
-          <div><label class="${lbl}">Sequence</label>${sel('afpSeq',seqOpts)}</div>
-          <div><label class="${lbl}">Area</label>${sel('afpArea',areaOpts)}</div>
-          <div><label class="${lbl}">Phase</label>${sel('afpPhase',phaseOpts)}</div>
+          <div><label class="${lbl}">Sequence</label><select id="afpSeq" class="fld" onchange="afpSeqPicked(this)">${seqSelectOptionsHtml(curSeq, seqOpts)}</select></div>
+          <div><label class="${lbl}">Area</label>${sel('afpArea',areaOpts, edit ? p.area : 'A')}</div>
+          <div><label class="${lbl}">Phase</label>${sel('afpPhase',phaseOpts, edit ? p.phase : '1')}</div>
         </div>
         <div class="grid grid-cols-2 gap-2">
           <div><label class="${lbl}">Pour type</label>
             <select id="afpCategory" class="fld">
-              <option value="foundation" style="background:#1a1a1a">Foundation</option>
-              <option value="ratslab" style="background:#1a1a1a">Rat slab</option>
+              <option value="foundation"${(p && p.category === 'ratslab') ? '' : ' selected'} style="background:#1a1a1a">Foundation</option>
+              <option value="ratslab"${(p && p.category === 'ratslab') ? ' selected' : ''} style="background:#1a1a1a">Rat slab</option>
             </select>
           </div>
-          <div><label class="${lbl}">Volume (CY)</label><input id="afpCy" type="number" step="1" placeholder="150" class="fld mono"></div>
+          <div><label class="${lbl}">Volume (CY)</label><input id="afpCy" type="number" step="1" value="${p ? (+p.cy || 0) : ''}" placeholder="150" class="fld mono"></div>
         </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div><label class="${lbl}">Label (optional)</label><input id="afpLabel" type="text" value="${esc(p && p.label)}" placeholder="e.g. North slab" class="fld"></div>
+          ${edit ? `<div><label class="${lbl}">Status</label>${sel('afpStatus',['PENDING','ORDERED','COMPLETE'], p.status || 'PENDING')}</div>` : `<div><label class="${lbl}">Status</label><input class="fld" value="Pending" disabled></div>`}
+        </div>
+        <div><label class="${lbl}">Note (optional)</label><input id="afpNotes" type="text" value="${esc(p && p.notes)}" placeholder="anything the crew should know" class="fld"></div>
         <div class="pt-3 border-t border-white/10">
           <div class="${sectionLbl}"><span class="material-symbols-outlined" style="font-size:13px">science</span>Concrete mix</div>
           <div class="space-y-3">
             <div><label class="${lbl}">Mix design (optional)</label>
               <select id="afpMix" onchange="applyMixToAddForm(this.value)" class="fld">
                 <option value="" style="background:#1a1a1a">— choose a saved design —</option>
-                ${Object.values(getMixDesigns()).map(d=>`<option value="${String(d.code||'').replace(/"/g,'&quot;')}" style="background:#1a1a1a">${escapeHtmlSeq((d.label||d.code||'—')+' · '+fmtPsi(d.psi))}</option>`).join('')}
+                ${Object.values(getMixDesigns()).map(d=>`<option value="${esc(d.code)}"${String(d.code||'') === curCode ? ' selected' : ''} style="background:#1a1a1a">${escapeHtmlSeq((d.label||d.code||'—')+' · '+fmtPsi(d.psi))}</option>`).join('')}
               </select>
             </div>
             <div class="grid grid-cols-3 gap-2">
-              <div><label class="${lbl}">PSI</label>${sel('afpPsi',psiOpts)}</div>
-              <div><label class="${lbl}">Aggregate</label>${sel('afpAgg',aggOpts)}</div>
-              <div><label class="${lbl}">Slump</label><input id="afpSlump" type="text" placeholder='5"' class="fld mono"></div>
+              <div><label class="${lbl}">PSI</label>${sel('afpPsi',psiOpts, pmix.psi)}</div>
+              <div><label class="${lbl}">Aggregate</label>${sel('afpAgg',aggOpts, pmix.aggregate)}</div>
+              <div><label class="${lbl}">Slump</label><input id="afpSlump" type="text" value="${esc(pmix.slump)}" placeholder='5"' class="fld mono"></div>
             </div>
-            <label class="flex items-center gap-2 text-white/60 cursor-pointer text-[11px]"><input type="checkbox" id="afpLc3" class="accent-cyan-500 w-3.5 h-3.5"> <span>LC3 mix</span></label>
+            <label class="flex items-center gap-2 text-white/60 cursor-pointer text-[11px]"><input type="checkbox" id="afpLc3" class="accent-cyan-500 w-3.5 h-3.5"${pmix.lc3 ? ' checked' : ''}> <span>LC3 mix</span></label>
           </div>
         </div>
-        <p class="text-[10px] text-white/30 leading-relaxed flex items-start gap-1.5"><span class="material-symbols-outlined" style="font-size:13px">info</span>This pour appears on the footing map, the Sequences list, and Pour Day right away — open the Footing map tab and assign its footings.</p>
+        <p class="text-[10px] text-white/30 leading-relaxed flex items-start gap-1.5"><span class="material-symbols-outlined" style="font-size:13px">info</span>${edit
+          ? 'Mix quantities, the pre-pour checklist and footing assignments stay on the card and the footing map — this covers everything else.'
+          : 'This pour appears on the footing map, the Sequences list, and Pour Day right away — open the Footing map tab and assign its footings.'}</p>
       </div>
       <div class="flex gap-2 px-5 py-4 border-t border-white/10">
         <button onclick="document.getElementById('addFoundationPourModal').remove()" class="flex-1 py-2.5 rounded-lg bg-white/5 text-white/60 text-xs font-bold hover:bg-white/10 transition-colors">Cancel</button>
-        <button onclick="submitAddFoundationPour()" class="flex-1 py-2.5 rounded-lg bg-cyan-500/25 text-cyan-200 border border-cyan-500/40 text-xs font-bold hover:bg-cyan-500/35 transition-colors">Add Pour</button>
+        <button onclick="${edit ? `submitEditFoundationPour('${String(key).replace(/'/g, "\\'")}')` : 'submitAddFoundationPour()'}" class="flex-1 py-2.5 rounded-lg bg-cyan-500/25 text-cyan-200 border border-cyan-500/40 text-xs font-bold hover:bg-cyan-500/35 transition-colors">${edit ? 'Save changes' : 'Add Pour'}</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
+  if (edit && p.pour_date) afpCalSet(p.pour_date);          // fills the hidden input + the button label
   setTimeout(()=>document.getElementById('afpName')?.focus(), 50);
+}
+function showAddFoundationPourModal() { showFoundationPourModal(null); }
+function showEditFoundationPourModal(key) { showFoundationPourModal(key); }
+
+// "+ New sequence…" picked in the Add Pour modal — create it, rebuild the list, select it.
+// Cancelling falls back to whatever was selected before.
+function afpSeqPicked(el) {
+  if (el.value !== '__newseq') { el._prev = el.value; return; }
+  const key = promptNewSequence();
+  const back = key || el._prev || '';
+  el.innerHTML = seqSelectOptionsHtml(back, null);
+  el.value = back || (el.options[0] ? el.options[0].value : '');
+  el._prev = el.value;
+}
+
+// Save the Edit Pour form — only the fields that actually changed get written.
+function submitEditFoundationPour(key) {
+  if (isManagerView) return;
+  const p = foundationPours[key];
+  if (!p) { document.getElementById('addFoundationPourModal')?.remove(); return; }
+  const val = id => (document.getElementById(id)?.value || '').trim();
+  const name = val('afpName');
+  if (!name) { alert('Enter a pour name.'); return; }
+  const seqRaw = val('afpSeq');
+  const next = {
+    name,
+    pour_date: val('afpDate'),
+    time: val('afpTime'),
+    sequence: (seqRaw && seqRaw !== '__newseq' ? seqRaw : String(p.sequence == null ? '' : p.sequence)) || '1',
+    area: val('afpArea') || p.area || 'A',
+    phase: val('afpPhase'),
+    category: (document.getElementById('afpCategory')?.value === 'ratslab' ? 'ratslab' : 'foundation'),
+    cy: parseFloat(val('afpCy')) || 0,
+    label: val('afpLabel'),
+    notes: val('afpNotes'),
+    status: val('afpStatus') || p.status || 'PENDING',
+    'mix.psi': val('afpPsi'),
+    'mix.aggregate': val('afpAgg'),
+    'mix.slump': val('afpSlump'),
+    'mix.lc3': !!document.getElementById('afpLc3')?.checked,
+    'mix.code': val('afpMix'),
+  };
+  const m = p.mix || {};
+  const cur = {
+    name: p.name || '', pour_date: p.pour_date || '', time: p.time || '',
+    sequence: String(p.sequence == null ? '' : p.sequence),
+    area: String(p.area == null ? '' : p.area), phase: String(p.phase == null ? '' : p.phase),
+    category: p.category === 'ratslab' ? 'ratslab' : 'foundation', cy: +p.cy || 0,
+    label: p.label || '', notes: p.notes || '', status: p.status || 'PENDING',
+    'mix.psi': m.psi || '', 'mix.aggregate': m.aggregate || '', 'mix.slump': m.slump || '',
+    'mix.lc3': !!m.lc3, 'mix.code': m.code || '',
+  };
+  const codes = pourMixCodes(p);
+  Object.keys(next).forEach(f => { if (String(next[f]) !== String(cur[f])) updateFoundationPourField(key, f, next[f]); });
+  // status drives the embed-tracker 'done' flag too (same as the card's status chip)
+  if (next.status !== cur.status) fbSet('cup-foundation/pours/' + key + '/done', next.status === 'COMPLETE');
+  // a newly chosen design joins the pour's mix list; the ones already on it are left alone
+  if (next['mix.code'] && !codes.includes(next['mix.code'])) updateFoundationPourField(key, 'mixCodes', codes.concat(next['mix.code']));
+  document.getElementById('addFoundationPourModal')?.remove();
+  renderSequenceGroups();
+  if (typeof renderSeqRail === 'function') renderSeqRail();
+  try { const fm = getFoundationMap(); fm.setPours(foundationPours); } catch (e) {}
 }
 
 function submitAddFoundationPour() {
@@ -12839,10 +12969,12 @@ function submitAddFoundationPour() {
     name,
     date: val('afpDate'),                 // 'YYYY-MM-DD'
     time: val('afpTime'),                 // 'HH:MM'
-    pour: val('afpSeq') || '1',           // sequence
+    pour: (val('afpSeq') === '__newseq' ? '' : val('afpSeq')) || '1',   // sequence
     area: val('afpArea') || 'A',
     phase: val('afpPhase') || '1',
     cy: parseFloat(val('afpCy')) || 0,
+    label: val('afpLabel'),
+    notes: val('afpNotes'),
     mix: { psi: val('afpPsi'), aggregate: val('afpAgg'), slump: val('afpSlump'), lc3: !!document.getElementById('afpLc3')?.checked, code: val('afpMix') },
     mixCodes: val('afpMix') ? [val('afpMix')] : [],
     status: 'PENDING',
